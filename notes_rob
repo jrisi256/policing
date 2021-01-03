@@ -1,0 +1,40 @@
+Read in officer complaints (flagged as being particularly).
+
+Refile the FOIA request every year or so. 20 years, 60 years -> production to get the data -> process from getting it out of PDF into csv.
+
+cr_id -> complaint ID. Good way to join a lot of these complaints together.
+
+Many-to-many relationships. One than more officer accused on the same complaint. complaints-accused. Multiple complaints per incident. Multiple victims per complaint.
+Uniform ID -> ID for for police officers.
+Incidents on same day are usually for the same day.
+
+complaints-accused (each row is a police officer accused)
+complaints-victims (each row is a victim)
+complaints-complainants (each row is a person making the complaint)
+complaints-witnesses (each row is a witness making a complaint)
+
+final-profiles.csv -> demographic information for the police officers. Created by Invisible Institute. Missing data. They had to clean the officer-profiles dataset. Had to ensure at least one officer for each complaint.
+unit_reference.csv -> what a unit an officer was assigned to at a given time, one officer assignment per row, and the time they served.
+officer-profiles.csv -> Given to them by the Police. Messy, data.
+
+settlements -> court cases that arose and money that was paid out. (hard to get).
+
+TRR report (Tactical response report) -> use of force, form they have to fill out every time they use force. trr_id is the use of force incident. Have to look into how trr_id is generated. May have time stamp associated with it.
+
+main (most useful), charges (each use of force incident), officers (who was involved, multiple officers per use of force), subject-weapons (weapons of the subject, multiple weapons per use of force), subjects, actions-responses (escalating progress which happens), statuses (question, what is this). You have location data. You can join with the Chicago crime public data to match the use of force to the crime reported by the police officers (they have to report a crime for each use of force).
+
+ContactCardData -> Lucy Parsons Lab. Contact them to see if they still have this data. Information on a person's clothing and skin tone.
+
+PROBLEM: you know unit assignments but you don't know if they were assigned to desk duty that day or just watching a corner or may have orders from Lieutenant to crack some heads.
+
+Internal Affairs, IPRA, COPA. A majority of complaints don't get investigated. One of the major chokepoints is the person complaining must show up to a specific police department within 30 days and sign an affidavit. Prerequisite for complaint to be investigated. Bocar Ba -> paper on this. Was with Invisible Institute and at Duke. Big declines in shootings and use of force. Big declines in complaints (can report complaints over the phone, kind of easy). Improving quality? Well... demographic changes will change nature of stops. Work slowdowns and work stoppages in the police force will influence these things. 2-week period after Laquan McDonalad arrests police stopped working but didn't seem to affect crime rates (as measured by arrests I would imagine).
+
+Can use this data to get the number of complaints per unit.
+
+Around the year 2000, they switched from a paper system to a digital system. Complaints before 2000 are suspect for this reason.
+
+Data is probably an almost complete set of each use of force, each complaint. The FOIA was turn over everything. The police department may not have complied fully. May have missed something. Maybe 99%?
+
+Use of force is tricky. Police officers don't report every time. And blurry lines over what is use of force (pushing?). Police officers who do talk about this are generally the best, most upstanding, most intelligent.
+
+You know police officer rank. You know the unit assignments. You know there are only a certain number of ranks per unit. Can infer certain things. Like who's in charge. Could FOIA this. What is the influence of certain supervisors on the culture of the unit? Know people assigned to training academy (what are their duties there, need FOIA). What's their influence on their students? Could infer this for time overlap.
