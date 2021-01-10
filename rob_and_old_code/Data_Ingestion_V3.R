@@ -933,21 +933,3 @@ require(igraph)
 # b$name <- prof[match(b$Id, prof$UID),]$fname
 # write.csv(b, "EdgeTRR.csv", row.names=F)
 # 
-# 
-# 
-# 
-# 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
