@@ -781,10 +781,10 @@
     },
     "sp": {
       "Package": "sp",
-      "Version": "1.4-4",
+      "Version": "1.4-5",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "e0485290545c0e768c2b50390114da1f"
+      "Hash": "dfd843ee98246cf932823acf613b05dd"
     },
     "statmod": {
       "Package": "statmod",
