@@ -185,7 +185,7 @@ Other interesting things of note:
     * Administrative Termination
     * Resigned
     * Reprimand
-    * Violation NOted
+    * Violation Noted
     * Separation
     * Reinstated by police board
 * Do certain types of complaints never get punished? Or some complaints always get punished? What's the relationship look like between complaint type and punishment outcome?
