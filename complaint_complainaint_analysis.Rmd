@@ -1,0 +1,224 @@
+---
+title: "Looking at the complainant data"
+output: html_document
+---
+
+```{r, message = F, warning = F}
+library(here)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(forcats)
+library(lubridate)
+```
+
+Complaints Complainants: Each row captures a specific person making a complaint. This can be different from the victim. Logically I suppose this makes sense since the victim doesn't have to be the one making the complaint. There can be multiple complainants for each complaint.
+
+```{r}
+complaintsCTotal <-
+    read_csv(here("unified_data", "full-output", "complaints",
+                  "complaints-complainants.csv"),
+             col_types = cols(cr_id = "c"))
+
+complaintsC6799 <-
+    read_csv(here("unified_data", "full-output", "complaints",
+                  "complaints-complainants_1967-1999_2016-12.csv"),
+             col_types = cols(birth_year = "c", cr_id = "c"))
+
+complaintsC0016 <-
+    read_csv(here("unified_data", "full-output", "complaints",
+                  "complaints-complainants_2000-2016_2016-11.csv"),
+             col_types = cols(cr_id = "c"))
+
+complaintsC0018 <-
+    read_csv(here("unified_data", "full-output", "complaints",
+                  "complaints-complainants_2000-2018_2018-03.csv"),
+             col_types = cols(cr_id = "c"))
+
+complaintsCivWitness18 <-
+    read_csv(here("unified_data", "full-output", "complaints",
+                  "complaints-civilian-witnesses_2000-2018_2018-03.csv"),
+             col_types = cols(cr_id = "c"))
+
+complaintsAccusedTotal <-
+    read_csv(here("unified_data", "full-output", "complaints",
+                  "complaints-accused.csv"),
+             col_types = cols(recc_finding = "c", recc_outcome = "c",
+                              cr_id = "c"))
+```
+
+Fraction of records labeled as witnesses which don't show up in the civilian witness data set: `r table(is.na(witnesses$row_id.y))[["TRUE"]] / nrow(witnesses)`  
+
+```{r}
+# None of the records from 1967-1999 are included in the total data set
+antij6799 <- anti_join(complaintsC6799, complaintsCTotal, by = "cr_id")
+
+antij0016 <- anti_join(complaintsC0016, complaintsCTotal, by = "cr_id")
+antij0018 <- anti_join(complaintsC0018, complaintsCTotal, by = "cr_id")
+```
+
+Fraction of rows from 1967-1999 data set missing from total data set: `r nrow(antij6799) / nrow(complaintsC6799)`  
+Fraction of rows from 2000-2016 data set missing from total data set: `r nrow(antij0016) / nrow(complaintsC6799)`  
+Fraction of rows from 2000-2016 data set missing from total data set: `r nrow(antij0016) / nrow(complaintsC6799)`  
+
+* There are complaints from the 2016 data set not in the 2018 data set. The only reason I can think of is that these complaints don't have a newer 2018 entry which has more columns.
+* There are some complaints in the 2018 data set not in the 2016 data set which makes theoretical sense because those complaints could have occurred after 2016.
+* There are **A LOT** more complaints in the 2000 - 2018 data set than in the 2000 - 2016 data set.
+* It appears as if there are a lot of duplicate complaint/complainant rows in the 2000 - 2018 data set. It's hard to know for sure since there aren't any IDs associated with complainants. E.g. see cr_id 1075094 (there are many examples of this).
+
+```{r}
+# Some 2016 complaints aren't found in 2018 
+aj0016_0018 <- anti_join(complaintsC0016, complaintsC0018, by = "cr_id")
+
+# Some 2018 complaints aren't found in 2016
+aj0018_0016 <- anti_join(complaintsC0018, complaintsC0016, by = "cr_id")
+```
+
+The overwhelming majority of records in the total data set come from the 2000 - 2018 data set.
+
+```{r}
+table(complaintsCTotal$cv)
+```
+
+## Comparing Civlian Witnesses to Complainants
+
+* Not all complainants labeled as *witnesses* in the complainant data set show up in the civilian witness data set. This could be because they are not civilian witnesses? Perhaps they are another type of witness.
+* All complaints where the witness is also the complainant (from the civilian witness data set) show up in the complainants data set. It appears then as if the civilian witness data set includes all those who are either:
+    * primarily a witness
+    * primarily a complainant and secondarily a witness.
+* **POSSIBLE FUTURE DATA CHECK**: Do the columns match for those records both in civilian witnesses data set and the complainants data set? This would require de-duping both data sets and dealing with missing information. A lot of work for an uncertain reward.
+
+```{r}
+witnesses <- 
+    complaintsC0018 %>%
+    filter(complainant_subtype == "Witness") %>%
+    left_join(complaintsCivWitness18, by = "cr_id")
+
+civWitnesses <-
+    left_join(filter(complaintsCivWitness18, complainant_subtype == "Witness"),
+              filter(complaintsC0018, complainant_subtype == "Witness"),
+              by = "cr_id")
+```
+
+## Comparing Accused Police Officers to Complainants
+
+* Not every complaint made by a complainant has a corresponding complaint in the accused data set. I.e. not every complaint issued by a complainant has a police officer associated with it. This is strange because you would expect every complaint issued by a complainant to have a corresponding officer associated with the complaint.
+* Not every complaint-officer pair has an associated complainant. It's possible complaints can come from somewhere else other than a complainant? I don't know how much sense that makes though.
+
+```{r}
+complainantMatch <- left_join(complaintsCTotal,
+                              complaintsAccusedTotal,
+                              by = "cr_id")
+
+copMatch <- left_join(complaintsAccusedTotal,
+                      complaintsCTotal,
+                      by = "cr_id")
+```
+
+## Description of complainants: 1967 - 1999
+
+```{r}
+ggplot(complaintsC6799, aes(x = gender)) + geom_bar() +theme_bw()
+ggplot(complaintsC6799, aes(x = race)) + geom_bar() + theme_bw() + coord_flip()
+
+birth_year <-
+    complaintsC6799 %>%
+    filter(!str_detect(birth_year, "[a-zA-Z]")) %>%
+    mutate(birth_year = as.numeric(birth_year))
+
+ggplot(birth_year, aes(x = birth_year)) + geom_histogram(bins = 35) + theme_bw()
+```
+
+## Description of complainants: 2000 - 2018
+
+```{r}
+ggplot(complaintsCTotal, aes(x = gender)) + geom_bar() +theme_bw()
+ggplot(complaintsCTotal, aes(x = race)) + geom_bar() + theme_bw() + coord_flip()
+
+ageDf <-
+    complaintsC0018 %>%
+    mutate(birth_year_date = ymd(birth_year, truncated = 3),
+           age = floor(time_length(difftime(complaint_date, birth_year_date),
+                                   "years"))) %>%
+    filter(is.na(age) | age < 200) %>%
+    select(age) %>%
+    bind_rows(select(filter(complaintsCTotal, cv == 2), age))
+
+ggplot(ageDf, aes(x = age)) + geom_histogram(bins = 35, color = "green") + theme_bw()
+```
+
+```{r}
+ggplot(complaintsC0018, aes(x = investigating_agency)) + geom_bar() + theme_bw()
+ggplot(complaintsC0018, aes(x = complainant_subtype)) + geom_bar() + theme_bw()
+```
+
+```{r}
+complaintDates <-
+    complaintsC0018 %>%
+    distinct(cr_id, .keep_all = T) %>%
+    mutate(year_complaint = year(complaint_date),
+           month_complaint = month(complaint_date),
+           day_complaint = day(complaint_date),
+           wday_complaint = wday(complaint_date)) %>%
+    select(year_complaint, month_complaint, day_complaint, wday_complaint) %>%
+    pivot_longer(everything(), "date_type") %>%
+    count(date_type, value)
+
+makeComplaintDatePlot <- function(df, date_t, date_label) {
+    complaintDates %>% {
+        filter(., date_type == date_t) %>%
+        ggplot(aes(x = value, y = n)) +
+        geom_line(stat = "identity") +
+        labs(x = date_label,
+             title = paste0("Complaints By ",
+                            date_label,
+                            " (Complainants)")) +
+        scale_x_continuous(breaks = seq(min(.$value), max(.$value), 2)) +
+        theme_bw()}
+}
+
+makeComplaintDatePlot(complaintDates, "year_complaint", "Year")
+makeComplaintDatePlot(complaintDates, "month_complaint", "Month")
+makeComplaintDatePlot(complaintDates, "day_complaint", "Day")
+makeComplaintDatePlot(complaintDates, "wday_complaint", "Week Day")
+
+complaintTimeline <-
+    complaintsC0018 %>%
+    distinct(cr_id, .keep_all = T) %>%
+    mutate(year_month_complaint = floor_date(complaint_date, unit = "month")) %>%
+    count(year_month_complaint)
+
+ggplot(complaintTimeline, aes(x = year_month_complaint, y = n)) +
+    geom_point() +
+    geom_line() +
+    labs(x = "Year-Month of Complaint",
+         title = "Complaints by Complainants Aggegated by Year-Month") +
+    theme_bw()
+
+complaintYearMonth <-
+    complaintsC0018 %>%
+    mutate(year_complaint = year(complaint_date),
+           month_complaint = month(complaint_date)) %>%
+    count(year_complaint, month_complaint) %>%
+    group_by(year_complaint) %>%
+    mutate(percentage = n / sum(n)) %>%
+    ungroup()
+
+ggplot(complaintYearMonth, aes(x = month_complaint, y = n)) +
+    facet_wrap(~year_complaint, scales = "free_y") +
+    geom_line() +
+    geom_point() +
+    theme_bw()
+
+complaintYearMonth <-
+    complaintYearMonth %>%
+    filter(year_complaint != 2018, year_complaint != 2006)
+
+ggplot(complaintYearMonth, aes(x = month_complaint, y = percentage)) +
+    geom_line(aes(color = year_complaint, group = year_complaint)) +
+    geom_point(aes(color = year_complaint)) +
+    theme_bw()
+```
+
