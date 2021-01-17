@@ -78,8 +78,9 @@ complaintDates <-
     distinct(cr_id, .keep_all = T) %>%
     mutate(year_complaint = year(complaint_date),
            month_complaint = month(complaint_date),
-           day_complaint = day(complaint_date)) %>%
-    select(year_complaint, month_complaint, day_complaint) %>%
+           day_complaint = day(complaint_date),
+           wday_complaint = wday(complaint_date)) %>%
+    select(year_complaint, month_complaint, day_complaint, wday_complaint) %>%
     pivot_longer(everything(), "date_type") %>%
     count(date_type, value)
 
@@ -99,5 +100,39 @@ makeComplaintDatePlot <- function(df, date_t, date_label) {
 makeComplaintDatePlot(complaintDates, "year_complaint", "Year")
 makeComplaintDatePlot(complaintDates, "month_complaint", "Month")
 makeComplaintDatePlot(complaintDates, "day_complaint", "Day")
-```
+makeComplaintDatePlot(complaintDates, "wday_complaint", "Week Day")
 
+complaintTimeline <-
+    complaintsCivWitness18 %>%
+    distinct(cr_id, .keep_all = T) %>%
+    mutate(year_month_complaint = floor_date(complaint_date, unit = "month")) %>%
+    count(year_month_complaint)
+
+ggplot(complaintTimeline, aes(x = year_month_complaint, y = n)) +
+    geom_point() +
+    geom_line() +
+    labs(x = "Year-Month of Complaint",
+         title = "Civilian Witness Complaints Aggegated by Year-Month") +
+    theme_bw()
+
+complaintYearMonth <-
+    complaintsCivWitness18 %>%
+    mutate(year_complaint = year(complaint_date),
+           month_complaint = month(complaint_date)) %>%
+    count(year_complaint, month_complaint) %>%
+    group_by(year_complaint) %>%
+    mutate(percentage = n / sum(n)) %>%
+    ungroup()
+
+ggplot(complaintYearMonth, aes(x = month_complaint, y = n)) +
+    facet_wrap(~year_complaint, scales = "free_y") +
+    geom_line() +
+    geom_point() +
+    theme_bw()
+
+ggplot(complaintYearMonth, aes(x = year_complaint, y = percentage)) +
+    facet_wrap(~month_complaint, scales = "free_y") +
+    geom_line() +
+    geom_point() +
+    theme_bw()
+```
