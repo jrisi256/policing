@@ -1,0 +1,70 @@
+---
+title: "merge"
+output: html_document
+---
+
+```{r}
+library(here)
+library(dplyr)
+library(readr)
+library(lubridate)
+```
+
+```{r}
+dir <- file.path("unified_data", "full-output", "complaints")
+
+# Read in complaint - accused officer data
+accused <-
+    read_csv(here(dir, "complaints-accused.csv"),
+             col_types = cols(recc_finding = "c", recc_outcome = "c",
+                              cr_id = "c")) %>%
+    mutate(link_UID = as.character(link_UID),
+           final_outcome = tolower(final_outcome),
+           recc_outcome = tolower(recc_outcome))
+
+#  Read in civilian witnesses to the complaint
+civWitness <-
+    read_csv(here(dir, "complaints-civilian-witnesses_2000-2018_2018-03.csv"),
+             col_types = cols(complaint_date = col_date(format = "%Y-%m-%d"),
+                              cr_id = "c")) %>%
+    mutate(birth_year_date = ymd(birth_year, truncated = 3),
+           age = floor(time_length(difftime(complaint_date, birth_year_date),
+                                   "years")))
+
+# Read in complaints by complainants
+complainants <-
+    read_csv(here(dir, "complaints-complainants.csv"),
+             col_types = cols(cr_id = "c"))
+
+# Read in Chicago police officers witnesses to the complaint
+# 2018 dataset is a subset of this dataset with more extensive information
+# made available about the officers who witnessed the violation or crime
+cpdWitness <-
+    read_csv(here(dir, "complaints-CPD-witnesses.csv"),
+             col_types = cols(cr_id = "c")) %>%
+    mutate(link_UID = as.character(link_UID))
+
+# Read in investigators who are investigating the cases
+# Some of these people don't have officer IDs.
+# Investigator ID uniquely identifies each investigator I think
+# ID for investigators, If non-null UID = UID, else cv * 100,000 + intrafile id
+investigators <-
+    read_csv(here(dir, "complaints-investigators.csv"),
+             col_types = cols(assigned_datetime = "c", first_name_NS = "c",
+                              gender = "c", investigator_type = "c",
+                              `complaints-investigators_2000-2018_2018-03_ID` = "d",
+                              last_name_NS = "c", race = "c", birth_year = "d",
+                              star = "d")) %>%
+    mutate(link_UID = as.character(link_UID), cr_id = as.character(cr_id),
+           investigator_ID = as.character(investigator_ID))
+
+# Read in the victims
+victims <-
+    read_csv(here(dir, "complaints-victims.csv")) %>%
+    mutate(cr_id = as.character(cr_id))
+
+# Read in complaint locations
+locations <-
+    read_csv(here(dir, "complaints-complaints.csv"),
+             col_types = cols(cr_id = "c", full_address = "c"))
+```

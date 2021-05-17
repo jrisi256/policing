@@ -49,8 +49,6 @@ complaintsAccusedTotal <-
                               cr_id = "c"))
 ```
 
-Fraction of records labeled as witnesses which don't show up in the civilian witness data set: `r table(is.na(witnesses$row_id.y))[["TRUE"]] / nrow(witnesses)`  
-
 ```{r}
 # None of the records from 1967-1999 are included in the total data set
 antij6799 <- anti_join(complaintsC6799, complaintsCTotal, by = "cr_id")
@@ -101,6 +99,8 @@ civWitnesses <-
               filter(complaintsC0018, complainant_subtype == "Witness"),
               by = "cr_id")
 ```
+
+Fraction of records labeled as witnesses which don't show up in the civilian witness data set: `r table(is.na(witnesses$row_id.y))[["TRUE"]] / nrow(witnesses)`  
 
 ## Comparing Accused Police Officers to Complainants
 

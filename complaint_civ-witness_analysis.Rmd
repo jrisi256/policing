@@ -48,7 +48,7 @@ Number of total civilian witness complaints: `r length(unique(complaintsCivWitne
 match <- left_join(complaintsCivWitness18, complaintsAccusedTotal, by = "cr_id")
 ```
 
-How many civilian complaints don't match with the complaint accused (cop level) data?: `r table(is.na(match$UID))[["TRUE"]]`  
+How many civilian complaints don't match with the complaint accused (cop level) data?: `r table(is.na(match$link_UID))[["TRUE"]]`  
 Percentage of total complaint incidents which don't match: `r table(is.na(match$UID))[["TRUE"]] / nrow(match)`
 
 ```{r}
