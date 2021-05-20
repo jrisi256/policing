@@ -194,3 +194,49 @@ settlements <-
                   "settlements_1952-2016_2017-01.csv"))
 ```
 
+## Use of Force
+
+```{r}
+trrDir <- file.path("unified_data", "full-output", "TRR")
+
+# Read in the officer actions
+trrActions <-
+    read_csv(here(trrDir, "TRR-actions-responses_2004-2016_2016-09.csv")) %>%
+    mutate(trr_id = as.character(trr_id))
+
+# Read what the subjects were charged with? I think
+trrCharges <-
+    read_csv(here(trrDir, "TRR-charges_2004-2016_2016-09.csv")) %>%
+    mutate(trr_id = as.character(trr_id))
+
+# Every use of force which resulted in a weapon being discharged
+trrDischarge <-
+    read_csv(here(trrDir, "TRR-discharge-hits_2004-2016_2016-09.csv"))
+
+# Each police officer involved with each use of force
+trrOfficers <-
+    read_csv(here(trrDir, "TRR-officers_2004-2016_2016-09.csv")) %>%
+    mutate(link_UID = as.character(link_UID))
+
+# Don't really know what this dataset is. Status of the use of force reports?
+trrStatus <-
+    read_csv(here(trrDir, "TRR-statuses_2004-2016_2016-09.csv")) %>%
+    mutate(link_UID = as.character(link_UID),
+           trr_id = as.character(link_UID))
+
+# Weapons wielded by subject if they were wielding a weapon
+trrSubjectWeapon <-
+    read_csv(here(trrDir, "TRR-subject-weapons_2004-2016_2016-09.csv"))
+
+# Subjects in the use of force
+trrSubjects <-
+    read_csv(here(trrDir, "TRR-subjects_2004-2016_2016-09.csv"))
+
+# Superset of all weapon discharges and not just guns/firearms, I think
+trrWeaponDischarge <-
+    read_csv(here(trrDir, "TRR-weapon-discharges_2004-2016_2016-09.csv"))
+
+# Main list of TRR incidents it seems
+trrMain <-
+    read_csv(here(trrDir, "TRR-main_2004-2016_2016-09.csv"))
+```
