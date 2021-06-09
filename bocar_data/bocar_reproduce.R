@@ -5,6 +5,7 @@ library(tidyr)
 library(ggplot2)
 library(magrittr)
 library(lubridate)
+library(data.table)
 
 ############################################## Read in officers
 
@@ -102,7 +103,57 @@ assignmentOfficer %>%
 prop.table(shiftlength.tab)[c("9", "8.5", "8")]
 
 #  For each shift... something to do with subtracting the mean
-shiftRaceAvg <-
+assignments.shiftlength <- demean.by.group(
+    data.table(assignmentOfficer),
+    id = 'officer_id',
+    fe = c('beat_assigned', 'weekday', 'shift', 'month'),
+    ds = 'officer_race',
+    ys = 'shiftlength'
+)
+
+assignmentsShiftLength <-
     assignmentOfficer %>%
-    group_by(officer_race) %>%
-    summarise(meanShiftLength = mean(shiftlength, na.rm = T))
+    select(c("officer_id", "beat_assigned", "weekday", "shift", "month",
+             "officer_race", "shiftlength")) %>%
+    filter(across(c("officer_id", "beat_assigned", "weekday", "shift", "month",
+                    "officer_race", "shiftlength"),
+           ~!is.na(.x))) %>%
+    group_by(beat_assigned, weekday, shift, month) %>%
+    mutate(meanShiftLength = mean(shiftlength),
+           centeredShiftLength = shiftlength - meanShiftLength,
+           var = 1,
+           officerRace = officer_race) %>%
+    ungroup() %>%
+    mutate(id = row_number()) %>%
+    pivot_wider(names_from = officer_race,
+                values_from = var,
+                values_fill = 0) %>%
+    select(-id) %>%
+    group_by(beat_assigned, weekday, shift, month) %>%
+    mutate(officer_white = officer_white - mean(officer_white),
+           officer_black = officer_black - mean(officer_black),
+           officer_hisp = officer_hisp - mean(officer_hisp)) %>%
+    ungroup()
+
+# Black officers have very slightly shorter shifts
+modelShiftLength <- lm(centeredShiftLength ~ officer_black + officer_hisp,
+                       assignmentsShiftLength)
+
+################################################# Read in officer behavior
+stops <- read_csv(here("bocar_data", "stops.csv"))
+arrests <- read_csv(here("bocar_data", "arrests.csv"))
+force <- read_csv(here("bocar_data", "force.csv"))
+
+# Stops, using only the first police officer
+stops.1 <- stops %>% filter(po_first == 1)
+
+# Merge stops w/ shifts so we only get stops which occurred during recorded shift
+assignmentOfficer <- data.table(assignmentOfficer)
+stops <- data.table(stops)
+setkey(assignmentOfficer, officer_id, date)
+setkey(stops, officer_id, date)
+stops.merged <- stops[assignmentOfficer]
+
+assignmentOfficer <- as_tibble(assignmentOfficer) %>% arrange(officer_id, date)
+stops <- as_tibble(stops) %>% arrange(officer_id, date)
+stopsMerged <- right_join(stops, assignmentOfficer, by = c("officer_id", "date"))
