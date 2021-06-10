@@ -139,21 +139,5 @@ assignmentsShiftLength <-
 modelShiftLength <- lm(centeredShiftLength ~ officer_black + officer_hisp,
                        assignmentsShiftLength)
 
-################################################# Read in officer behavior
-stops <- read_csv(here("bocar_data", "stops.csv"))
-arrests <- read_csv(here("bocar_data", "arrests.csv"))
-force <- read_csv(here("bocar_data", "force.csv"))
-
-# Stops, using only the first police officer
-stops.1 <- stops %>% filter(po_first == 1)
-
-# Merge stops w/ shifts so we only get stops which occurred during recorded shift
-assignmentOfficer <- data.table(assignmentOfficer)
-stops <- data.table(stops)
-setkey(assignmentOfficer, officer_id, date)
-setkey(stops, officer_id, date)
-stops.merged <- stops[assignmentOfficer]
-
-assignmentOfficer <- as_tibble(assignmentOfficer) %>% arrange(officer_id, date)
-stops <- as_tibble(stops) %>% arrange(officer_id, date)
-stopsMerged <- right_join(stops, assignmentOfficer, by = c("officer_id", "date"))
+# Write out results so we don't have to do this pipeline every time
+write_csv(assignmentOfficer, here("bocar_data", "assignmentsOfficer.csv"))
