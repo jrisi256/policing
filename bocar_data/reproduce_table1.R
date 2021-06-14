@@ -24,6 +24,10 @@ stopsMerged <-
     right_join(stops, assignmentOfficer, by = c("officer_id", "date")) %>%
     filter(is.na(hour) | between(hour, floor(start_time), ceiling(end_time)))
 
+a <-
+    right_join(stops, assignmentOfficer, by = c("officer_id", "date")) %>%
+    filter(!(between(hour, floor(start_time), ceiling(end_time))))
+
 assignmentsNextDay <-
     assignmentOfficer %>% 
     filter(end_time > 24) %>%
