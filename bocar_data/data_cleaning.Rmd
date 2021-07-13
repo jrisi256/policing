@@ -1,0 +1,192 @@
+---
+title: "Data Cleaning Process"
+output: pdf_document
+---
+
+```{r, message = F}
+library(here)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+library(magrittr)
+library(lubridate)
+library(data.table)
+```
+
+## Officers
+
+* **birth_year**: Birth year of the officer.
+* **appointed_month**: Month officer was appointed.
+* **officer_id**: Unique ID for each officer. **Unique identifier.**
+* **officer_race**: Race of the officer.
+* **officer_gender**: Gender of the officer.
+* **spanish**: Does the officer speak Spanish or not?
+* Uniquely identified by **officer_id**.
+
+## Shift Assignments
+
+* **officer_id**: Unique ID for each officer.
+* **month**: Month of the shift in year-month-date format.
+* **rank**: Rank of the officer assigned to the shift.
+* **unit**: Unit of the officer assigned to the shift.
+* **date**: Date of the shift.
+* **shift**: The shift the officer is assigned to.
+* **start_time**: Hour start time of the shift in military time.
+* **end_time**: Hour end of the shift in military time.
+* **weekday**: Day of the week of the shift.
+* **beat_assigned**: The beat the officer is assigned to.
+* **appointed_month**: Month the officer was appointed.
+* **months_from_start**: Months between officer appointment and shift date.
+* **months_from_start_sq**: Months between officer appointment and shift date squared.
+* **duration**: Length of the shift in hours.
+* Uniquely identified by **officer_id** and **date**.
+
+```{r}
+officers <- read_csv(here("bocar_data", "officers.csv"))
+assignments <- read_csv(here("bocar_data", "assignments.csv"))
+```
+
+Number of Officers: `r nrow(officers)`  
+Number of Shift Assignments: `r nrow(assignments)`
+
+## Data Checks
+
+* Check understanding to make sure columns mean what I think they mean.
+* Drop the month and months_from_start_sq columns from the shift assignment data. They can be recreated as needed. Also drop appointed_month since that is redundant with the officer data.
+
+```{r}
+check <-
+    assignments %>%
+    select(date, month, weekday, appointed_month, months_from_start) %>%
+    mutate(month_check = floor_date(date, unit = "month"),
+           weekday_check = wday(date),
+           months_f_start_check = interval(appointed_month, date) %/% months(1),
+           weekday_check = case_when(weekday_check == 1 ~ "Sun",
+                                     weekday_check == 2 ~ "Mon",
+                                     weekday_check == 3 ~ "Tue",
+                                     weekday_check == 4 ~ "Wed",
+                                     weekday_check == 5 ~ "Thu",
+                                     weekday_check == 6 ~ "Fri",
+                                     weekday_check == 7 ~ "Sat"))
+
+assignments <-
+    assignments %>%
+    select(-month, -appointed_month,-months_from_start_sq)
+```
+
+Month Check: `r table(check$month == check$month_check)`  
+Weekday Check: `r table(check$weekday == check$weekday_check)`  
+Months From Start Check: `r table(check$months_from_start == check$months_f_start_check)`
+
+## Summary Statistics
+
+```{r}
+GetNumericSummary <- function(df, col) {
+    
+    summary <- summary(df[[col]])
+    if("NAs" %in% names(attributes(summary)))
+        names <- c(names(summary), "NA's")
+    else
+        names <- names(summary)
+    
+    tibble(values = as.character(summary), variable = names) %>%
+        pivot_wider(names_from = variable, values_from = values) %>%
+        mutate(variable = col)
+}
+
+GetCategoricalSummary <- function(df, col) {
+    
+    df %>%
+        group_by(.data[[col]]) %>%
+        summarise(n = n()) %>%
+        ungroup() %>%
+        mutate(prcnt = n / sum(n)) %>%
+        pivot_longer(col, values_transform = list(value = as.character))
+}
+
+numericSummaryOfficers <-
+    map_dfr(c("birth_year", "appointed_month"),
+            GetNumericSummary,
+            df = officers)
+
+categoricalSummaryOfficers <-
+    map_dfr(c("officer_race", "officer_gender", "spanish"),
+            GetCategoricalSummary,
+            df = officers)
+
+numericSummaryAssignments <-
+    map_dfr(c("date", "start_time", "end_time", "months_from_start", "duration"),
+            GetNumericSummary,
+            df = assignments)
+
+categoricalSummaryAssignments <-
+    map_dfr(c("rank", "shift", "unit", "weekday"),
+            GetCategoricalSummary,
+            df = assignments)
+```
+
+Number of unique beats: `r length(unique(assignments$beat_assigned))`  
+Number of non-missing beat assignments: `r table(is.na(assignments$beat_assigned))[["FALSE"]]`  
+Percentage of non-missing beat assignments: `r table(is.na(assignments$beat_assigned))[["FALSE"]] / nrow(assignments)`  
+
+Number of shifts which are between 8 and 9 hours: `r assignments %>% filter(duration >= 8 & duration <= 9) %>% nrow()`  
+Percentage of shifts which are between 8 and 9 hours: `r assignments %>% filter(duration >= 8 & duration <= 9) %>% nrow() / nrow(assignments)`  
+
+## Data Filtering
+
+* Only keep shift assignments for those with a rank of police officer.
+* Only keep Black, White, and Hispanic officers.
+
+```{r}
+assignmentsFltr <- assignments %>% filter(rank == "POLICE OFFICER")
+
+officersFltr <-
+    officers %>%
+    filter(officer_race %in%
+               c("officer_black", "officer_white", "officer_hisp"))
+```
+
+Number of Officers: `r nrow(officersFltr)`  
+Number of Shift Assignments: `r nrow(assignmentsFltr)`
+
+## Join officers to their shift assignments
+
+```{r}
+# Join officers to their assignments
+officerAssignment <-
+    assignmentsFltr %>%
+    inner_join(officersFltr, by = "officer_id")
+write_csv(officerAssignment, here("bocar_data", "officerAssignment.csv"))
+
+# Anti join assignments
+antiJoinAssignment <-
+    anti_join(assignmentsFltr, officersFltr, by = "officer_id")
+
+assignmentCheck <-
+    filter(officers, officer_id %in% antiJoinAssignment$officer_id)
+
+table(assignmentCheck$officer_race)
+
+# Anti join officers
+antiJoinOfficer <- anti_join(officersFltr, assignmentsFltr, by = "officer_id")
+rankCheck <- filter(assignments, officer_id %in% antiJoinOfficer$officer_id)
+length(unique(rankCheck$officer_id)) / nrow(antiJoinOfficer)
+```
+
+* Number of officer assignments: `r nrow(officerAssignment)`
+* Rows can be uniquely identified using **officer_id** and **date**.
+
+* Number of non-matching assignments: `r nrow(antiJoinAssignment)`
+* Percentage of assignments which didn't match: `r nrow(antiJoinAssignment) / nrow(assignmentsFltr)`
+    * If an assignment doesn't match, it's because the assignment was for an officer who isn't Black, Hispanic, or White.
+    
+* Number of non-matching officers: `r nrow(antiJoinOfficer)`
+* Percentage of non-matching officers: `r nrow(antiJoinOfficer) / nrow(officersFltr)`
+    * Number of officers who didn't match because of their rank: `r length(unique(rankCheck$officer_id))`
+    * Percentage of non-matching officers due to rank: `r length(unique(rankCheck$officer_id)) / nrow(antiJoinOfficer)`
+* Number matching officers: `r length(unique(officerAssignment$officer_id))`
+* Percentage of matching officers: `r length(unique(officerAssignment$officer_id)) / nrow(officersFltr)`
+    * If an officer doesn't match, it's either because of the officer's rank **OR** because the officer didn't have any assignments during this time period.
+    * The question for us is: Why are there are officers who didn't have any assignments during this time period? The most obvious explanation is they retired/quit. However it is worth investigating if there are other reasons which could call into question the validity of our findings.

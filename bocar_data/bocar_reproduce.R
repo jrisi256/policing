@@ -40,6 +40,20 @@ assignmentOfficer <-
     assignmentsFltr %>%
     inner_join(select(officersRace, -appointed_month), by = "officer_id")
 
+# If an assignment doesn't match, it's because the assignment was for an officer
+# who isn't black, Hispanic, or white
+a <- anti_join(assignmentsFltr, officersRace, by = "officer_id")
+b <- filter(officers, officer_id %in% a$officer_id)
+table(b$officer_race)
+
+# If an officer doesn't match, it's either because of the officer's rank OR
+# because the officer didn't have any assignments during this time period
+# Only 5% of officers don't match because of their rank.
+a <- anti_join(officersRace, assignmentsFltr, by = "officer_id")
+b <- filter(assignments, officer_id %in% a$officer_id)
+length(unique(b$officer_id)) / nrow(a)
+b2 <- filter(assignmentsFltr, officer_id %in% a$officer_id)
+
 ############################################### investigating beat assignments
 # number of unique patrol tasks
 length(unique(assignmentOfficer$beat_assigned))

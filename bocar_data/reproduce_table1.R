@@ -8,41 +8,57 @@ library(lubridate)
 library(data.table)
 
 ################################################# Read in officer behavior
-assignmentOfficer <- read_csv(here("bocar_data", "assignmentsOfficer.csv"))
+assignmentOfficer <- read_csv(here("bocar_data", "officerAssignment.csv"))
 stops <- read_csv(here("bocar_data", "stops.csv"))
-arrests <- read_csv(here("bocar_data", "arrests.csv"))
-force <- read_csv(here("bocar_data", "force.csv"))
+# arrests <- read_csv(here("bocar_data", "arrests.csv"))
+# force <- read_csv(here("bocar_data", "force.csv"))
 
 # Stops, using only the first police officer
-stops.1 <- stops %>% filter(po_first == 1)
+# stops.1 <- stops %>% filter(po_first == 1)
 
 ###################################### Merge stops and shift assignments
-assignmentOfficer <- assignmentOfficer %>% arrange(officer_id, date)
-stops <- stops %>% arrange(officer_id, date)
+assignmentOfficer <-
+    assignmentOfficer %>%
+    arrange(officer_id, date) %>%
+    rename(assignment_date = date) %>%
+    mutate(oa_id = row_number())
 
+stops <-
+    stops %>%
+    arrange(officer_id, date) %>%
+    select(-civilian_race_short, -month) %>%
+    rename(stop_date = date) %>%
+    mutate(os_id = row_number())
+
+# Merge stops and shift assignments
 stopsMerged <-
-    right_join(stops, assignmentOfficer, by = c("officer_id", "date")) %>%
+    right_join(stops,
+               assignmentOfficer,
+               by = c("officer_id", "stop_date" =  "assignment_date")) %>%
+    rename(date = stop_date) %>%
     filter(is.na(hour) | between(hour, floor(start_time), ceiling(end_time)))
 
-a <-
-    right_join(stops, assignmentOfficer, by = c("officer_id", "date")) %>%
-    filter(!(between(hour, floor(start_time), ceiling(end_time))))
-
+# Find stops which happened during multi-day shifts
 assignmentsNextDay <-
     assignmentOfficer %>% 
     filter(end_time > 24) %>%
-    mutate(start_time = 0, end_time = end_time - 24, date_nextday = date + 1) %>%
+    mutate(start_time = 0, end_time = end_time - 24,
+           date_nextday = assignment_date + 1) %>%
     arrange(officer_id, date_nextday)
 
 stopsMergedNextDay <-
     right_join(stops,
                assignmentsNextDay,
-               by = c("officer_id", "date" = "date_nextday")) %>%
+               by = c("officer_id", "stop_date" = "date_nextday")) %>%
     filter(is.na(hour) | between(hour, floor(start_time), ceiling(end_time))) %>%
-    mutate(date = date.y, hour = hour + 24) %>%
-    select(-date.y)
+    mutate(date = assignment_date, hour = hour + 24, end_time = end_time + 24,
+           start_time = end_time - duration) %>%
+    select(-stop_date, -assignment_date)
 
-stopsMergedFinal <- bind_rows(stopsMerged, stopsMergedNextDay) %>% distinct()
+stopsMergedFinal <-
+    bind_rows(stopsMerged, stopsMergedNextDay) %>%
+    distinct() %>%
+    mutate(final_id = paste0(os_id, " ", oa_id))
 
 stopsByGroup <-
     stopsMergedFinal %>%

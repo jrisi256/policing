@@ -1,0 +1,339 @@
+---
+title: "Analyzing Stops, Arrests, and Uses of Force"
+output: pdf_document
+---
+
+```{r, message = F}
+library(here)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+library(magrittr)
+library(lubridate)
+library(data.table)
+```
+
+## Officer stops
+
+* **stop_id**: Uniquely identifier for each stop.
+* **time**: Time of stop.
+* **date**: Date of stop.
+* **district**: Police district where the stop took place.
+* **po_first**: Was the focal officer the first to respond to the scene?
+* **stop_type**: What was the type of the stop?
+* **contact_type**: Collapsed version of **stop_type** with less categories.
+* **civ.race**: Race of the civilian.
+* **civ.gender**: Gender of the civilian.
+* **civ.age**: Age of the civilian at the time of the stop.
+* **lat**: Latitude of the stop.
+* **lon**: Longitude of the stop.
+* **officer_id**: Unique identifier for the officer.
+* **month**: Month of stop.
+* **civilian_race_short**: Collapsed version of **civ.race** with less categories.
+* **hour**: Hour of the day when the stop took place.
+* The unit of analysis (each row) is each officer involved in a unique stop. Each row can be uniquely identified by **officer_id** and **stop_id**.
+    * An intriguing feature of this data is the fact that each stop only involves one civilian. It may be baked into the definition that a *stop* only corresponds to one civilian. As a result, is it possible multiple *stops* are all a part of a larger incident involving multiple civilians? This may be worth more investigation in the future.
+        * Examine stops that took place at the same time in the same location?
+
+```{r, message = F}
+officerAssignment <-
+    read_csv(here("bocar_data", "officerAssignment.csv")) %>%
+    mutate(oa_id = row_number())
+
+stops <-
+    read_csv(here("bocar_data", "stops.csv")) %>%
+    mutate(s_id = row_number())
+```
+
+Number of officer stops: `r nrow(stops)`  
+Number of unique stops: `r length(unique(stops$stop_id))`
+
+## Data preparation
+
+* Drop civilian_race_short, month, and hour from the stops data frame. They are all redundant or not useful.
+* Filter out all stops which do not match on **officer_id** with the officer shift assignments.
+* Create a start datetime and ending datetime for each officer assignment (rather than just using the hour).
+* Create a data frame where the shift date is increased by 1 day. This allows us to capture stops which happened the following day of the shift (i.e. stops which happened during an overnight shift).
+
+```{r}
+# Filter out stops which don't have a corresponding officer shift assignment
+nrRowsPre <- nrow(stops)
+nrStopsPre <- length(unique(stops$stop_id))
+
+stops <-
+    stops %>%
+    select(-civilian_race_short, -month, -hour) %>%
+    filter(officer_id %in% officerAssignment$officer_id)
+
+nrRowsPost <- nrow(stops)
+nrStopsPost <- length(unique(stops$stop_id))
+
+# Create starting and ending datetime for each officer shift assignment
+officerAssignment <-
+    officerAssignment %>%
+    mutate(start_date = if_else(is.na(start_time), NA_Date_, date),
+           start_hms = hms::hms(rep(0, nrow(officerAssignment)),
+                                rep(0, nrow(officerAssignment)),
+                                start_time),
+           start_time = as_datetime(paste0(start_date, " ", start_hms)),
+           end_date = if_else(end_time > 24, date + 1, date),
+           end_hms = hms::hms(rep(0, nrow(officerAssignment)),
+                              rep(0, nrow(officerAssignment)),
+                              if_else(end_time > 24, end_time - 24, end_time)),
+           end_timeN = as_datetime(paste0(end_date, " ", end_hms))) %>%
+    select(-start_date, -start_hms, -end_date, -end_hms)
+
+# Create a next day data frame to capture stops which happened over night
+officerAssignmentNextDay <-
+    officerAssignment %>%
+    filter(end_time > 24) %>%
+    mutate(date = date + 1,
+           end_time = end_timeN) %>%
+    select(-end_timeN)
+
+officerAssignment <-
+    officerAssignment %>%
+    mutate(end_time = end_timeN) %>%
+    select(-end_timeN)
+```
+
+* Number of officer overnight shifts: ` nrow(officerAssignmentNextDay)`. This represents `r nrow(officerAssignmentNextDay) / nrow(officerAssignment)` of all officer shift assignments.
+* Number of officer stops: `r nrRowsPost`.
+    * `r (nrRowsPre - nrRowsPost) / nrRowsPre` proportion reduction in rows.
+* Number of unique stops: `r nrStopsPost`.
+    * `r (nrStopsPre - nrStopsPost) / nrStopsPre` proportion reduction in stops.
+
+## Summary Statistics
+
+```{r}
+GetNumericSummary <- function(df, col) {
+    
+    summary <- summary(df[[col]])
+    if("NAs" %in% names(attributes(summary)))
+        names <- c(names(summary), "NA's")
+    else
+        names <- names(summary)
+    
+    tibble(values = as.character(summary), variable = names) %>%
+        pivot_wider(names_from = variable, values_from = values) %>%
+        mutate(variable = col)
+}
+
+GetCategoricalSummary <- function(df, col) {
+    
+    df %>%
+        group_by(.data[[col]]) %>%
+        summarise(n = n()) %>%
+        ungroup() %>%
+        mutate(prcnt = n / sum(n)) %>%
+        pivot_longer(col, values_transform = list(value = as.character))
+}
+
+numericSummaryStops <-
+    map_dfr(c("time", "civ.age"), GetNumericSummary, df = stops)
+
+categoricalSummaryStops <-
+    map_dfr(c("district", "stop_type", "contact_type", "civ.race",
+              "civ.gender"),
+            GetCategoricalSummary,
+            df = stops)
+```
+
+* Number of missing latitudes: `r stops %>% filter(is.na(lat)) %>% nrow()`  
+* Number of missing longitude: `r stops %>% filter(is.na(lon)) %>% nrow()`  
+
+## Join stops with officer shift assignments
+
+* Right join on all officer assignments using **officer_id** and **date** i.e. keep all officer assignments but drop all stops which did not take place on the day of the officer's shift assignment.
+* Keep all rows where the stop_id is missing (indicating the shift assignment did not have any stops) and keep all rows where the stop took place during the hours of the officer's shift assignment.
+* Rows can be uniquely identified using **officer_id**, **stop_id**, and **date**. Among shift assignments which had a recorded stop, these records can be uniquely identified using **officer_id** and **stop_id**. Among shift assignments which did not have a recorded stop, these records can be uniquely identified using **officer_id** and **date**.
+    * Why do we only keep stops which occurred during an officer's shift assignment?
+    * How are stops recorded during a shift?
+
+```{r}
+# Join + Filter
+stopsAssignmentsSameDay <-
+    right_join(stops, officerAssignment, by = c("officer_id", "date")) %>%
+    filter(is.na(stop_id) |
+               data.table::between(floor_date(time, unit = "hour"),
+                                   floor_date(start_time, unit = "hour"),
+                                   ceiling_date(end_time, unit = "hour")))
+
+nrStopsSameDay <- unique(stopsAssignmentsSameDay$stop_id)
+nrStopsSameDay <- length(nrStopsSameDay[!is.na(nrStopsSameDay)])
+```
+
+### Same Day Join + Filter
+
+* Number of records: `r nrow(stopsAssignmentsSameDay)`
+* Number of matching assignments: `length(unique(stopsAssignmentsSameDay$oa_id))`
+    * Proportion of matching assignments: `length(unique(stopsAssignmentsSameDay$oa_id)) / nrow(officerAssignment)`
+* Number of matching stops: `r nrStopsSameDay``
+    * Proportion of matching stops: `r nrStopsSameDay / length(unique(stops$stop_id))`
+
+```{r}
+# Join
+stopsAssignmentsNextDay <-
+    right_join(stops,
+               officerAssignmentNextDay,
+               by = c("officer_id", "date")) %>%
+    mutate(date = date - 1) %>%
+    filter(is.na(stop_id) | data.table::between(floor_date(time, unit = "hour"),
+                                    floor_date(start_time, unit = "hour"),
+                                    ceiling_date(end_time, unit = "hour")))
+
+nrStopsNextDay <- unique(stopsAssignmentsNextDay$stop_id)
+nrStopsNextDay <- length(nrStopsNextDay[!is.na(nrStopsNextDay)])
+```
+
+### Next day join + filter
+
+* Number of records: `r nrow(stopsAssignmentsNextDay)`
+* Number of matching assignments: `r length(unique(stopsAssignmentsNextDay$oa_id))`
+    * Proportion of matching assignments: `length(unique(stopsAssignmentsNextDay$oa_id)) / nrow(officerAssignment)`
+* Number of matching stops: `r nrStopsNextDay`
+    * Proportion of matching stops: `r nrStopsNextDay / length(unique(stops$stop_id))`
+
+### Merge same day and next day matches
+
+1. Merge the matches from the same day and the next day by.
+2. Keep only distinct rows. There will be duplicate records for those shift assignments which had no stops (meaning there will be an NA for stop_id). Stated more plainly, a shift assignment will show up as not having any matches from the same day join and the next day join thus this entry will show up twice (i.e. it's a duplicate). For an example, see the record with officer_id = 5 and date = 2012-07-12. **This cleans up entries which had no matches either on the same day or the next day.**
+3. Filter out redundant entries. There will be some records which had a match on either the same day or the next day (but not both). As a result, there will be an entry for the shift assignment with a missing stop_id (which is supposed to mean that shift assignment didn't have any stops associated with it). For an example, see the record with officer_id = 5 and date = 2013-04-08. **This cleans up entries which had a match on the same or the next day but not both.**
+
+```{r}
+stopsAssignments <-
+    bind_rows(stopsAssignmentsSameDay, stopsAssignmentsNextDay) %>%
+    distinct(officer_id, date, stop_id, .keep_all = T) %>%
+    group_by(officer_id, date) %>%
+    mutate(count = n()) %>%
+    ungroup() %>%
+    filter(!is.na(stop_id) | (is.na(stop_id) & count == 1)) %>%
+    select(-count) %>%
+    mutate(final_id = paste0(s_id, " ", oa_id))
+
+nrStops <- unique(stopsAssignments$stop_id)
+nrStops <- length(nrStops[!is.na(nrStops)])
+nrOfficerStops <- unique(stopsAssignments$s_id)
+nrOfficerStops <- length(nrOfficerStops[!is.na(nrOfficerStops)])
+
+missingShiftAssignments <-
+    officerAssignment %>%
+    filter(!(oa_id %in% stopsAssignments$oa_id)) %>%
+    left_join(stops, by = c("officer_id", "date")) %>%
+    select(officer_id, stop_id, date, time, start_time, end_time, oa_id,
+           s_id) %>%
+    filter(data.table::between(floor_date(time, unit = "hour"),
+                               floor_date(start_time, unit = "hour"),
+                               ceiling_date(end_time, unit = "hour")))
+
+missingStops <-
+    stops %>%
+    filter(!(s_id %in% stopsAssignments$s_id)) %>%
+    left_join(officerAssignment, by = c("officer_id", "date")) %>%
+    select(officer_id, stop_id, date, time, start_time, end_time, oa_id,
+           s_id) %>%
+    filter(data.table::between(floor_date(time, unit = "hour"),
+                               floor_date(start_time, unit = "hour"),
+                               ceiling_date(end_time, unit = "hour")))
+```
+
+* Number of records after merge and filtering: `r nrow(stopsAssignments)`
+* Number of unique shift assignments: `r length(unique(stopsAssignments$oa_id))`
+    * Proportion of shifts (`r nrow(officerAssignment)`) covered: `r length(unique(stopsAssignments$oa_id)) / nrow(officerAssignment)`
+* Number of unique stops: `r nrStops`
+    * Proportion of stops (`r length(unique(stops$stop_id))`) covered: `r nrStops / length(unique(stops$stop_id))`
+* Number of unique officer stops: `r nrOfficerStops`
+    * Proportion of officer stops (`r nrow(stops)`) covered: `r nrOfficerStops / nrow(stops)`
+    
+* All missing shift assignments are due to the fact that the stop(s) they matched with did not actually occur during their shift assignment. I.e. they got filtered out even though the stop occurred on the same day of the shift assignment because the time of the stop did not take place during the hours of their shift. For an example, see officer_id = 17890 and date = 2013-12-05 which matches with stop_id = 1034597.
+* All missing stops are due to: 
+    * the fact that the stop matched with a shift assignment, but it didn't actually occur during the shift assignment (e.g. see officer_id = 6856 and date = 2012-05-28 which matches with stop_id = 194614). These stops are similar conceptually to the above missing shift assignments. However **missing shift assignments** don't match + filter on any stops. These missing stops are simply individual stops which didn't match + filter, but the shift assignment may still have other stops associated with it.
+    * the stop did not match a shift assignment meaning it took place on a day when the officer did not have a shift assignment. For an example, see officer_id = 5 and stop_id = 9571.
+*  Why are there stops happening outside of an officer's shift? Are they undercover/off-duty?
+
+```{r}
+temp <- stopsAssignments %>% filter(!is.na(stop_id))
+table(temp$officer_race)
+table(temp$officer_gender)
+
+stopsByGroup <-
+    stopsAssignments %>%
+    mutate(stopCount = if_else(is.na(stop_id), 0 , 1)) %>%
+    count(officer_id, beat_assigned, shift, date, wt = stopCount)
+
+stopsByGroupType <-
+    stopsAssignments %>%
+    mutate(stopCount = 1) %>%
+    count(officer_id, beat_assigned, shift, date, contact_type, wt = stopCount) %>%
+    pivot_wider(names_from = contact_type, values_from = n, values_fill = 0)
+
+
+
+missing1 <- stopsAssignmentsFinal %>% filter(!(final_id %in% join$final_id))
+missing2 <- join %>% filter(!(final_id %in% stopsAssignmentsFinal$final_id))
+
+temp <- stopsAssignmentsFinal %>% filter(oa_id == 973)
+temp2 <-
+    missing2 %>%
+    filter(final_id == "608127 527891") %>%
+    select(time, date, floor_time, floor_time.1, i.date, start_time, end_time)
+```
+
+```{r}
+a <-
+    officerAssignment %>%
+    mutate(floor_start = floor_date(start_time, unit = "hour"),
+           floor_end = ceiling_date(end_time, unit = "hour")) %>%
+    setDT()
+
+b <- stops %>% mutate(floor_time = floor_date(time, unit = "hour")) %>% setDT()
+join <-
+    b[a, on = .(officer_id, floor_time >= floor_start, floor_time <= floor_end)] %>%
+    tibble() %>%
+    mutate(final_id = paste0(s_id, " ", oa_id))
+```
+
+
+
+
+
+
+* Number of resulting records: `r nrow(stopsAssignmentsSameDay)`. Conceptually each row represents a unique stop for a unique officer during a specific shift. Some officer shift assignments will have no stops.
+
+## Descriptive statistics
+
+```{r}
+# See distribution of stops per shift
+nrStopsPerShift <-
+    stopsAssignmentsSameDayFltr %>%
+    group_by(officer_id, date) %>%
+    summarise(nrStops = sum(!is.na(stop_id))) %>%
+    ungroup()
+
+summary(nrStopsPerShift$nrStops)
+
+ggplot(nrStopsPerShift, aes(x = nrStops)) +
+    geom_bar() +
+    scale_x_continuous(limits = c(NA, 10)) +
+    theme_bw() +
+    labs(x = "Number of stops per shift", y = "Frequency")
+
+# See distribution of stops per officer over the course of their career
+nrStopsPerOfficer <-
+    stopsAssignmentsSameDayFltr %>%
+    group_by(officer_id) %>%
+    summarise(nrStops = sum(!is.na(stop_id))) %>%
+    ungroup()
+
+summary(nrStopsPerOfficer$nrStops)
+
+ggplot(nrStopsPerOfficer, aes(x = nrStops)) +
+    geom_histogram(bins = 30) +
+    theme_bw() +
+    labs(x = "Number of stops per officer", y = "Frequency")
+```
+
+Number of assignments without any stops: `nrStopsPerShift %>% filter(nrStops == 0) %>% nrow()`  
+Percentage of assignments without any stops: `nrStopsPerShift %>% filter(nrStops == 0) %>% nrow() / nrow(officerAssignment)`
