@@ -34,6 +34,7 @@ library(data.table)
 * **civilian_race_short**: Collapsed version of **civ.race** with less categories.
 * **hour**: Hour of the day when the stop took place.
 * The unit of analysis (each row) is each officer involved in a unique stop. Each row can be uniquely identified by **officer_id** and **stop_id**.
+    * I add in an extra variable **s_id** which also uniquely identifies each row.
     * An intriguing feature of this data is the fact that each stop only involves one civilian. It may be baked into the definition that a *stop* only corresponds to one civilian. As a result, is it possible multiple *stops* are all a part of a larger incident involving multiple civilians? This may be worth more investigation in the future.
         * Examine stops that took place at the same time in the same location?
 
@@ -180,9 +181,10 @@ stopsAssignmentsNextDay <-
                officerAssignmentNextDay,
                by = c("officer_id", "date")) %>%
     mutate(date = date - 1) %>%
-    filter(is.na(stop_id) | data.table::between(floor_date(time, unit = "hour"),
-                                    floor_date(start_time, unit = "hour"),
-                                    ceiling_date(end_time, unit = "hour")))
+    filter(is.na(stop_id) |
+               data.table::between(floor_date(time, unit = "hour"),
+                                   floor_date(start_time, unit = "hour"),
+                                   ceiling_date(end_time, unit = "hour")))
 
 nrStopsNextDay <- unique(stopsAssignmentsNextDay$stop_id)
 nrStopsNextDay <- length(nrStopsNextDay[!is.na(nrStopsNextDay)])
@@ -251,7 +253,33 @@ missingStops <-
 * All missing stops are due to: 
     * the fact that the stop matched with a shift assignment, but it didn't actually occur during the shift assignment (e.g. see officer_id = 6856 and date = 2012-05-28 which matches with stop_id = 194614). These stops are similar conceptually to the above missing shift assignments. However **missing shift assignments** don't match + filter on any stops. These missing stops are simply individual stops which didn't match + filter, but the shift assignment may still have other stops associated with it.
     * the stop did not match a shift assignment meaning it took place on a day when the officer did not have a shift assignment. For an example, see officer_id = 5 and stop_id = 9571.
-*  Why are there stops happening outside of an officer's shift? Are they undercover/off-duty?
+* Why are there stops happening outside of an officer's shift? Are they undercover/off-duty?
+
+### Questionable Data Decisions
+
+```{r}
+# Missing start times and end times
+missingStartEndTime <-
+    stopsAssignments %>%
+    filter((is.na(start_time) | is.na(end_time)) & !is.na(time))
+
+nrMatchedStops <- stopsAssignments %>% filter(!is.na(stop_id)) %>% nrow()
+
+# Duplicate stops where one stop matches to more than one shift assignment
+dupeIds <- stopsAssignments %>% count(s_id) %>% filter(!is.na(s_id) & n > 1)
+duplicates <- stopsAssignments %>% filter(s_id %in% dupeIds$s_id)
+```
+
+#### Missing Start Time and End Time
+
+* There are `r nrow(missingStartEndTime)` records where the start time or end time is missing yet they still matched with a stop.
+* This represents `r nrow(missingStartEndTime) / nrow(stopsAssignments)` of all records (`r nrow(stopsAssignments)`) or `r nrow(missingStartEndTime) / nrMatchedStops` of all shift assignments which matched with a stop (`r nrMatchedStops` in total).
+
+#### Duplicate Entries
+
+* There are `r nrow(dupeIds)` stops which are duplicated for a total of `r nrow(duplicates)` records which are duplicates. This means the stop matched to more than one shift assignment. How could this happen?
+    * The officer in question could have had overlapping shift assignments and the stop occurred during the intersection of their shifts.
+    * One of the shifts had a missing start time or end time, and the stop wound up matching with that shift (in addition to matching with at least one another shift assignment).
 
 ```{r}
 temp <- stopsAssignments %>% filter(!is.na(stop_id))
@@ -293,6 +321,9 @@ join <-
     b[a, on = .(officer_id, floor_time >= floor_start, floor_time <= floor_end)] %>%
     tibble() %>%
     mutate(final_id = paste0(s_id, " ", oa_id))
+
+mismatch <- join %>% filter(!(final_id %in% stopsAssignments$final_id))
+mismatch2 <- stopsAssignments %>% filter(!(final_id %in% join$final_id))
 ```
 
 
