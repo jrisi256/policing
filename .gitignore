@@ -38,6 +38,5 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 
-.csv
-/unified_data
-/bocar_data/*.csv*
+# Data
+*/input
