@@ -1,0 +1,118 @@
+---
+title: "Clean Officers and Shift Assignments"
+output: html_document
+---
+
+```{r, include = F}
+knitr::opts_chunk$set(message = F, echo = F)
+```
+
+```{r}
+library(here)
+library(dplyr)
+library(readr)
+```
+
+```{r}
+assignments <-
+    read_csv(here("clean-data", "input", "bocar-ba_data", "assignments.csv")) %>%
+    select(-month, -appointed_month, -months_from_start_sq)
+
+officers <-
+    read_csv(here("clean-data", "input", "bocar-ba_data", "officers.csv"))
+```
+
+## Officer Roster
+
+* **birth_year**: Birth year of the officer.
+* **appointed_month**: Month officer was appointed.
+* **officer_id**: Unique ID for each officer. Unique identifier.
+* **officer_race**: Race of the officer.
+* **officer_gender**: Gender of the officer.
+* **spanish**: Does the officer speak Spanish or not?
+* Uniquely identified by **officer_id**. Unit of observation is a unique officer.
+* Number of officers: `r nrow(officers)`
+
+## Shift Assignments
+
+* **officer_id**: Unique ID for each officer.
+* **month**: Month of the shift in year-month-date format. **Dropped as it can be recreated**.
+* **rank**: Rank of the officer assigned to the shift.
+* **unit**: Unit of the officer assigned to the shift.
+* **date**: Date of the shift.
+* **shift**: The shift the officer is assigned to.
+* **start_time**: Hour start time of the shift in military time.
+* **end_time**: Hour end of the shift in military time.
+* **weekday**: Day of the week of the shift.
+* **beat_assigned**: The beat the officer is assigned to.
+* **appointed_month**: Month the officer was appointed. **Dropped as it's redundant**.
+* **months_from_start**: Months between officer appointment and shift date.
+* **months_from_start_sq**: Months between officer appointment and shift date squared. **Dropped as it can be recreated**.
+* **duration**: Length of the shift in hours.
+* Uniquely identified by **officer_id** and **date**. Unit of observation is a specific shift for a unique officer.
+* Number of shift assignments: `r nrow(assignments)`
+
+## Match officers to their shift assignments
+
+It's unclear why so many officers don't have a shift assignment. Some of the non-matches are likely due to the fact that this a roster of every person who ever served as an officer so it includes retired officers (as of when these shift assignments start). Additionally some of the officers listed in the roster likely do not get assigned to patrol shifts due to the nature of their role (e.g. they are in a leadership role).  
+
+More worrisome might be officers who don't get shift assignments for some other, unknown reason which might hurt the validity of the study (e.g. they're being punished or rewarded).
+
+```{r}
+officer_assignments <- inner_join(assignments, officers, by = "officer_id")
+anti_join_assignments <- anti_join(assignments, officers, by = "officer_id")
+anti_join_officers <- anti_join(officers, assignments, by = "officer_id")
+```
+
+* Number of officer shift assignments: `r nrow(officer_assignments)`
+* Number of unique officers: `r length(unique(officer_assignments$officer_id))`
+* Number of non-matching assignments: `r nrow(anti_join_assignments)`
+    * Percentage of assignments which don't match: `r nrow(anti_join_assignments) / nrow(assignments)`
+* Number of non-matching officers: `r nrow(anti_join_officers)`
+    * Percentage of officers which don't match: `r nrow(anti_join_officers) / nrow(officers) * 100`%
+
+## Data Filtering
+
+* Only keep shift assignments for those with a rank of police officer.
+* Only keep officers who are White, Black, or Hispanic.
+
+```{r}
+race_fltr <-
+    officer_assignments %>%
+    filter(officer_race %in% c(paste0("officer_", c("white", "black", "hisp"))))
+
+rank_fltr <- officer_assignments %>% filter(rank == "POLICE OFFICER")
+
+officer_assignments_fltr <-
+    officer_assignments %>%
+    filter(officer_race %in% c(paste0("officer_", c("white", "black", "hisp"))),
+           rank == "POLICE OFFICER")
+```
+
+### Race
+
+* Number of officer shift assignments: `r nrow(race_fltr)`
+    * Shifts dropped: `r nrow(assignments) - nrow(race_fltr)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(race_fltr)) / nrow(officer_assignments) * 100`%
+* Number of unique officers: `r length(unique(race_fltr$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
+
+### Rank
+
+* Number of officer shift assignments: `r nrow(rank_fltr)`
+    * Shifts dropped: `r nrow(assignments) - nrow(rank_fltr)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(rank_fltr)) / nrow(officer_assignments) * 100`%
+* Number of unique officers: `r length(unique(rank_fltr$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(rank_fltr$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(rank_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
+
+### Totals
+
+* Note the numbers above won't completely add up to the numbers below because of intersections.
+* Number of officer shift assignments: `r nrow(officer_assignments_fltr)`
+    * Shifts dropped: `r nrow(assignments) - nrow(officer_assignments_fltr)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(officer_assignments_fltr)) / nrow(officer_assignments) * 100`%
+* Number of unique officers: `r length(unique(officer_assignments_fltr$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_fltr$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
