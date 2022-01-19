@@ -1,10 +1,11 @@
 ---
 title: "Clean Officers and Shift Assignments"
-output: html_document
+output: pdf_document
 ---
 
 ```{r, include = F}
-knitr::opts_chunk$set(message = F, echo = F)
+library(knitr)
+opts_chunk$set(message = F, echo = F)
 ```
 
 ```{r}
