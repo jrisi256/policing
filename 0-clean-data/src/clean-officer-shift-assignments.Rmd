@@ -16,11 +16,11 @@ library(readr)
 
 ```{r}
 assignments <-
-    read_csv(here("clean-data", "input", "bocar-ba_data", "assignments.csv")) %>%
+    read_csv(here("0-clean-data", "input", "bocar-ba_data", "assignments.csv")) %>%
     select(-month, -appointed_month, -months_from_start_sq)
 
 officers <-
-    read_csv(here("clean-data", "input", "bocar-ba_data", "officers.csv"))
+    read_csv(here("0-clean-data", "input", "bocar-ba_data", "officers.csv"))
 ```
 
 ## Officer Roster
@@ -32,7 +32,7 @@ officers <-
 * **officer_gender**: Gender of the officer.
 * **spanish**: Does the officer speak Spanish or not?
 * Uniquely identified by **officer_id**. Unit of observation is a unique officer.
-* Number of officers: `r nrow(officers)`
+* **Number of officers**: `r nrow(officers)`
 
 ## Shift Assignments
 
@@ -51,7 +51,7 @@ officers <-
 * **months_from_start_sq**: Months between officer appointment and shift date squared. **Dropped as it can be recreated**.
 * **duration**: Length of the shift in hours.
 * Uniquely identified by **officer_id** and **date**. Unit of observation is a specific shift for a unique officer.
-* Number of shift assignments: `r nrow(assignments)`
+* **Number of shift assignments**: `r nrow(assignments)`
 
 ## Match officers to their shift assignments
 
@@ -88,6 +88,9 @@ officer_assignments_fltr <-
     officer_assignments %>%
     filter(officer_race %in% c(paste0("officer_", c("white", "black", "hisp"))),
            rank == "POLICE OFFICER")
+
+write_csv(officer_assignments_fltr,
+          here("0-clean-data", "output", "officer_assignments.csv"))
 ```
 
 ### Race
@@ -111,9 +114,9 @@ officer_assignments_fltr <-
 ### Totals
 
 * Note the numbers above won't completely add up to the numbers below because of intersections.
-* Number of officer shift assignments: `r nrow(officer_assignments_fltr)`
+* **Number of officer shift assignments**: `r nrow(officer_assignments_fltr)`
     * Shifts dropped: `r nrow(assignments) - nrow(officer_assignments_fltr)`
     * Percentage reduction: `r (nrow(officer_assignments) - nrow(officer_assignments_fltr)) / nrow(officer_assignments) * 100`%
-* Number of unique officers: `r length(unique(officer_assignments_fltr$officer_id))`
+* **Number of unique officers**: `r length(unique(officer_assignments_fltr$officer_id))`
     * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_fltr$officer_id))`
     * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
