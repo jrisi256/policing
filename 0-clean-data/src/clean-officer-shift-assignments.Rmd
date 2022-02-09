@@ -53,6 +53,19 @@ officers <-
 * Uniquely identified by **officer_id** and **date**. Unit of observation is a specific shift for a unique officer.
 * **Number of shift assignments**: `r nrow(assignments)`
 
+### Notes on the data
+
+#### Creating the officer roster
+
+> "The administrative data from the CPD used in this study span multiple datasets collected in collaboration with the Invisible Institute, Sam Stecklow, and Emma Herman over the course of three years (2016-2019). We obtained these records from the Chicago Police Department or Chicago Department of Human Resources via Freedom of Information Act (FOIA) or through court ordered releases stemming from requests made by Invisible Institute and Jaime Kalven. CPD provided the following data: rosters of all available current and past officers up to 2018, unit history data for individual officers from the 1930s to 2016, Tactical Response Reports
+from 2004 to 2018 (i.e. use of force reports), and arrest data with arresting officers and arrestee demographic information from 2001 to 2017. The Chicago Department of Human Resources provided data on officers’ language skills up to 2019. We supplement our core data with data on 'Stop, Question and Frisk' (SQF) activity between 2012-2015, which was shared by the Lucy Parson’s Lab. Finally, the Automated Daily Attendance and Assignment sheet data for each police district between 2012 and 2015 was obtained via a FOIA request to the CPD and shared by Rachel Ryley." pages 5-6 of Appendix Section S1.2 in Ba et al. 2021.
+
+> "These data and others have been used to construct rich profiles of Chicago Police Officers. While no file contains a unique identifier (star numbers change over time, names are common, etc.), we constructed unique officer profiles through a successive merge process described here. Each file contains some identifying information such as of demographic data (birth year, race, gender) or other characteristics (name, start/badge number, appointed date, resignation date, current unit). We used these identifying characteristics to first de-duplicate officers within a file and to then merge to pre-existing officer data with inter-file unique identifiers. The merging process itself is an iterative-pairwise matching method, where the officers in each dataset are repeatedly merged on identifying characteristics and any successful 1-to-1 match in a round removes the matched officers from the next round of merging." page 6 of Appendix Section S1.2 in Ba et al. 2021.
+
+#### Officer Race
+
+> "We determine race/ethnicity of CPD officers based on demographic data obtained from the CPD through FOIA. The CPD usually classifies race/ethnicity in at most 7 mutually exclusive groups: White/Caucasian, White Hispanic, Black/African American, Black Hispanic, Asian/Pacific Islander, Native American/Native Alaskan, and unknown/missing. However, there are inconsistencies in how races and ethnicities are coded across files. For example, some files do not include 'Black Hispanic' as a racial category (very few officers are ever classified as Black Hispanic), and some files contain outdated racial categories which we update to the best of our ability. For consistency, we classify 'Hispanic' and 'White Hispanic' as 'Hispanic'; 'Black' and 'Black Hispanic' (rare cases) as 'Black.' 'White' in our analysis refers to non-Hispanic White. If an officer has multiple races associated with them across different datasets, we aggregate by most common non-missing races." page 5 of the Appendix Section S1.1. in Ba et al. 2021.
+
 ## Match officers to their shift assignments
 
 It's unclear why so many officers don't have a shift assignment. Some of the non-matches are likely due to the fact that this a roster of every person who ever served as an officer so it includes retired officers (as of when these shift assignments start). Additionally some of the officers listed in the roster likely do not get assigned to patrol shifts due to the nature of their role (e.g. they are in a leadership role).  
@@ -63,16 +76,20 @@ More worrisome might be officers who don't get shift assignments for some other,
 officer_assignments <- inner_join(assignments, officers, by = "officer_id")
 anti_join_assignments <- anti_join(assignments, officers, by = "officer_id")
 anti_join_officers <- anti_join(officers, assignments, by = "officer_id")
+write_csv(officer_assignments,
+          here("0-clean-data", "output", "officer_assignments-joe.csv"))
 ```
 
-* Number of officer shift assignments: `r nrow(officer_assignments)`
-* Number of unique officers: `r length(unique(officer_assignments$officer_id))`
+### Totals
+
+* **Number of officer shift assignments**: `r nrow(officer_assignments)`
+* **Number of unique officers**: `r length(unique(officer_assignments$officer_id))`
 * Number of non-matching assignments: `r nrow(anti_join_assignments)`
     * Percentage of assignments which don't match: `r nrow(anti_join_assignments) / nrow(assignments)`
 * Number of non-matching officers: `r nrow(anti_join_officers)`
     * Percentage of officers which don't match: `r nrow(anti_join_officers) / nrow(officers) * 100`%
 
-## Data Filtering
+## Data Filtering - Replication of Bocar Ba
 
 * Only keep shift assignments for those with a rank of police officer.
 * Only keep officers who are White, Black, or Hispanic.
@@ -90,10 +107,12 @@ officer_assignments_fltr <-
            rank == "POLICE OFFICER")
 
 write_csv(officer_assignments_fltr,
-          here("0-clean-data", "output", "officer_assignments.csv"))
+          here("0-clean-data", "output", "officer_assignments-ba.csv"))
 ```
 
 ### Race
+
+> "We restrict analysis to patrol assignments in which Black, Hispanic, or White officers serve. Asian/Pacific Islander and Native American/Alaskan Native officers are not examined due to small sample sizes." page 7 of the Appendix Section S1.4 in Ba et al. 2021.
 
 * Number of officer shift assignments: `r nrow(race_fltr)`
     * Shifts dropped: `r nrow(assignments) - nrow(race_fltr)`
@@ -103,6 +122,8 @@ write_csv(officer_assignments_fltr,
     * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
 
 ### Rank
+
+> "Finally, we drop officers at ranks other than 'police officer.' This step eliminates police sergeants, who serve in 8% of beat assignments but make very few stops and arrests, as well as legal officers, helicopter pilots, explosives technicians, and canine handlers." page 7 of the Appendix Section S1.4 in Ba et al. 2021.
 
 * Number of officer shift assignments: `r nrow(rank_fltr)`
     * Shifts dropped: `r nrow(assignments) - nrow(rank_fltr)`
