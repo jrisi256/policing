@@ -6,9 +6,7 @@ output: pdf_document
 ```{r, include = F}
 library(knitr)
 opts_chunk$set(message = F, echo = F)
-```
 
-```{r}
 library(here)
 library(dplyr)
 library(readr)
@@ -57,8 +55,7 @@ officers <-
 
 #### Creating the officer roster
 
-> "The administrative data from the CPD used in this study span multiple datasets collected in collaboration with the Invisible Institute, Sam Stecklow, and Emma Herman over the course of three years (2016-2019). We obtained these records from the Chicago Police Department or Chicago Department of Human Resources via Freedom of Information Act (FOIA) or through court ordered releases stemming from requests made by Invisible Institute and Jaime Kalven. CPD provided the following data: rosters of all available current and past officers up to 2018, unit history data for individual officers from the 1930s to 2016, Tactical Response Reports
-from 2004 to 2018 (i.e. use of force reports), and arrest data with arresting officers and arrestee demographic information from 2001 to 2017. The Chicago Department of Human Resources provided data on officers’ language skills up to 2019. We supplement our core data with data on 'Stop, Question and Frisk' (SQF) activity between 2012-2015, which was shared by the Lucy Parson’s Lab. Finally, the Automated Daily Attendance and Assignment sheet data for each police district between 2012 and 2015 was obtained via a FOIA request to the CPD and shared by Rachel Ryley." pages 5-6 of Appendix Section S1.2 in Ba et al. 2021.
+> "The administrative data from the CPD used in this study span multiple datasets collected in collaboration with the Invisible Institute, Sam Stecklow, and Emma Herman over the course of three years (2016-2019). We obtained these records from the Chicago Police Department or Chicago Department of Human Resources via Freedom of Information Act (FOIA) or through court ordered releases stemming from requests made by Invisible Institute and Jaime Kalven. CPD provided the following data: rosters of all available current and past officers up to 2018, unit history data for individual officers from the 1930s to 2016, Tactical Response Reports from 2004 to 2018 (i.e. use of force reports), and arrest data with arresting officers and arrestee demographic information from 2001 to 2017. The Chicago Department of Human Resources provided data on officers’ language skills up to 2019. We supplement our core data with data on 'Stop, Question and Frisk' (SQF) activity between 2012-2015, which was shared by the Lucy Parson’s Lab. Finally, the Automated Daily Attendance and Assignment sheet data for each police district between 2012 and 2015 was obtained via a FOIA request to the CPD and shared by Rachel Ryley." pages 5-6 of Appendix Section S1.2 in Ba et al. 2021.
 
 > "These data and others have been used to construct rich profiles of Chicago Police Officers. While no file contains a unique identifier (star numbers change over time, names are common, etc.), we constructed unique officer profiles through a successive merge process described here. Each file contains some identifying information such as of demographic data (birth year, race, gender) or other characteristics (name, start/badge number, appointed date, resignation date, current unit). We used these identifying characteristics to first de-duplicate officers within a file and to then merge to pre-existing officer data with inter-file unique identifiers. The merging process itself is an iterative-pairwise matching method, where the officers in each dataset are repeatedly merged on identifying characteristics and any successful 1-to-1 match in a round removes the matched officers from the next round of merging." page 6 of Appendix Section S1.2 in Ba et al. 2021.
 
@@ -68,7 +65,7 @@ from 2004 to 2018 (i.e. use of force reports), and arrest data with arresting of
 
 ## Match officers to their shift assignments
 
-It's unclear why so many officers don't have a shift assignment. Some of the non-matches are likely due to the fact that this a roster of every person who ever served as an officer so it includes retired officers (as of when these shift assignments start). Additionally some of the officers listed in the roster likely do not get assigned to patrol shifts due to the nature of their role (e.g. they are in a leadership role).  
+It's unclear why so many officers don't have a shift assignment. Some of the non-matches are likely due to the fact that this is a roster of every person who ever served as an officer so it includes retired officers (as of when these shift assignments start). Additionally some of the officers listed in the roster likely do not get assigned to patrol shifts due to the nature of their role (e.g. they are in a leadership role).  
 
 More worrisome might be officers who don't get shift assignments for some other, unknown reason which might hurt the validity of the study (e.g. they're being punished or rewarded).
 

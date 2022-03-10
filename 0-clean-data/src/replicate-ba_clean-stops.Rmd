@@ -1,0 +1,147 @@
+---
+title: "Cleaning stops, arrests, and uses of force"
+output: html_document
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F)
+
+library(here)
+library(dplyr)
+library(lubridate)
+library(data.table)
+```
+
+```{r}
+assignments_ba_dt <-
+  fread(here("0-clean-data", "output", "officer_assignments-ba.csv")) %>%
+  mutate(date = ymd(date))
+
+stops_dt <-
+  fread(here("0-clean-data", "input", "bocar-ba_data", "stops.csv")) %>%
+  select(-civilian_race_short, -month) %>%
+  mutate(date = ymd(date))
+```
+
+## Officer stops
+
+* **stop_id**: Uniquely identifier for each stop.
+* **time**: Time of stop.
+* **date**: Date of stop.
+* **district**: Police district where the stop took place.
+* **po_first**: Was the focal officer the first to respond to the scene?
+* **stop_type**: What was the type of the stop?
+* **contact_type**: Collapsed version of **stop_type** (less categories).
+* **civ.race**: Race of the civilian.
+* **civ.gender**: Gender of the civilian.
+* **civ.age**: Age of the civilian at the time of the stop.
+* **lat**: Latitude of the stop.
+* **lon**: Longitude of the stop.
+* **officer_id**: Unique identifier for the officer.
+* **month**: Month of stop. This gets dropped since it can easily be recreated.
+* **civilian_race_short**: Collapsed version of **civ.race** (less categories). This gets dropped since it can easily be recreated.
+* **hour**: Hour of the day when the stop took place.
+* The unit of analysis is a unique officer involved in a stop. Each row can be uniquely identified by **officer_id** and **stop_id**.
+* Each stop involves only one civilian, but they can involve multiple officers. It is possible multiple stops are all a part of one larger incident involving multiple civilians. This can be investigated by examining stops that took place in the same location at the same time involving the same officers.
+* **Number of stops**: `r nrow(stops)`
+* **Number of unique stops**: `r length(unique(stops$stop_id))`
+
+## Merging Stops to Officer Assignment
+
+```{r}
+# Convert to data table
+setkey(stops_dt, officer_id, date)
+setkey(assignments_ba_dt, officer_id, date)
+
+# Right join officer shift assignments with stops
+stops.merged <- stops_dt[assignments_ba_dt,]
+
+# Drop the stop if it did not occur during the shift
+stops.merged <-
+  stops.merged[is.na(hour) |
+                 between(hour, floor(start_time), ceiling(end_time)),]
+
+# Deal with stops past midnight on overnight shifts
+# Find overnight shifts, fix start and end time, increment date one day forward
+assignments.nextday <- assignments_ba_dt[end_time > 24]
+assignments.nextday[, start_time := 0]
+assignments.nextday[, end_time := end_time - 24]
+assignments.nextday[, date_nextday := date]
+day(assignments.nextday$date_nextday) <-
+  day(assignments.nextday$date_nextday) + 1
+setkey(assignments.nextday, officer_id, date_nextday)
+
+# Right join officer shift assignments with stops
+stops.merged.nextday <-
+  stops_dt[assignments.nextday,,
+           on = c(officer_id = 'officer_id', date = 'date_nextday')]
+
+# Drop the stop if it did not occur during the shift
+stops.merged.nextday <-
+  stops.merged.nextday[
+    is.na(hour) | between(hour, floor(start_time), ceiling(end_time)),]
+
+# Revert back to the normal date
+stops.merged.nextday[, date := i.date]
+stops.merged.nextday[, i.date := NULL]
+stops.merged.nextday[, hour := hour + 24]
+
+## merge same-day stops with next-day stops on overnight shifts
+stops.merged <- rbind(stops.merged, stops.merged.nextday)
+stops.merged <- unique(stops.merged)
+```
+
+Ba et al. (2021) are only concerned with stops which occur during an officer's shift. So their data cleaning and merging process reflects that.
+
+1. Right join stops and assignments using officer_id and date. I.e. keep every assignment and only stops which occurred during the start date of the shift.
+2. Filter out all stops which do not occur during the hours of the shift (even if they took place on the same day).
+  * Round the stop time to the lowest hour.
+  * Round the shift start time to the lowest hour.
+  * Round the shift end time to the highest hour.
+3. Right join stops and assignments using officer_id and date (incremented by one day). This captures stops which occurred the *following day* during an overnight shift.
+4. Filter out all stops which do not occur during the hours of the shift using the same logic as in step 2.
+5. Merge by row the data sets (stops merged by date and stops merged by the next day), and remove any duplicate entries.
+  * I will discuss this more in the [confusion](#confusion) section, but I believe the way Ba et al. (2021) remove duplicate entries doesn't remove duplicate entries. They actually remove duplicate entries in a future step where they count the number of stops per shift assignment.
+
+```{r}
+
+```
+
+
+
+2. Keep only distinct rows. There will be duplicate records for those shift assignments which had no stops (meaning there will be an NA for stop_id). Stated more plainly, a shift assignment will show up as not having any matches from the same day join and the next day join thus this entry will show up twice (i.e. it's a duplicate). For an example, see the record with officer_id = 5 and date = 2012-07-12. **This cleans up entries which had no matches either on the same day or the next day.**
+
+3. Filter out redundant entries. There will be some records which had a match on either the same day or the next day (but not both). As a result, there will be an entry for the shift assignment with a missing stop_id (which is supposed to mean that shift assignment didn't have any stops associated with it). For an example, see the record with officer_id = 5 and date = 2013-04-08. **This cleans up entries which had a match on the same or the next day but not both.**
+
+* All missing shift assignments are due to the fact that the stop(s) they matched with did not actually occur during their shift assignment. I.e. they got filtered out even though the stop occurred on the same day of the shift assignment because the time of the stop did not take place during the hours of their shift. For an example, see officer_id = 17890 and date = 2013-12-05 which matches with stop_id = 1034597.
+
+* All missing stops are due to: 
+    * the fact that the stop matched with a shift assignment, but it didn't actually occur during the shift assignment (e.g. see officer_id = 6856 and date = 2012-05-28 which matches with stop_id = 194614). These stops are similar conceptually to the above missing shift assignments. However **missing shift assignments** don't match + filter on any stops. These missing stops are simply individual stops which didn't match + filter, but the shift assignment may still have other stops associated with it.
+    * the stop did not match a shift assignment meaning it took place on a day when the officer did not have a shift assignment. For an example, see officer_id = 5 and stop_id = 9571.
+    
+### Questionable Data Decisions
+
+```{r}
+# Missing start times and end times
+missingStartEndTime <-
+    stopsAssignments %>%
+    filter((is.na(start_time) | is.na(end_time)) & !is.na(time))
+
+nrMatchedStops <- stopsAssignments %>% filter(!is.na(stop_id)) %>% nrow()
+
+# Duplicate stops where one stop matches to more than one shift assignment
+dupeIds <- stopsAssignments %>% count(s_id) %>% filter(!is.na(s_id) & n > 1)
+duplicates <- stopsAssignments %>% filter(s_id %in% dupeIds$s_id)
+```
+
+#### Missing Start Time and End Time
+
+* There are `r nrow(missingStartEndTime)` records where the start time or end time is missing yet they still matched with a stop.
+* This represents `r nrow(missingStartEndTime) / nrow(stopsAssignments)` of all records (`r nrow(stopsAssignments)`) or `r nrow(missingStartEndTime) / nrMatchedStops` of all shift assignments which matched with a stop (`r nrMatchedStops` in total).
+
+#### Duplicate Entries
+
+* There are `r nrow(dupeIds)` stops which are duplicated for a total of `r nrow(duplicates)` records which are duplicates. This means the stop matched to more than one shift assignment. How could this happen?
+    * The officer in question could have had overlapping shift assignments and the stop occurred during the intersection of their shifts.
+    * One of the shifts had a missing start time or end time, and the stop wound up matching with that shift (in addition to matching with at least one another shift assignment).
