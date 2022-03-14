@@ -1,0 +1,188 @@
+---
+title: "Cleaning stops, arrests, and uses of force"
+output: html_document
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F)
+
+library(here)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(data.table)
+```
+
+```{r}
+assignments_ba_dt <-
+  fread(here("0-clean-data", "output", "officer_assignments-ba.csv")) %>%
+  mutate(date = ymd(date))
+
+stops_dt <-
+  fread(here("0-clean-data", "input", "bocar-ba_data", "stops.csv")) %>%
+  select(-civilian_race_short, -month) %>%
+  mutate(date = ymd(date),
+         stop_officer_id = row_number())
+```
+
+## Officer stops
+
+* **stop_id**: Unique identifier for each stop.
+* **time**: Time of stop.
+* **date**: Date of stop.
+* **district**: Police district where the stop took place.
+* **po_first**: Was the focal officer the first to respond to the scene?
+* **stop_type**: What was the type of the stop?
+* **contact_type**: Collapsed version of **stop_type** (less categories).
+* **civ.race**: Race of the civilian.
+* **civ.gender**: Sex of the civilian.
+* **civ.age**: Age of the civilian at the time of the stop.
+* **lat**: Latitude of the stop.
+* **lon**: Longitude of the stop.
+* **officer_id**: Unique identifier for the officer.
+* **month**: Month of stop. **Dropped as it can be recreated**.
+* **civilian_race_short**: Collapsed version of **civ.race** (less categories). **Dropped as it can be recreated**.
+* **hour**: Hour of the day when the stop took place.
+* **stop_officer_id**: Unique identifier for each entry.
+* The unit of analysis is a unique officer involved in a stop. Each row can be uniquely identified by **officer_id** and **stop_id** or by **stop_officer_id**.
+* Each stop involves only one civilian, but they can involve multiple officers. It is possible multiple stops are all a part of one larger incident involving multiple civilians. This can be investigated by examining stops that took place in the same location at the same time involving the same officers.
+* **Number of stops**: `r nrow(stops)`
+* **Number of unique stops**: `r length(unique(stops$stop_id))`
+
+## Merging Stops to Officer Assignment
+
+```{r}
+# Set the key to make the joining go faster
+setkey(stops_dt, officer_id, date)
+setkey(assignments_ba_dt, officer_id, date)
+
+# Right join officer shift assignments with stops
+stops_merged <- stops_dt[assignments_ba_dt,]
+
+# Drop the stop if it did not occur during the shift
+stops_merged <-
+    stops_merged[between(hour, floor(start_time), ceiling(end_time)),]
+
+# Deal with stops past midnight on overnight shifts
+## Find overnight shifts, fix start and end time, increment date one day forward
+assignments_nextday <- assignments_ba_dt[end_time > 24]
+assignments_nextday[, new_start_time := 0]
+assignments_nextday[, new_end_time := end_time - 24]
+assignments_nextday[, date_nextday := date]
+day(assignments_nextday$date_nextday) <-
+  day(assignments_nextday$date_nextday) + 1
+setkey(assignments_nextday, officer_id, date_nextday)
+
+# Right join officer shift assignments with stops
+stops_merged_nextday <-
+  stops_dt[assignments_nextday,,
+           on = c(officer_id = 'officer_id', date = 'date_nextday')]
+
+# Drop the stop if it did not occur during the shift
+stops_merged_nextday <-
+  stops_merged_nextday[between(hour, floor(new_start_time), ceiling(new_end_time)),]
+
+# Revert back to the normal date
+stops_merged_nextday[, date := i.date]
+stops_merged_nextday[, c("i.date", "new_end_time", "new_start_time") := NULL]
+
+# Merge same-day stops with next-day stops on overnight shifts.
+# Then add shift assignments which had no stops.
+stops_merged_joined <-
+    rbind(stops_merged, stops_merged_nextday) %>%
+    full_join(assignments_ba_dt, by = colnames(assignments_ba_dt))
+```
+
+Ba et al. (2021) are only concerned with stops which occur during an officer's shift so their data cleaning and merging process reflects that.
+
+1. Right join stops and assignments using officer_id and date. I.e. keep every assignment and only stops which occurred during the start date of the shift.
+2. Keep any stops which occurred during the hours of the shift.
+    * Round the stop time to the lowest hour.
+    * Round the shift start time to the lowest hour.
+    * Round the shift end time to the highest hour.
+3. Right join stops and assignments using officer_id and date (incremented by one day). This captures stops which occurred the **following day** during an overnight shift.
+4. Filter out all stops which do not occur during the hours of the shift using the same logic as in step 2.
+5. Merge the data sets (stops merged by date and stops merged by the next day) by row, and join them back with the shift assignment data set to capture any shift assignments which did not have a stop associated with them.
+
+* Number of shift assignments: `r length(unique(stops_merged_joined$shift_id))`
+* Number of stop-officer observations: `r length(unique(stops_merged_joined$stop_officer_id))`
+    * Percentage of stop-officer observations occurring during an officer's shift: `r 100 * length(unique(stops_merged_joined$stop_officer_id)) / nrow(stops)`%.
+* Number of officers who made stops during their shift: `r length(unique(stops_merged_joined$officer_id))`
+    * Percentage of officers who made at least one stop during a shift: `100 * length(unique(stops_merged_joined$officer_id)) / length(unique(assignments$officer_id))`%
+
+```{r}
+stops_flag <-
+    stops_merged_joined %>%
+    mutate(stopCount = if_else(is.na(stop_officer_id), 0 , 1))
+
+stops_total <-
+    stops_flag %>%
+    count(shift_id, wt = stopCount) %>%
+    rename(stops_n_total = n)
+
+stops_contact <-
+    stops_flag %>%
+    count(shift_id, contact_type, wt = stopCount) %>%
+    filter(!is.na(contact_type)) %>%
+    mutate(contact_type = paste0("stops_n_", contact_type)) %>%
+    pivot_wider(id_cols = shift_id,
+                names_from = contact_type,
+                values_from = n,
+                values_fill = 0)
+
+stops_civrace <-
+    stops_flag %>%
+    count(shift_id, civ.race, wt = stopCount) %>%
+    filter(!is.na(civ.race)) %>%
+    mutate(civ.race = tolower(civ.race)) %>%
+    mutate(civ.race = case_when(civ.race == "asian/pacific islander" ~ "aapi",
+                                civ.race == "amer ind/alaskan native" ~ "aian",
+                                T ~ civ.race)) %>%
+    mutate(civ.race = paste0("stops_n_civilian_", civ.race)) %>%
+    pivot_wider(id_cols = shift_id,
+                names_from = civ.race,
+                values_from = n,
+                values_fill = 0)
+
+assignments_outcomes <-
+    assignments_ba_dt %>%
+    full_join(stops_total, by = "shift_id") %>%
+    full_join(stops_civrace, by = "shift_id") %>%
+    full_join(stops_contact, by = "shift_id") %>%
+    mutate(across(matches("stops_n"), ~replace_na(.x, 0)))
+```
+
+
+
+```{r}
+write_csv(assignments_outcomes,
+          here("0-clean-data", "output", "stops-ba-joe.csv"))
+```
+
+
+### Questionable Data Decisions
+
+```{r}
+# Missing start times and end times
+missingStartEndTime <-
+    stopsAssignments %>%
+    filter((is.na(start_time) | is.na(end_time)) & !is.na(time))
+
+nrMatchedStops <- stopsAssignments %>% filter(!is.na(stop_id)) %>% nrow()
+
+# Duplicate stops where one stop matches to more than one shift assignment
+dupeIds <- stopsAssignments %>% count(s_id) %>% filter(!is.na(s_id) & n > 1)
+duplicates <- stopsAssignments %>% filter(s_id %in% dupeIds$s_id)
+```
+
+#### Missing Start Time and End Time
+
+* There are `r nrow(missingStartEndTime)` records where the start time or end time is missing yet they still matched with a stop.
+* This represents `r nrow(missingStartEndTime) / nrow(stopsAssignments)` of all records (`r nrow(stopsAssignments)`) or `r nrow(missingStartEndTime) / nrMatchedStops` of all shift assignments which matched with a stop (`r nrMatchedStops` in total).
+
+#### Duplicate Entries
+
+* There are `r nrow(dupeIds)` stops which are duplicated for a total of `r nrow(duplicates)` records which are duplicates. This means the stop matched to more than one shift assignment. How could this happen?
+    * The officer in question could have had overlapping shift assignments and the stop occurred during the intersection of their shifts.
+    * One of the shifts had a missing start time or end time, and the stop wound up matching with that shift (in addition to matching with at least one another shift assignment).
