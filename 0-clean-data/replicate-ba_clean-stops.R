@@ -12,7 +12,9 @@ assignments <-
     mutate(date = ymd(date))
 
 # stops
-stops <- fread(here("0-clean-data", "input", "bocar-ba_data", 'stops.csv'))
+stops <-
+    fread(here("0-clean-data", "input", "bocar-ba_data", 'stops.csv')) %>%
+    mutate(stop_officer_id = row_number())
 stops[, date := ymd(date)]
 
 # sort for merging
@@ -100,4 +102,5 @@ assignments <- stops.by.group.and.type[assignments, on = c('shift_id')]
 assignments <- stops.by.group.and.race[assignments, on = c('shift_id')]
 
 ## write out results
-write_csv(assignments, here("0-clean-data", "output", "stops-ba.csv"))
+write_csv(stops.merged, here("0-clean-data", "output", "stops-assignments_ba.csv"))
+write_csv(assignments, here("0-clean-data", "output", "stops-outcomes_ba.csv"))
