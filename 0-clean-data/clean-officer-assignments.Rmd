@@ -8,48 +8,47 @@ library(knitr)
 opts_chunk$set(message = F, echo = F)
 
 library(here)
+library(tidyr)
 library(dplyr)
 library(readr)
+library(purrr)
 ```
 
 ```{r}
 assignments <-
     read_csv(here("0-clean-data", "input", "bocar-ba_data", "assignments.csv")) %>%
-    select(-month, -appointed_month, -months_from_start_sq)
+    select(-appointed_month, -months_from_start_sq)
 
 officers <-
     read_csv(here("0-clean-data", "input", "bocar-ba_data", "officers.csv"))
+
+a <-
+    assignments %>%
+    filter(!is.na(end_time) & !is.na(start_time)) %>%
+    group_by(shift, beat_assigned, start_time, end_time) %>%
+    summarise(n = n()) %>%
+    group_by(shift, beat_assigned) %>%
+    mutate(prcnt = n / sum(n)) %>%
+    filter(prcnt == max(prcnt)) %>%
+    ungroup() %>%
+    distinct(shift, beat_assigned, .keep_all = T)
+
+b <-
+    assignments %>%
+    filter(!is.na(end_time) & !is.na(start_time)) %>%
+    left_join(a, by = c("shift", "beat_assigned"))
+
+missing <- assignments %>% filter(is.na(start_time) | is.na(end_time))
+b <-
+    assignments %>%
+    mutate(prcnt = replace_na(.data[["prcnt"]], 0)) %>%
+    group_by(shift, beat_assigned) %>%
+    mutate(confidence = max(prcnt)) %>%
+    filter(prcnt == confidence) %>%
+    select(shift, beat_assigned, start_time.y, end_time.y, confidence) %>%
+    ungroup() %>%
+    right_join(missing)
 ```
-
-## Officer Roster
-
-* **birth_year**: Birth year of the officer.
-* **appointed_month**: The month and year the officer was made an officer. The day is always the first day of the month.
-* **officer_id**: Unique ID for each officer.
-* **officer_race**: Race of the officer.
-* **officer_gender**: Sex of the officer.
-* **spanish**: Does the officer speak Spanish or not?
-* Uniquely identified by **officer_id**. The unit of observation is an officer.
-* **Number of officers**: `r nrow(officers)`
-
-## Shift Assignments
-
-* **officer_id**: Unique ID for each officer.
-* **month**: Month of the shift in year-month-date format. **Dropped as it can be recreated**.
-* **rank**: Rank of the officer assigned to the shift.
-* **unit**: Unit of the officer assigned to the shift.
-* **date**: Date of the shift.
-* **shift**: The shift the officer is assigned to.
-* **start_time**: Hour start time of the shift in military time.
-* **end_time**: Hour end time of the shift in military time.
-* **weekday**: Day of the week of the shift.
-* **beat_assigned**: The beat the officer is assigned to.
-* **appointed_month**: The month and year the officer was made an officer. **Dropped as it's redundant**.
-* **months_from_start**: The number of months between the officer's appointment date and their shift date.
-* **months_from_start_sq**: The number of months between the officer's appointment date and their shift date, squared. **Dropped as it can be recreated**.
-* **duration**: Length of the shift in hours.
-* Uniquely identified by **officer_id** and **date**. The unit of observation is a specific shift for a specific officer.
-* **Number of shift assignments**: `r nrow(assignments)`
 
 ### Notes on the data
 
