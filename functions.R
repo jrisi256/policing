@@ -1,79 +1,144 @@
-library(here)
-library(skimr)
+library(readr)
+library(dplyr)
+library(tidyr)
 library(stringr)
 
-my_read_csv <- function(file_string, path) {
+my_read_csv <- function(file_path) {
     
-    if(file_string == "officers.csv") {
-        read_csv(here(path, file_string)) %>%
-            mutate(officer_race = as.factor(officer_race),
-                   officer_gender = as.factor(officer_gender),
-                   officer_id = as.character(officer_id),
-                   spanish = as.logical(spanish))
+    if(str_detect(file_path, "officers")) {
+        read_csv(file_path,
+                 col_types = list(officer_race = "f",
+                                  officer_gender = "f",
+                                  officer_id = "c",
+                                  spanish = "l"))
         
-    } else if(file_string == "force.csv") {
-        read_csv(here(path, file_string)) %>%
-            mutate(civ.race = as.factor(civ.race),
-                   civ.gender = as.factor(civ.gender),
-                   civilian_race_short = as.factor(civilian_race_short),
-                   district = as.factor(district),
-                   civ.injured = as.logical(civ.injured),
-                   force_id = as.character(force_id),
-                   officer_id = as.character(officer_id),
-                   lat = as.character(lat),
-                   lon = as.character(lon))
+    } else if(str_detect(file_path, "force")) {
+        read_csv(file_path,
+                 col_types = list(civ.race = "f",
+                                  civ.gender = "f",
+                                  civilian_race_short = "f",
+                                  district = "f",
+                                  civ.injured = "l",
+                                  force_id = "c",
+                                  officer_id = "c",
+                                  lat = "c",
+                                  lon = "c"))
         
-    } else if(file_string == "assignments.csv") {
-        read_csv(here(path, file_string)) %>%
-            mutate(rank = as.factor(rank),
-                   weekday = as.factor(weekday),
-                   officer_id = as.character(officer_id),
-                   unit = as.factor(unit),
-                   shift = as.factor(shift))
+    } else if(str_detect(file_path, "assignments")) {
+        read_csv(file_path,
+                 col_types = list(rank = "f",
+                                  weekday = "f",
+                                  officer_id = "c",
+                                  unit = "f",
+                                  shift = "f"))
         
-    } else if(file_string == "stops.csv") {
-        read_csv(here(path, file_string)) %>%
-            mutate(stop_type = as.factor(stop_type),
-                   contact_type = as.factor(contact_type),
-                   civ.race = as.factor(civ.race),
-                   civ.gender = as.factor(civ.gender),
-                   civilian_race_short = as.factor(civilian_race_short),
-                   stop_id = as.character(stop_id),
-                   district = as.factor(district),
-                   po_first = as.logical(po_first),
-                   lat = as.character(lat),
-                   lon = as.character(lon),
-                   officer_id = as.character(officer_id))
+    } else if(str_detect(file_path, "stops")) {
+        read_csv(file_path,
+                 col_types = list(stop_type = "f",
+                                  contact_type = "f",
+                                  civ.race = "f",
+                                  civ.gender = "f",
+                                  civilian_race_short = "f",
+                                  stop_id = "c",
+                                  district = "f",
+                                  po_first = "l",
+                                  lat = "c",
+                                  lon = "c",
+                                  officer_id = "c"))
         
-    } else if(file_string == "arrests.csv") {
-        read_csv(here(path, file_string)) %>%
-            mutate(crime_code = as.factor(crime_code),
-                   civ.race = as.factor(civ.race),
-                   civ.gender = as.factor(civ.gender),
-                   civilian_race_short = as.factor(civilian_race_short),
-                   lat = as.character(lat),
-                   lon = as.character(lon),
-                   district = as.factor(district),
-                   arrest_id = as.character(arrest_id))
+    } else if(str_detect(file_path, "arrests")) {
+        read_csv(file_path,
+                 col_types = list(crime_code = "f",
+                                  civ.race = "f",
+                                  civ.gender = "f",
+                                  civilian_race_short = "f",
+                                  lat = "c",
+                                  lon = "c",
+                                  district = "f",
+                                  arrest_id = "c",
+                                  officer_id = "c"))
     }
 }
 
-get_percentages <- function(factor) {
-    percentage_table <- sort(prop.table(table(factor)), decreasing = T)
-    values <- sprintf("%.3f", percentage_table[1:min(c(length(percentage_table), 4))])
-    names <- str_sub(names(percentage_table[1:min(c(length(percentage_table), 4))]), 1, 3)
-    str_c(names, values, sep = ": ", collapse = ", ")
+GetSummaryCol <- function(df, col) {
+    
+    if(is.numeric(df[[col]])) {
+        
+        q <- quantile(df[[col]], na.rm = T)
+        
+        df %>%
+            transmute(col = col,
+                      min = min(.data[[col]], na.rm = T),
+                      first_q = q[["25%"]],
+                      med = median(.data[[col]], na.rm = T),
+                      mean = mean(.data[[col]], na.rm = T),
+                      third_q = q[["75%"]],
+                      max = max(.data[[col]], na.rm = T),
+                      sd = sd(.data[[col]], na.rm = T),
+                      iqr = IQR(.data[[col]], na.rm = T),
+                      mad = mad(.data[[col]], na.rm = T),
+                      na = sum(is.na(.data[[col]])),
+                      prcnt_na = na / nrow(df)) %>%
+            distinct() %>%
+            mutate(across(where(is.numeric), ~round(.x, digits = 2)))
+        
+    } else if(is.factor(df[[col]])) {
+        
+        df %>%
+            group_by(.data[[col]]) %>%
+            summarise(n = n()) %>%
+            arrange(desc(n)) %>%
+            ungroup() %>%
+            mutate(prcnt = n / sum(n)) %>%
+            pivot_longer(col, values_transform = list(value = as.character))
+        
+    } else if(is.logical(df[[col]])) {
+        
+        df %>%
+            transmute(col = col,
+                      mean = mean(.data[[col]]),
+                      true = sum(.data[[col]]),
+                      false = sum(!.data[[col]]),
+                      missing = sum(is.na(.data[[col]])),
+                      prcnt_missing = missing / nrow(df)) %>%
+            distinct()
+        
+    } else {
+        df %>%
+            transmute(col = col,
+                      missing = sum(is.na(.data[[col]])),
+                      prcnt_missing = missing / nrow(df)) %>%
+            distinct()
+    }
 }
 
-my_skim_pct <-
-    skim_with(numeric = sfl(iqr = ~ IQR(., na.rm = T), hist = NULL),
-              factor = sfl(pct = get_percentages,
-                           top_counts = ~top_counts(.,
-                                                    max_char = 3,
-                                                    max_levels = 4)))
+GetSummary <- function(df) {
 
-my_skim <-
-    skim_with(numeric = sfl(iqr = ~ IQR(., na.rm = T), hist = NULL),
-              factor = sfl(top_counts = ~top_counts(.,
-                                                    max_char = 3,
-                                                    max_levels = 4)))
+    col_types <- unlist(map(df, function(.x) {class(.x)[1]}))
+    cols <- colnames(df)
+    names(cols) <- col_types
+    
+    summary <- map(cols, GetSummaryCol, df = df)
+    
+    numeric <- bind_rows(summary[names(summary) == "numeric"])
+    factor <- bind_rows(summary[names(summary) == "factor"])
+    logical <- bind_rows(summary[names(summary) == "logical"])
+    other <- bind_rows(summary[!(names(summary) %in% c("numeric", "factor", "logical"))])
+    
+    summaries <- list("numeric" = numeric,
+                      "factor" = factor,
+                      "logical" = logical,
+                      "other" = other)
+    
+    if(length(summaries[["numeric"]]) == 0) {
+        summaries[["numeric"]] <- NULL
+    } else if(length(summaries[["factor"]]) == 0) {
+        summaries[["factor"]] <- NULL
+    } else if(length(summaries[["logical"]]) == 0) {
+        summaries[["logical"]] <- NULL
+    } else if(length(summaries[["other"]]) == 0) {
+        summaries[["other"]] <- NULL
+    }
+    
+    return(summaries)
+}

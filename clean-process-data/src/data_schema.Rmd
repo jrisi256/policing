@@ -1,57 +1,49 @@
 ---
-title: "Data Schema Descriptions"
+title: "Data Schema"
 output: pdf_document
 ---
 
 ```{r, include = F}
-set.seed(420)
-
 library(knitr)
-opts_chunk$set(message = F, echo = F, fig.width = 12, fig.height = 14)
+opts_chunk$set(message = F, echo = F)
 
 library(here)
 library(readr)
 library(dplyr)
-library(GGally)
-library(ggplot2)
-library(forcats)
-library(lubridate)
+library(tidyr)
+library(purrr)
+library(stringr)
+library(kableExtra)
 
 source(here("functions.R"))
 ```
 
 ```{r}
-read_path <- paste("0-clean-data", "input", sep = "/")
-write_path <- paste("0-clean-data", "output", sep = "/")
+read_path <- paste("clean-process-data", "input", sep = "/")
+write_path <- paste("clean-process-data", "output", sep = "/")
 
-officers <- my_read_csv("officers.csv", path = here(read_path))
-force <- my_read_csv("force.csv", path = here(read_path))
+officers <- my_read_csv(here(read_path, "officers.csv"))
+force <- my_read_csv(here(read_path, "force.csv"))
 
 assignments <-
-    my_read_csv("assignments.csv", path = here(read_path)) %>%
-    mutate(shift_id = as.character(row_number())) %>%
-    select(-appointed_month, -months_from_start_sq)
+    my_read_csv(here(read_path, "assignments.csv")) %>%
+    mutate(shift_id = as.character(row_number()))
 
 stops <-
-    my_read_csv("stops.csv", here(read_path)) %>%
-    mutate(stop_officer_id = as.character(row_number())) %>%
-    mutate(civ.gender = fct_recode(civ.gender, NULL = "X"))
+    my_read_csv(here(read_path, "stops.csv")) %>%
+    mutate(stop_officer_id = as.character(row_number()))
 
 arrests <-
-    my_read_csv("arrests.csv", here(read_path)) %>%
+    my_read_csv(here(read_path, "arrests.csv")) %>%
     mutate(arrest_officer_id = as.character(row_number()))
 
-write_csv(officers, here(write_path, "cleaned_officers.csv"))
-write_csv(assignments, here(write_path, "cleaned_assignments.csv"))
-write_csv(stops, here(write_path, "cleaned_stops.csv"))
-write_csv(arrests, here(write_path, "cleaned_arrests.csv"))
-write_csv(force, here(write_path, "cleaned_force.csv"))
-
-my_skim(officers)
-my_skim(assignments)
-my_skim(stops)
-my_skim(arrests)
-my_skim(force)
+summaries <-
+    map(list("officers" = officers,
+             "force" = force,
+             "assignments" = assignments,
+             "stops" = stops,
+             "arrests" = arrests),
+        GetSummary)
 ```
 
 ## Officer Roster
@@ -64,6 +56,10 @@ my_skim(force)
 * **spanish**: Does the officer speak Spanish or not?
 * Uniquely identified by **officer_id**. The unit of observation is an officer.
 * **Number of officers**: `r nrow(officers)`
+
+```{r, results = "asis"}
+map(summaries[["officers"]], kable, format = "latex")
+```
 
 ## Shift Assignments
 
@@ -84,6 +80,16 @@ my_skim(force)
 * **shift_id**: Unique identifier for each shift assignment. **Created by me**.
 * Uniquely identified by **officer_id** and **date** or **shift_id**. The unit of observation is a specific shift for a specific officer.
 * **Number of shift assignments**: `r nrow(assignments)`
+
+```{r, results = "asis"}
+numericTable <- summaries[["assignments"]][["numeric"]]
+summaries[["assignments"]][["numeric"]] <- NULL
+map(summaries[["assignments"]], kable, format = "latex")
+
+numericTable %>%
+    kable(format = "latex") %>%
+    kable_styling(latex_options = "scale_down")
+```
 
 ## Stops
 
@@ -109,6 +115,10 @@ my_skim(force)
 * **Number of rows**: `r nrow(stops)`
 * **Number of unique stops**: `r length(unique(stops$stop_id))`
 
+```{r, results = "asis"}
+map(summaries[["stops"]], kable, format = "latex")
+```
+
 ## Arrests
 
 * **date**: Date of the arrest in YYYY-MM-DD format.
@@ -131,6 +141,10 @@ my_skim(force)
 * **Number of rows**: `r nrow(arrests)`
 * **Number of unique arrests**: `r length(unique(arrests$arrest_id))`
 
+```{r, results = "asis"}
+map(summaries[["arrests"]], kable, format = "latex")
+```
+
 ## Uses of Force
 
 * **date**: Date of the use of force in YYYY-MM-DD format.
@@ -150,125 +164,6 @@ my_skim(force)
 * The unit of analysis is a use of force incident. Only one police officer is listed for each use of force incident. Each row can be uniquely identified by **force_id**.
 * **Number of uses of force**: `r nrow(force)`
 
-## Trends in officer data
-
-```{r, }
-officers %>%
-    select(!is.character, -appointed_month) %>%
-    mutate(officer_race = str_replace(officer_race, "officer_", "")) %>%
-    filter(!is.na(officer_race) & !is.na(officer_gender)) %>%
-    ggpairs(lower = list(combo = "facetdensitystrip",
-                         discrete = wrap("colbar", size = 5)),
-            upper = list(discrete = wrap("colbar", size = 5))) +
-    theme_bw() +
-    theme(axis.text = element_text(size = 13),
-          strip.text = element_text(size = 13)) +
-    ggtitle("Officers")
+```{r, results = "asis"}
+map(summaries[["force"]], kable, format = "latex")
 ```
-
-## Trends in shift assignment data
-
-```{r}
-
-```
-
-
-## Trends in stop data
-
-```{r}
-stops %>%
-    select(time, contact_type, civ.gender, civ.race) %>%
-    filter(!is.na(civ.gender)) %>%
-    mutate(civ.race = fct_recode(civ.race,
-                                 aapi = "ASIAN/PACIFIC ISLANDER",
-                                 naal = "AMER IND/ALASKAN NATIVE")) %>%
-    ggpairs(lower = list(combo = "facetdensitystrip",
-                         discrete = wrap("colbar", size = 5)),
-            upper = list(discrete = wrap("colbar", size = 5))) +
-    theme_bw() +
-    theme(axis.text = element_text(size = 13),
-          strip.text = element_text(size = 13)) +
-    ggtitle("Stops Over Time")
-```
-
-```{r}
-stops %>%
-    select(civ.age, contact_type, civ.gender, civ.race) %>%
-    filter(!is.na(civ.gender) & civ.age <= 100) %>%
-    mutate(civ.race = fct_recode(civ.race,
-                                 aapi = "ASIAN/PACIFIC ISLANDER",
-                                 naal = "AMER IND/ALASKAN NATIVE")) %>%
-    ggpairs(lower = list(combo = "facetdensitystrip",
-                         discrete = wrap("colbar", size = 5)),
-            upper = list(discrete = wrap("colbar", size = 5))) +
-    theme_bw() +
-    theme(axis.text = element_text(size = 13),
-          strip.text = element_text(size = 13)) +
-    ggtitle("Stops By Age")
-```
-
-```{r}
-stops %>%
-    filter(civ.age <= 100) %>%
-    sample_frac(0.4) %>%
-    ggplot(aes(x = civ.age, y = time)) +
-    stat_density2d(aes(fill = ..level..), geom = "polygon") +
-    scale_fill_continuous(type = "viridis") +
-    theme_bw() +
-    theme(axis.text = element_text(size = 13)) +
-    ggtitle("2D Density Plot Examining Stops By Age Over Time")
-```
-
-```{r}
-stops %>%
-    filter(civ.age <= 100) %>%
-    sample_frac(0.4) %>%
-    ggplot(aes(x = civ.age, y = hour)) +
-    stat_density2d(aes(fill = ..level..), geom = "polygon") +
-    scale_fill_continuous(type = "viridis") +
-    theme_bw() +
-    theme(axis.text = element_text(size = 13)) +
-    ggtitle("2D Density Plot Examining Stops By Age Over The Course of a Day")
-```
-
-```{r}
-stops %>%
-    filter(civ.age <= 100) %>%
-    mutate(day_of_week = wday(time, label = T)) %>%
-    ggplot(aes(x = civ.age)) +
-    geom_density() + 
-    facet_wrap(~day_of_week) +
-    theme_bw() +
-    theme(axis.text = element_text(size = 13)) +
-    ggtitle("Density Plot Examining Stops By Age Over The Course of a Week")
-```
-
-```{r}
-stops %>%
-    filter(civ.age <= 100) %>%
-    mutate(day_of_month = day(time)) %>%
-    sample_frac(0.4) %>%
-    ggplot(aes(x = civ.age, y = day_of_month)) +
-    stat_density2d(aes(fill = ..level..), geom = "polygon") +
-    scale_fill_continuous(type = "viridis") +
-    theme_bw() +
-    theme(axis.text = element_text(size = 13)) +
-    ggtitle("2D Density Plot Examining Stops By Age Over The Course of a Month")
-```
-
-```{r}
-stops %>%
-    filter(civ.age <= 100) %>%
-    mutate(day_of_year = yday(time)) %>%
-    sample_frac(0.4) %>%
-    ggplot(aes(x = civ.age, y = day_of_year)) +
-    stat_density2d(aes(fill = ..level..), geom = "polygon") +
-    scale_fill_continuous(type = "viridis") +
-    theme_bw() +
-    theme(axis.text = element_text(size = 13)) +
-    ggtitle("2D Density Plot Examining Stops By Age Over The Course of a Year")
-```
-
-## Trends in arrest data
-
-## Trends in use of force data
