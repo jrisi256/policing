@@ -90,7 +90,8 @@ GetSummaryCol <- function(df, col) {
             arrange(desc(n)) %>%
             ungroup() %>%
             mutate(prcnt = n / sum(n)) %>%
-            pivot_longer(col, values_transform = list(value = as.character))
+            pivot_longer(all_of(col),
+                         values_transform = list(value = as.character))
         
     } else if(is.logical(df[[col]])) {
         
@@ -114,7 +115,7 @@ GetSummaryCol <- function(df, col) {
 
 GetSummary <- function(df) {
 
-    col_types <- unlist(map(df, function(.x) {class(.x)[1]}))
+    col_types <- unlist(map(df, function(col) {class(col)[1]}))
     cols <- colnames(df)
     names(cols) <- col_types
     
@@ -123,7 +124,8 @@ GetSummary <- function(df) {
     numeric <- bind_rows(summary[names(summary) == "numeric"])
     factor <- bind_rows(summary[names(summary) == "factor"])
     logical <- bind_rows(summary[names(summary) == "logical"])
-    other <- bind_rows(summary[!(names(summary) %in% c("numeric", "factor", "logical"))])
+    other <- bind_rows(summary[
+        !(names(summary) %in% c("numeric", "factor", "logical"))])
     
     summaries <- list("numeric" = numeric,
                       "factor" = factor,

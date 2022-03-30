@@ -1,11 +1,11 @@
 ---
-title: "Data Schema"
+title: "Data Schemas"
 output: pdf_document
 ---
 
 ```{r, include = F}
 library(knitr)
-opts_chunk$set(message = F, echo = F)
+opts_chunk$set(message = F, echo = F, warning = F)
 
 library(here)
 library(readr)
@@ -13,21 +13,45 @@ library(dplyr)
 library(tidyr)
 library(purrr)
 library(stringr)
+library(lubridate)
 library(kableExtra)
 
 source(here("functions.R"))
 ```
 
 ```{r}
-read_path <- paste("clean-process-data", "input", sep = "/")
-write_path <- paste("clean-process-data", "output", sep = "/")
+read_path <- paste("clean-and-process", "input", sep = "/")
+write_path <- paste("clean-and-process", "output", sep = "/")
 
 officers <- my_read_csv(here(read_path, "officers.csv"))
 force <- my_read_csv(here(read_path, "force.csv"))
 
+assignments <- my_read_csv(here(read_path, "assignments.csv"))
+
 assignments <-
-    my_read_csv(here(read_path, "assignments.csv")) %>%
-    mutate(shift_id = as.character(row_number()))
+    assignments %>%
+    mutate(shift_id = as.character(row_number()),
+           start_date = if_else(is.na(start_time), NA_Date_, date),
+           start_hms = hms::hms(rep(0, nrow(assignments)),
+                                rep(0, nrow(assignments)),
+                                start_time),
+           start_datetime = as_datetime(paste0(start_date, " ", start_hms)),
+           end_date = case_when(is.na(end_time) ~ NA_Date_,
+                                end_time > 24 ~ date + 1,
+                                TRUE ~ date),
+           end_hms = hms::hms(rep(0, nrow(assignments)),
+                              rep(0, nrow(assignments)),
+                              case_when(is.na(end_time) ~ NA_real_,
+                                        end_time > 24 ~ end_time - 24,
+                                        TRUE ~ end_time)),
+           end_datetime = as_datetime(paste0(end_date, " ", end_hms)),
+           start_datetime_max = if_else(is.na(start_datetime),
+                                        as_datetime(paste0(date, " 00:00:01")),
+                                        start_datetime),
+           end_datetime_max = if_else(is.na(end_datetime) | end_time > 24,
+                                      as_datetime(paste0(date + 1, " 11:59:59")),
+                                      end_datetime)) %>%
+    select(-start_date, -start_hms, -end_date, -end_hms)
 
 stops <-
     my_read_csv(here(read_path, "stops.csv")) %>%
@@ -44,6 +68,16 @@ summaries <-
              "stops" = stops,
              "arrests" = arrests),
         GetSummary)
+
+dfs <- list(officers = officers,
+            assignments = assignments,
+            stops = stops,
+            arrests = arrests,
+            force = force)
+
+output_paths <- as.list(here(write_path, paste0("cleaned_", names(dfs), ".csv")))
+
+pwalk(list(dfs, output_paths), function(df, path) {write_csv(df, path)})
 ```
 
 ## Officer Roster
@@ -71,11 +105,15 @@ map(summaries[["officers"]], kable, format = "latex")
 * **shift**: The shift the officer is assigned to.
 * **start_time**: Hour start time of the shift in military time.
 * **end_time**: Hour end time of the shift in military time.
+* **start_datetime**: Combines **start_time** and **date** into a starting datetime for the shift in YYYY-MM-DD HH:MM:SS format. **Created by me.**
+* **end_datetime**: Combines **end_time** and **date** into an ending datetime for the shift in YYYY-MM-DD HH:MM:SS format. **Created by me.**
+* **start_datetime_max**: When the **start_time** is missing, assume the earliest possible start time. **Created by me**.
+* **end_datetime_max**: When the **end_time** is missing, assume the latest possible end time. **Created by me**.
 * **weekday**: Day of the week of the shift.
 * **beat_assigned**: The beat the officer is assigned to.
-* **appointed_month**: The month and year the officer was made an officer. **Dropped as it's redundant**.
+* **appointed_month**: The month and year the officer was made an officer.
 * **months_from_start**: The number of months between the officer's appointment date and their shift date.
-* **months_from_start_sq**: The number of months between the officer's appointment date and their shift date, squared. **Dropped as it can be recreated**.
+* **months_from_start_sq**: The number of months between the officer's appointment date and their shift date, squared.
 * **duration**: Length of the shift in hours.
 * **shift_id**: Unique identifier for each shift assignment. **Created by me**.
 * Uniquely identified by **officer_id** and **date** or **shift_id**. The unit of observation is a specific shift for a specific officer.
