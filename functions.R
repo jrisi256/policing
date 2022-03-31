@@ -5,59 +5,16 @@ library(stringr)
 
 my_read_csv <- function(file_path) {
     
-    if(str_detect(file_path, "officers")) {
-        read_csv(file_path,
-                 col_types = list(officer_race = "f",
-                                  officer_gender = "f",
-                                  officer_id = "c",
-                                  spanish = "l"))
-        
-    } else if(str_detect(file_path, "force")) {
-        read_csv(file_path,
-                 col_types = list(civ.race = "f",
-                                  civ.gender = "f",
-                                  civilian_race_short = "f",
-                                  district = "f",
-                                  civ.injured = "l",
-                                  force_id = "c",
-                                  officer_id = "c",
-                                  lat = "c",
-                                  lon = "c"))
-        
-    } else if(str_detect(file_path, "assignments")) {
-        read_csv(file_path,
-                 col_types = list(rank = "f",
-                                  weekday = "f",
-                                  officer_id = "c",
-                                  unit = "f",
-                                  shift = "f"))
-        
-    } else if(str_detect(file_path, "stops")) {
-        read_csv(file_path,
-                 col_types = list(stop_type = "f",
-                                  contact_type = "f",
-                                  civ.race = "f",
-                                  civ.gender = "f",
-                                  civilian_race_short = "f",
-                                  stop_id = "c",
-                                  district = "f",
-                                  po_first = "l",
-                                  lat = "c",
-                                  lon = "c",
-                                  officer_id = "c"))
-        
-    } else if(str_detect(file_path, "arrests")) {
-        read_csv(file_path,
-                 col_types = list(crime_code = "f",
-                                  civ.race = "f",
-                                  civ.gender = "f",
-                                  civilian_race_short = "f",
-                                  lat = "c",
-                                  lon = "c",
-                                  district = "f",
-                                  arrest_id = "c",
-                                  officer_id = "c"))
-    }
+    df <- read_csv(file_path)
+    
+    f <- "race|gender|district|rank|weekday|unit|shift|type|code"
+    c <- "id|lat|lon"
+    l <- "spanish|injured|first"
+    
+    df %>%
+        mutate(across(matches(f), function(col) {as.factor(col)}),
+               across(matches(c), function(col) {as.character(col)}),
+               across(matches(l), function(col) {as.logical(col)}))
 }
 
 GetSummaryCol <- function(df, col) {
