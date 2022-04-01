@@ -1,0 +1,102 @@
+---
+title: "Replicate Ba et al. 2021 - Cleaning and Processing"
+output: pdf_document
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+library(tidyr)
+library(readr)
+library(dplyr)
+library(purrr)
+library(stringr)
+library(data.table)
+```
+
+```{r}
+`%.%` <- paste0
+read_path <- paste("clean-and-process", "output", sep = "/")
+
+officers <- my_read_csv(here(read_path, "cleaned_officers.csv"))
+assignments <- my_read_csv(here(read_path, "cleaned_assignments.csv"))
+setDT(officers)
+setDT(assignments)
+```
+
+```{r}
+# merge officer characteristics
+officer_assignments<- assignments[officers[,.(officer_id,
+                                              birth_year,
+                                              officer_race,
+                                              officer_gender,
+                                              spanish)],
+                                  on = 'officer_id']
+
+# drop officers for whom no assignments were found
+officer_assignments <- officer_assignments[!is.na(date),]
+
+# drop all but POLICE OFFICER
+rank_fltr <- officer_assignments[rank == 'POLICE OFFICER',]
+
+# drop all officers except black, Hispanic, and white
+race_fltr <- officer_assignments[
+    officer_race %in% ('officer_' %.% c('black', 'white', 'hisp')),]
+
+officer_assignments_fltr <-
+    officer_assignments %>%
+    filter(officer_race %in% c(paste0("officer_", c("white", "black", "hisp"))),
+           rank == "POLICE OFFICER")
+
+# Find officers which had no shifts and any shifts which had no officers
+anti_join_assignments <- anti_join(assignments, officers, by = "officer_id")
+anti_join_officers <- anti_join(officers, assignments, by = "officer_id")
+```
+
+## Merging Officers To Their Shift Assignments
+
+* Number of officer shift assignments: `r nrow(officer_assignments)`
+* Number of unique officers: `r length(unique(officer_assignments$officer_id))`
+* Number of non-matching assignments: `r nrow(anti_join_assignments)`
+    * Percentage of assignments which don't match: `r nrow(anti_join_assignments) / nrow(assignments) * 100`%
+* Number of non-matching officers: `r nrow(anti_join_officers)`
+    * Percentage of officers which don't match: `r nrow(anti_join_officers) / nrow(officers) * 100`%  
+    
+## Filtering
+
+### Race
+
+> "We restrict analysis to patrol assignments in which Black, Hispanic, or White officers serve. Asian/Pacific Islander and Native American/Alaskan Native officers are not examined due to small sample sizes." page 7 of Appendix Section S1.4 in Ba et al. 2021.
+
+* Number of officer shift assignments: `r nrow(race_fltr)`
+    * Shifts dropped: `r nrow(officer_assignments) - nrow(race_fltr)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(race_fltr)) / nrow(officer_assignments) * 100`%
+* Number of unique officers: `r length(unique(race_fltr$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
+    
+### Rank
+
+> "Finally, we drop officers at ranks other than 'police officer.' This step eliminates police sergeants, who serve in 8% of beat assignments but make very few stops and arrests, as well as legal officers, helicopter pilots, explosives technicians, and canine handlers." page 7 of Appendix Section S1.4 in Ba et al. 2021.
+
+* Number of officer shift assignments: `r nrow(rank_fltr)`
+    * Shifts dropped: `r nrow(officer_assignments) - nrow(rank_fltr)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(rank_fltr)) / nrow(officer_assignments) * 100`%
+* Number of unique officers: `r length(unique(rank_fltr$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(rank_fltr$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(rank_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
+    
+### Totals
+
+* Note the numbers above won't completely add up to the numbers below because of intersections.
+* **Number of officer shift assignments**: `r nrow(officer_assignments_fltr)`
+    * Shifts dropped: `r nrow(officer_assignments) - nrow(officer_assignments_fltr)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(officer_assignments_fltr)) / nrow(officer_assignments) * 100`%
+* **Number of unique officers**: `r length(unique(officer_assignments_fltr$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_fltr$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
+    

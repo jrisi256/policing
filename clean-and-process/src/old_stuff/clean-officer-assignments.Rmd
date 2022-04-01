@@ -1,0 +1,55 @@
+---
+title: "Clean Officers and Shift Assignments"
+output: pdf_document
+---
+
+```{r}
+assignments <-
+    read_csv(here("0-clean-data", "input", "bocar-ba_data", "assignments.csv")) %>%
+    select(-appointed_month, -months_from_start_sq)
+
+officers <-
+    read_csv(here("0-clean-data", "input", "bocar-ba_data", "officers.csv"))
+
+a <-
+    assignments %>%
+    filter(!is.na(end_time) & !is.na(start_time)) %>%
+    group_by(shift, beat_assigned, start_time, end_time) %>%
+    summarise(n = n()) %>%
+    group_by(shift, beat_assigned) %>%
+    mutate(prcnt = n / sum(n)) %>%
+    filter(prcnt == max(prcnt)) %>%
+    ungroup() %>%
+    distinct(shift, beat_assigned, .keep_all = T)
+
+b <-
+    assignments %>%
+    filter(!is.na(end_time) & !is.na(start_time)) %>%
+    left_join(a, by = c("shift", "beat_assigned"))
+
+missing <- assignments %>% filter(is.na(start_time) | is.na(end_time))
+b <-
+    assignments %>%
+    mutate(prcnt = replace_na(.data[["prcnt"]], 0)) %>%
+    group_by(shift, beat_assigned) %>%
+    mutate(confidence = max(prcnt)) %>%
+    filter(prcnt == confidence) %>%
+    select(shift, beat_assigned, start_time.y, end_time.y, confidence) %>%
+    ungroup() %>%
+    right_join(missing)
+```
+
+```{r}
+officer_assignments <-
+    inner_join(assignments, officers, by = "officer_id") %>%
+    mutate(shift_id = row_number())
+
+anti_join_assignments <- anti_join(assignments, officers, by = "officer_id")
+anti_join_officers <- anti_join(officers, assignments, by = "officer_id")
+write_csv(officer_assignments,
+          here("0-clean-data", "output", "officer_assignments-joe.csv"))
+```
+
+It's unclear why so many officers don't have a shift assignment. Most of the non-matches are likely due to the fact that this is a roster of every person who ever served as an officer so it includes retired officers or officers who quit (as of when these shift assignments start). Additionally some of the officers listed in the roster likely do not get assigned to patrol shifts due to the nature of their role (e.g. they are in a leadership role).  
+
+More worrisome might be officers who don't get shift assignments for some other, unknown reason which might hurt the validity of the study (e.g. they're being punished or rewarded).
