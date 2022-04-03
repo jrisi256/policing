@@ -27,30 +27,6 @@ stops_dt <-
          stop_officer_id = row_number())
 ```
 
-## Officer stops
-
-* **stop_id**: Unique identifier for each stop.
-* **time**: Time of stop.
-* **date**: Date of stop.
-* **district**: Police district where the stop took place.
-* **po_first**: Was the focal officer the first to respond to the scene?
-* **stop_type**: What was the type of the stop?
-* **contact_type**: Collapsed version of **stop_type** (less categories).
-* **civ.race**: Race of the civilian.
-* **civ.gender**: Sex of the civilian.
-* **civ.age**: Age of the civilian at the time of the stop.
-* **lat**: Latitude of the stop.
-* **lon**: Longitude of the stop.
-* **officer_id**: Unique identifier for the officer.
-* **month**: Month of stop. **Dropped as it can be recreated**.
-* **civilian_race_short**: Collapsed version of **civ.race** (less categories). **Dropped as it can be recreated**.
-* **hour**: Hour of the day when the stop took place.
-* **stop_officer_id**: Unique identifier for each entry.
-* The unit of analysis is a unique officer involved in a stop. Each row can be uniquely identified by **officer_id** and **stop_id** or by **stop_officer_id**.
-* Each stop involves only one civilian, but they can involve multiple officers. It is possible multiple stops are all a part of one larger incident involving multiple civilians. This can be investigated by examining stops that took place in the same location at the same time involving the same officers.
-* **Number of stops**: `r nrow(stops_dt)`
-* **Number of unique stops**: `r length(unique(stops_dt$stop_id))`
-
 ## Ba et al. 2021 Replication - Merging stops to officer assignments
 
 ```{r}
@@ -60,6 +36,8 @@ setkey(assignments_ba_dt, officer_id, date)
 
 # Right join officer shift assignments with stops
 stops_merged <- stops_dt[assignments_ba_dt,]
+stops_merged[, month := i.month]
+stops_merged <- stops_merged[, !"i.month", with = F]
 
 # Drop the stop if it did not occur during the shift
 stops_merged <-
@@ -85,8 +63,9 @@ stops_merged_nextday <-
   stops_merged_nextday[between(hour, floor(new_start_time), ceiling(new_end_time)),]
 
 # Revert back to the normal date
-stops_merged_nextday[, date := i.date]
-stops_merged_nextday[, c("i.date", "new_end_time", "new_start_time") := NULL]
+drop_cols <- c("i.date", "new_end_time", "new_start_time", "i.month")
+stops_merged_nextday <- stops_merged_nextday[, `:=`(date = i.date, month = i.month)]
+stops_merged_nextday <- stops_merged_nextday[, !drop_cols, with = F]
 
 # Merge same-day stops with next-day stops on overnight shifts.
 # Then add shift assignments which had no stops.
@@ -95,18 +74,13 @@ stops_merged_joined <-
     full_join(assignments_ba_dt, by = colnames(assignments_ba_dt))
 
 rm(stops_merged, stops_merged_nextday)
+
+a <- stops_merged_joined %>% filter(!(id %in% stops_merged_final$id))
+b <- a %>% filter(shift_id %in% stops_merged_final$shift_id)
+b2 <- a %>% filter(!(shift_id %in% stops_merged_final$shift_id))
+c <- stops_merged_final %>% filter(shift_id %in% b$shift_id) %>% select(shift_id, stop_officer_id, time, start_time, end_time, date)
+d <- stops_merged_joined %>% filter(shift_id == "1000921")
 ```
-
-Ba et al. (2021) are only concerned with stops which occur during an officer's shift so their data cleaning and merging process reflects that.
-
-1. Right join stops and assignments using officer_id and date. I.e. keep every assignment and only stops which occurred during the start date of the shift.
-2. Keep any stops which occurred during the hours of the shift.
-    * Round the stop time to the lowest hour.
-    * Round the shift start time to the lowest hour.
-    * Round the shift end time to the highest hour.
-3. Right join stops and assignments using officer_id and date (incremented by one day). This captures stops which occurred the **following day** during an overnight shift.
-4. Filter out all stops which do not occur during the hours of the shift using the same logic as in step 2.
-5. Merge the data sets (stops merged by date and stops merged by the next day) by row, and join them back with the shift assignment data set to capture any shift assignments which did not have a stop associated with them.
 
 * Number of resulting stop-shift assignment observations: `r nrow(stops_merged_joined)`
 * Number of shift assignments: `r length(unique(stops_merged_joined$shift_id))`
