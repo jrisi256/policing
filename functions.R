@@ -1,6 +1,6 @@
+library(tidyr)
 library(readr)
 library(dplyr)
-library(tidyr)
 library(purrr)
 library(stringr)
 

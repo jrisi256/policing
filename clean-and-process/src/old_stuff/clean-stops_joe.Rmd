@@ -27,30 +27,6 @@ stops_dt <-
          stop_officer_id = row_number())
 ```
 
-## Officer stops
-
-* **stop_id**: Unique identifier for each stop.
-* **time**: Time of stop.
-* **date**: Date of stop.
-* **district**: Police district where the stop took place.
-* **po_first**: Was the focal officer the first to respond to the scene?
-* **stop_type**: What was the type of the stop?
-* **contact_type**: Collapsed version of **stop_type** (less categories).
-* **civ.race**: Race of the civilian.
-* **civ.gender**: Sex of the civilian.
-* **civ.age**: Age of the civilian at the time of the stop.
-* **lat**: Latitude of the stop.
-* **lon**: Longitude of the stop.
-* **officer_id**: Unique identifier for the officer.
-* **month**: Month of stop. **Dropped as it can be recreated**.
-* **civilian_race_short**: Collapsed version of **civ.race** (less categories). **Dropped as it can be recreated**.
-* **hour**: Hour of the day when the stop took place.
-* **stop_officer_id**: Unique identifier for each entry.
-* The unit of analysis is a unique officer involved in a stop. Each row can be uniquely identified by **officer_id** and **stop_id** or by **stop_officer_id**.
-* Each stop involves only one civilian, but they can involve multiple officers. It is possible multiple stops are all a part of one larger incident involving multiple civilians. This can be investigated by examining stops that took place in the same location at the same time involving the same officers.
-* **Number of stops**: `r nrow(stops_dt)`
-* **Number of unique stops**: `r length(unique(stops_dt$stop_id))`
-
 ## Merge stops to officer shift assignments
 
 1. Convert the start time and end time for the shifts to standardized date times.

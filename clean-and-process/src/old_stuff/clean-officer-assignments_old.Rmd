@@ -38,18 +38,3 @@ b <-
     ungroup() %>%
     right_join(missing)
 ```
-
-```{r}
-officer_assignments <-
-    inner_join(assignments, officers, by = "officer_id") %>%
-    mutate(shift_id = row_number())
-
-anti_join_assignments <- anti_join(assignments, officers, by = "officer_id")
-anti_join_officers <- anti_join(officers, assignments, by = "officer_id")
-write_csv(officer_assignments,
-          here("0-clean-data", "output", "officer_assignments-joe.csv"))
-```
-
-It's unclear why so many officers don't have a shift assignment. Most of the non-matches are likely due to the fact that this is a roster of every person who ever served as an officer so it includes retired officers or officers who quit (as of when these shift assignments start). Additionally some of the officers listed in the roster likely do not get assigned to patrol shifts due to the nature of their role (e.g. they are in a leadership role).  
-
-More worrisome might be officers who don't get shift assignments for some other, unknown reason which might hurt the validity of the study (e.g. they're being punished or rewarded).

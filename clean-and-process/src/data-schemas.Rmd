@@ -44,13 +44,7 @@ assignments <-
                               case_when(is.na(end_time) ~ NA_real_,
                                         end_time > 24 ~ end_time - 24,
                                         TRUE ~ end_time)),
-           end_datetime = as_datetime(paste0(end_date, " ", end_hms)),
-           start_datetime_max = if_else(is.na(start_datetime),
-                                        as_datetime(paste0(date, " 00:00:01")),
-                                        start_datetime),
-           end_datetime_max = if_else(is.na(end_datetime) | end_time > 24,
-                                      as_datetime(paste0(date + 1, " 11:59:59")),
-                                      end_datetime)) %>%
+           end_datetime = as_datetime(paste0(end_date, " ", end_hms))) %>%
     select(-start_date, -start_hms, -end_date, -end_hms)
 
 stops <-
@@ -118,8 +112,6 @@ map(summaries[["officers"]], kable, format = "latex")
 * **end_time**: Hour end time of the shift in military time.
 * **start_datetime**: Combines **start_time** and **date** into a starting datetime for the shift in YYYY-MM-DD HH:MM:SS format. **Created by me.**
 * **end_datetime**: Combines **end_time** and **date** into an ending datetime for the shift in YYYY-MM-DD HH:MM:SS format. **Created by me.**
-* **start_datetime_max**: When the **start_time** is missing, assume the earliest possible start time. **Created by me**.
-* **end_datetime_max**: When the **end_time** is missing, assume the latest possible end time. **Created by me**.
 * **weekday**: Day of the week of the shift.
 * **beat_assigned**: The beat the officer is assigned to.
 * **appointed_month**: The month and year the officer was made an officer.

@@ -1,0 +1,185 @@
+---
+title: "Clean Officer Shift Assignments"
+output: pdf_document
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+library(tidyr)
+library(readr)
+library(dplyr)
+library(purrr)
+library(stringr)
+library(ggplot2)
+library(lubridate)
+library(data.table)
+
+read_path <- paste("clean-and-process", "output", sep = "/")
+write_path <- paste("clean-and-process", "output", sep = "/")
+`%.%` <- paste0
+```
+
+```{r}
+officers <- my_read_csv(here(read_path, "cleaned_officers.csv"))
+assignments <- my_read_csv(here(read_path, "cleaned_assignments.csv"))
+setDT(officers)
+setDT(assignments)
+
+# merge officer characteristics
+officer_assignments <- assignments[officers[,.(officer_id,
+                                              birth_year,
+                                              officer_race,
+                                              officer_gender,
+                                              spanish)],
+                                  on = 'officer_id']
+
+# drop officers for whom no assignments were found
+officer_assignments <- officer_assignments[!is.na(date),]
+
+# Find missing shift times
+missing_time <- officer_assignments %>% filter(is.na(start_time)) %>% nrow()
+
+# drop all but POLICE OFFICER
+rank_fltr <- officer_assignments[rank == 'POLICE OFFICER',]
+
+# drop all officers except black, Hispanic, and white
+race_fltr <- officer_assignments[
+    officer_race %in% ('officer_' %.% c('black', 'white', 'hisp')),]
+
+# final data set
+officer_assignments_ba <-
+    officer_assignments %>%
+    filter(officer_race %in% c(paste0("officer_", c("white", "black", "hisp"))),
+           rank == "POLICE OFFICER")
+
+# Find missing shift times
+missing_time_ba <- officer_assignments_ba %>% filter(is.na(start_time)) %>% nrow()
+
+# Find officers which had no shifts and any shifts which had no officers
+anti_join_assignments <-
+    anti_join(assignments, officers, by = "officer_id") %>%
+    nrow()
+
+anti_join_officers <-
+    anti_join(officers, assignments, by = "officer_id") %>%
+    nrow()
+
+write_csv(officer_assignments, here(write_path, "officer_assignments_risi.csv"))
+write_csv(officer_assignments_ba, here(write_path, "officer_assignments_ba.csv"))
+```
+
+## Merging Officers To Their Shift Assignments - Risi
+
+* Number of officer shift assignments: `r nrow(officer_assignments)`
+* Number of unique officers who had at least one shift assignment: `r length(unique(officer_assignments$officer_id))`
+* Number of non-matching assignments: `r anti_join_assignments`
+    * Percentage of assignments which don't match: `r anti_join_assignments / nrow(assignments) * 100`%
+* Number of non-matching officers: `r anti_join_officers`
+    * Percentage of officers who don't match: `r anti_join_officers / nrow(officers) * 100`%
+* Of the `r nrow(officer_assignments)` shift assignments, `r missing_time` are missing their start time and end time.
+    * This represents `r 100 * missing_time / nrow(officer_assignments_ba)`% of all shift assignments.
+
+```{r, results = "asis"}
+compare <-
+    officers %>%
+    mutate(has_a_shift = as.character(
+        if_else(officer_id %in% officer_assignments$officer_id,
+                1,
+                0)))
+
+ ggplot(compare, aes(x = birth_year)) +
+    geom_histogram(aes(fill = has_a_shift)) +
+    facet_wrap(~has_a_shift) +
+    theme_bw()
+ 
+compare1 <-
+    GetSummaryCol(filter(compare, has_a_shift == 1), "birth_year") %>%
+    mutate(shift = 1)
+
+compare0 <-
+    GetSummaryCol(filter(compare, has_a_shift == 0), "birth_year") %>%
+    mutate(shift = 0)
+
+kable(rbind(compare1, compare0), format = "latex")
+```
+
+It's unclear why so many officers don't have a shift assignment. Most of the non-matches are likely due to the fact that this is a roster of every person who ever served as an officer so it includes retired officers or officers who quit (as of when these shift assignments start). Additionally some of the officers listed in the roster likely do not get assigned to patrol shifts due to the nature of their role (e.g. they are in a leadership role).  
+
+More worrisome might be officers who don't get shift assignments for some other, unknown reason which might hurt the validity of the study (e.g. they're being punished or rewarded).
+
+Officers who do have at least one shift assignment are noticeably younger lending some support to the idea that officers who don't have a shift assignment have retired.
+
+## Filtering - Ba et al. 2021
+
+### Race
+
+> "We restrict analysis to patrol assignments in which Black, Hispanic, or White officers serve. Asian/Pacific Islander and Native American/Alaskan Native officers are not examined due to small sample sizes." page 7 of Appendix Section S1.4 in Ba et al. 2021.
+
+* Number of officer shift assignments: `r nrow(race_fltr)`
+    * Shifts dropped: `r nrow(officer_assignments) - nrow(race_fltr)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(race_fltr)) / nrow(officer_assignments) * 100`%
+* Number of unique officers: `r length(unique(race_fltr$officer_id))`
+    * Number Of Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
+    
+### Rank
+
+> "Finally, we drop officers at ranks other than 'police officer.' This step eliminates police sergeants, who serve in 8% of beat assignments but make very few stops and arrests, as well as legal officers, helicopter pilots, explosives technicians, and canine handlers." page 7 of Appendix Section S1.4 in Ba et al. 2021.
+
+* Number of officer shift assignments: `r nrow(rank_fltr)`
+    * Shifts dropped: `r nrow(officer_assignments) - nrow(rank_fltr)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(rank_fltr)) / nrow(officer_assignments) * 100`%
+* Number of unique officers: `r length(unique(rank_fltr$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(rank_fltr$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(rank_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
+    
+### Totals
+
+Note the numbers above won't completely add up to the numbers below because of intersections.
+
+* **Number of officer shift assignments**: `r nrow(officer_assignments_ba)`
+    * Shifts dropped: `r nrow(officer_assignments) - nrow(officer_assignments_ba)`
+    * Percentage reduction: `r (nrow(officer_assignments) - nrow(officer_assignments_ba)) / nrow(officer_assignments) * 100`%
+* **Number of unique officers with at least one shift assignment**: `r length(unique(officer_assignments_ba$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_ba$officer_id))`
+    * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_ba$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
+* Of the `r nrow(officer_assignments_ba)` shift assignments, `r missing_time_ba` are missing their start time and end time.
+    * This represents `r 100 * missing_time_ba / nrow(officer_assignments_ba)`% of all shift assignments.
+
+```{r}
+stops <- my_read_csv(here(read_path, "cleaned_stops.csv"))
+arrests <- my_read_csv(here(read_path, "cleaned_arrests.csv"))
+force <- my_read_csv(here(read_path, "cleaned_force.csv"))
+
+nr_stops_removed <-
+    stops %>%
+    filter(!(officer_id %in% officer_assignments_ba$officer_id)) %>%
+    nrow()
+
+nr_arrests_removed <-
+    arrests %>%
+    filter(!(officer_id %in% officer_assignments_ba$officer_id)) %>%
+    nrow()
+
+nr_force_removed <-
+    force %>%
+    filter(!(officer_id %in% officer_assignments_ba$officer_id)) %>%
+    nrow()
+```
+
+### Number of Stops, Arrests, and Uses of Force Removed
+
+These are the number of stops, arrests, and uses of force removed due to the race and rank filtering.
+
+* Number of stops removed: `r nr_stops_removed`
+    * Percentage of stops removed: `r nr_stops_removed / nrow(stops) * 100`%
+* Number of arrests removed: `r nr_arrests_removed`
+    * Percentage of arrests removed: `r nr_arrests_removed / nrow(arrests) * 100`%
+* Number of uses of force removed: `r nr_force_removed`
+    * Percentage of uses of force removed: `r nr_force_removed / nrow(force) * 100`%
+    

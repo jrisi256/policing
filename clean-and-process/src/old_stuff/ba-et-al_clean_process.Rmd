@@ -1,0 +1,191 @@
+---
+title: "Replicate Ba et al. 2021 - Cleaning and Processing"
+output: pdf_document
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+```
+
+```{r}
+`%.%` <- paste0
+read_path <- paste("clean-and-process", "output", sep = "/")
+
+officers <- my_read_csv(here(read_path, "cleaned_officers.csv"))
+assignments <- my_read_csv(here(read_path, "cleaned_assignments.csv"))
+stops <- my_read_csv(here(read_path, "cleaned_stops.csv"))
+arrests <- my_read_csv(here(read_path, "cleaned_arrests.csv"))
+force <- my_read_csv(here(read_path, "cleaned_force.csv"))
+
+setDT(officers)
+setDT(assignments)
+setDT(stops)
+setDT(arrests)
+setDT(force)
+```
+
+```{r}
+stops <- stops %>% filter(officer_id %in% officer_assignments$officer_id)
+arrests <- arrests %>% filter(officer_id %in% officer_assignments$officer_id)
+force <- force %>% filter(officer_id %in% officer_assignments$officer_id)
+```
+
+## Create Outcomes
+
+> "For stops, arrests, and uses of force, we drop all events that occur outside of the reported patrol start/stop times, eliminating off-duty activity." page 8 of Appendix Section S1.5 in Ba et al. 2021.
+
+Aggregate across all shift assignments:  
+
+* The total number of stops, arrests, and uses of force for that shift.
+* The total number of stops, arrests, and uses of force by contact type for that shift.
+* The total number of stops, arrests, and uses of force by civilian race for that shift.
+
+```{r}
+# sort for merging
+setkey(officer_assignments, officer_id, date)
+setkey(stops, officer_id, date)
+
+# subset to stops occurring during recorded shift
+
+## step 1: match officer_id, match stop date to date of shift start
+stops.merged <- stops[officer_assignments]
+stops.merged[, month := i.month]
+stops.merged <- stops.merged[, !"i.month", with = F]
+
+## drop if not during shift (keep those shifts with no stops)
+stops.merged <-
+    stops.merged[
+    is.na(hour) | between(hour, floor(start_time), ceiling(end_time)),]
+
+## step 2: match officer_id, deal with stops past midnight on overnight shifts
+####  Find overnight shifts, fix start and end time, increment date by one day
+assignments.nextday <- officer_assignments[end_time > 24]
+assignments.nextday[, new_start_time := 0]
+assignments.nextday[, new_end_time := end_time - 24]
+assignments.nextday[, date_next := date]
+day(assignments.nextday$date_next) <- day(assignments.nextday$date_next) + 1
+
+## Match officer_id and stop date to the new start date of the overnight shift
+setkey(assignments.nextday, officer_id, date_next)
+stops.merged.nextday <-
+    stops[assignments.nextday,
+          ,
+          on = c(officer_id = 'officer_id', date = 'date_next')]
+
+## drop if not during shift (keep those shifts with no stops)
+stops.merged.nextday <-
+    stops.merged.nextday[
+        is.na(hour) |
+            between(hour, floor(new_start_time), ceiling(new_end_time)),]
+
+## Revert back to the normal date
+drop_cols <- c("i.date", "new_end_time", "new_start_time", "i.month")
+stops.merged.nextday[, `:=`(date = i.date, month = i.month)]
+stops.merged.nextday <- stops.merged.nextday[, !drop_cols, with = F]
+
+## merge same-day stops with next-day stops on overnight shifts
+stops_merged_final <-
+    rbind(stops.merged, stops.merged.nextday) %>%
+    distinct() %>%
+    group_by(shift_id) %>%
+    filter((n() > 1 & !is.na(stop_officer_id)) | n() == 1) %>%
+    ungroup()
+setDT(stops_merged_final)
+
+# Find shift assignments with missing start/end times that matched with a stop
+missing_times_stop <-
+    stops_merged_final %>%
+    filter((is.na(start_time) | is.na(end_time)) & !is.na(stop_officer_id))
+
+# Find stops which matched with multiple shifts
+duplicate_stops <-
+    stops_merged_final %>%
+    group_by(stop_officer_id) %>%
+    filter(!is.na(stop_officer_id) & n() > 1) %>%
+    ungroup()
+
+# Create shift-based outcomes
+## count total number of stops per shift assignment
+stops.by.group <-
+    stops_merged_final[,
+                       .(stops_n_total = sum(!is.na(stop_id))),
+                       by = c('officer_id', 'beat_assigned', 'shift', 'date')]
+
+## count total number of stops per shift assignment by contact type
+stops.by.group.and.type <-
+    dcast(
+        stops_merged_final[,
+                           .N,
+                           by = c('officer_id', 'beat_assigned', 'shift',
+                                  'date', 'contact_type')],
+        officer_id + beat_assigned + shift + date ~ contact_type,
+        value.var = 'N',
+        fill = 0)
+
+## drop NA counts (used to ensure no-event shifts are recorded as zeroes)
+stops.by.group.and.type <- stops.by.group.and.type[, -'NA']
+
+## rename for merge
+colnames(stops.by.group.and.type)[
+    -match(c('officer_id', 'beat_assigned', 'shift', 'date'),
+           colnames(stops.by.group.and.type))] <-
+    'stops_n_' %.%
+    colnames(stops.by.group.and.type)[
+        -match(c('officer_id', 'beat_assigned', 'shift', 'date'),
+               colnames(stops.by.group.and.type))]
+
+## count total number of stops per shift assignment by civilian race
+stops.by.group.and.race <- dcast(
+  stops_merged_final[,
+                     .N,
+                     by = c('officer_id', 'beat_assigned', 'shift', 'date',
+                            'civilian_race_short')],
+  officer_id + beat_assigned + shift + date ~ civilian_race_short,
+  value.var = 'N',
+  fill = 0)
+
+## drop NA counts (used to ensure no-event shifts are recorded as zeroes)
+stops.by.group.and.race <- stops.by.group.and.race[, -'NA']
+
+## rename for merge
+colnames(stops.by.group.and.race)[
+    -match(c('officer_id', 'beat_assigned', 'shift', 'date'),
+           colnames(stops.by.group.and.race))] <- 'stops_n_' %.%
+    colnames(stops.by.group.and.race)[
+        -match(c('officer_id', 'beat_assigned', 'shift', 'date'),
+           colnames(stops.by.group.and.race))]
+```
+
+### Merge stops to shift assignments to identify during which shift that the stop occurred and create shift-level stop outcomes
+
+1. Right join stops and assignments using officer_id and date. I.e. keep every assignment and only stops which occurred during the start date of the shift.
+2. Keep any stops which occurred during the hours of the shift.
+    * Round the stop time to the lowest hour.
+    * Round the shift start time to the lowest hour.
+    * Round the shift end time to the highest hour.
+3. Right join stops and assignments using officer_id and date (incremented by one day). This captures stops which occurred the **following day** during an overnight shift.
+4. Keep any stops which occurred during the hours of the shift using the same logic as in step 2.
+5. Merge the data sets (stops merged by date and stops merged by the next day) by row. Keep only distinct entries (shift assignments which had no stops will have duplicate entries) and filter out any shift assignments which matched one date but not the other.
+
+* Number of resulting rows: `r nrow(stops_merged_final)`
+* Number of stops which occurred during a shift: `r length(unique(stops_merged_final$stop_officer_id))`
+    * Percentage of stops: `length(unique(stops_merged_final$stop_officer_id)) / nrow(stops) * 100`%
+* Number of unique officers who had at least one stop during a shift: `r length(unique(stops_merged_final$officer_id))`
+    * Percentage of officers: `r length(unique(stops_merged_final$officer_id)) / length(unique(officer_assignments$officer_id)) * 100`%
+* Number of shift assignments retained: `r length(unique(stops_merged_final$shift_id)) * 100`%
+    * Percentage of shift assignments: `r length(unique(stops_merged_final$shift_id)) / nrow(officer_assignments)`
+    * Why aren't all shift assignments retained? Ba et al. (2021) have it so that any shift assignment which had a stop on the same day **but** did not occur during the shift times is counted as missing and not retained.
+* `r length(unique(missing_times_stop$shift_id))` shift assignments matched with at least one stop **without having** a start time and an end time.
+    * This represents `r 100 * length(unique(missing_shift_times_stop$shift_id)) / nrow(officer_assignments)`% of all shift assignments.
+    * Ba et al. (2021) implicitly assume the matched stops occurred during these shifts. The **date** matches at the very least (i.e. the date of the stop and the date of the shift).
+* There are `r length(unique(duplicate_stops$stop_officer_id))` stops which match to more than one shift assignment.
+    * In total, there are `r nrow(duplicate_stops)` **duplicate stop-shift observations** representing `r nrow(duplicate_stops) / nrow(stops_merged_final)`% of all stop-shift observations.
+    * These **duplicate** stops represent `r 100 * length(unique(duplicate_stops$stop_officer_id)) / nrow(stops)`% of all stops (`r nrow(stops_dt)`).
+    * `r length(unique(duplicate_stops$shift_id)) shift assignments are affected or `r 100 * length(unique(duplicate_stops$shift_id)) / nrow(officer_assignments)`% of all shift assignments.
+    * How can a stop match to more than one shift assignment?
+        * The officer in question could have had overlapping shift assignments, and the stop occurred during the intersection of their shifts.
+        * One of the shifts had a missing start time or end time, and the stop matched with that shift (in addition to matching with at least one another shift assignment).

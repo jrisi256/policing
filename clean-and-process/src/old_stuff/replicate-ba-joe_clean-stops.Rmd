@@ -93,31 +93,11 @@ d <- stops_merged_joined %>% filter(shift_id == "1000921")
 
 ### Missing Starting and Ending Shift Times
 
-```{r}
-missing_shift_times <-
-    assignments_ba_dt %>%
-    filter(is.na(start_time) | is.na(end_time))
-
-missing_shift_times_stop <-
-    stops_merged_joined %>%
-    filter((is.na(start_time) | is.na(end_time)) & !is.na(stop_officer_id))
-```
-
-* Of the `r nrow(assignments_ba_dt)` shift assignments, `r nrow(missing_shift_times)` are missing their start time and end time.
-    * This represents `r 100 * nrow(missing_shift_times) / nrow(assignments_ba_dt)`% of all shift assignments.
-* `r length(unique(missing_shift_times_stop$shift_id))` shift assignments matched with at least one stop **without having** a start time and an end time.
-    * This represents `r 100 * length(unique(missing_shift_times_stop$shift_id)) / nrow(assignments_ba_dt)`% of all shift assignments.
-* Ba et al. 2021 implicitly assume the matched stops occurred during these shifts which may or may not be plausible. The **date** matches at the very least (i.e. the date of the stop and the date of the shift). One can compare the same beat assignments during the same days of the week to see how regular shift start times and end times are. Assuming regularity, the start times and end times can be imputed. A more conservative solution would be to just drop all shift assignments which do not have a start time and an end time.
+One can compare the same beat assignments during the same days of the week to see how regular shift start times and end times are. Assuming regularity, the start times and end times can be imputed. A more conservative solution would be to just drop all shift assignments which do not have a start time and an end time.
 
 ### Duplicate Entries
 
 ```{r}
-duplicates <-
-    stops_merged_joined %>%
-    group_by(stop_officer_id) %>%
-    filter(!is.na(stop_officer_id) & n() > 1) %>%
-    ungroup()
-
 remove_na_dupes <-
     duplicates %>%
     filter(!is.na(start_time) & !is.na(end_time)) %>%
@@ -132,13 +112,6 @@ officer_count_stops <-
     distinct(stop_officer_id, .keep_all = T) %>%
     count(officer_id)
 ```
-
-* There are `r length(unique(duplicates$stop_officer_id))` stops which match to more than one shift assignment.
-    * These **duplicate** stops represent `r 100 * length(unique(duplicates$stop_officer_id)) / nrow(stops_dt)`% of all stops (`r nrow(stops_dt)`).
-    * Overall, `r nrow(duplicates)` records are affected which represents `r 100 * nrow(duplicates) / nrow(stops_merged_joined)`% of all stop-shift assignment records (`r nrow(stops_merged_joined)`).
-* How can a stop match to more than one shift assignment?
-    * The officer in question could have had overlapping shift assignments, and the stop occurred during the intersection of their shifts.
-    * One of the shifts had a missing start time or end time, and the stop matched with that shift (in addition to matching with at least one another shift assignment).
     
 **Potential Solutions**  
 
@@ -200,12 +173,5 @@ write_csv(assignments_outcomes,
           here("0-clean-data", "output", "stops-outcomes_ba-joe.csv"))
 ```
 
-## Create outcomes
-
-Aggregate across all shift assignments:  
-
-* The total number of stops for that shift.
-* The total number of stops by contact type for that shift.
-* The total number of stops by civilian race for that shift.
 * **NOTE**: There are `r nrow(ba_assignments_outcomes)` shift assignments which have missing values for the number of stops. In the original Ba et al. 2021 paper, these shift assignments had stops which took place during the same day of the shift but did not occur during the actual shift. It's unclear why Ba et al. 2021 consider these shift assignments as **missing** the number of stops rather than having **zero** stops. In any case, I consider these shift assignments to have zero stops.
     * Percentage of shift assignments missing the number of stops: `r 100 * nrow(ba_assignments_outcomes) / nrow(assignments_ba_dt)`%.
