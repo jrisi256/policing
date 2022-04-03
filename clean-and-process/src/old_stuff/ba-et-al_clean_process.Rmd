@@ -185,7 +185,7 @@ colnames(stops.by.group.and.race)[
 * There are `r length(unique(duplicate_stops$stop_officer_id))` stops which match to more than one shift assignment.
     * In total, there are `r nrow(duplicate_stops)` **duplicate stop-shift observations** representing `r nrow(duplicate_stops) / nrow(stops_merged_final)`% of all stop-shift observations.
     * These **duplicate** stops represent `r 100 * length(unique(duplicate_stops$stop_officer_id)) / nrow(stops)`% of all stops (`r nrow(stops_dt)`).
-    * `r length(unique(duplicate_stops$shift_id)) shift assignments are affected or `r 100 * length(unique(duplicate_stops$shift_id)) / nrow(officer_assignments)`% of all shift assignments.
+    * `r length(unique(duplicate_stops$shift_id))` shift assignments are affected or `r 100 * length(unique(duplicate_stops$shift_id)) / nrow(officer_assignments)`% of all shift assignments.
     * How can a stop match to more than one shift assignment?
         * The officer in question could have had overlapping shift assignments, and the stop occurred during the intersection of their shifts.
         * One of the shifts had a missing start time or end time, and the stop matched with that shift (in addition to matching with at least one another shift assignment).
