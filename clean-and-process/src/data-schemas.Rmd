@@ -71,7 +71,7 @@ dfs <- list(officers = officers,
             arrests = arrests,
             force = force)
 
-output_paths <- as.list(here(write_path, paste0("cleaned_", names(dfs), ".csv")))
+output_paths <- as.list(here(write_path, paste0("cleaned-", names(dfs), ".csv")))
 pwalk(list(dfs, output_paths), function(df, path) {write_csv(df, path)})
 ```
 

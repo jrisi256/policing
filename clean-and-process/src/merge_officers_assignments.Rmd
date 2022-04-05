@@ -69,8 +69,8 @@ anti_join_officers <-
     anti_join(officers, assignments, by = "officer_id") %>%
     nrow()
 
-write_csv(officer_assignments, here(write_path, "officer_assignments_risi.csv"))
-write_csv(officer_assignments_ba, here(write_path, "officer_assignments_ba.csv"))
+write_csv(officer_assignments, here(write_path, "officers_assignments_risi.csv"))
+write_csv(officer_assignments_ba, here(write_path, "officers_assignments_ba.csv"))
 ```
 
 ## Merging Officers To Their Shift Assignments - Risi
@@ -150,36 +150,3 @@ Note the numbers above won't completely add up to the numbers below because of i
     * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_ba$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
 * Of the `r nrow(officer_assignments_ba)` shift assignments, `r missing_time_ba` are missing their start time and end time.
     * This represents `r 100 * missing_time_ba / nrow(officer_assignments_ba)`% of all shift assignments.
-
-```{r}
-stops <- my_read_csv(here(read_path, "cleaned_stops.csv"))
-arrests <- my_read_csv(here(read_path, "cleaned_arrests.csv"))
-force <- my_read_csv(here(read_path, "cleaned_force.csv"))
-
-nr_stops_removed <-
-    stops %>%
-    filter(!(officer_id %in% officer_assignments_ba$officer_id)) %>%
-    nrow()
-
-nr_arrests_removed <-
-    arrests %>%
-    filter(!(officer_id %in% officer_assignments_ba$officer_id)) %>%
-    nrow()
-
-nr_force_removed <-
-    force %>%
-    filter(!(officer_id %in% officer_assignments_ba$officer_id)) %>%
-    nrow()
-```
-
-### Number of Stops, Arrests, and Uses of Force Removed
-
-These are the number of stops, arrests, and uses of force removed due to the race and rank filtering.
-
-* Number of stops removed: `r nr_stops_removed`
-    * Percentage of stops removed: `r nr_stops_removed / nrow(stops) * 100`%
-* Number of arrests removed: `r nr_arrests_removed`
-    * Percentage of arrests removed: `r nr_arrests_removed / nrow(arrests) * 100`%
-* Number of uses of force removed: `r nr_force_removed`
-    * Percentage of uses of force removed: `r nr_force_removed / nrow(force) * 100`%
-    
