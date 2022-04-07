@@ -1,6 +1,6 @@
 ---
 title: "Risi - Merging Stops to Officer Assignments"
-output: html_document
+output: pdf_document
 ---
 
 ```{r, include = F}
@@ -26,28 +26,79 @@ setDT(force)
 
 ## Changes to the data - Risi
 
-* **Officer Shift Assignments**
-    1. I compress all other ranks (not including missing ranks) that are not "Police Officer" or "Sergeant" into the "Other" Category. They make up such a small percentage of all shift assignments it seemed worthwhile to combine them. My one concern is that I am combining a bunch of very different types of ranks into one category.
-    2. Drop the **months_from_start_sq** column.
-    3. Format police officer race to be more concise.
-* **Stops**
-    1. Civilians with "X" for a gender are recoded as missing.
-    2. Drop the **civilian_race_short** column.
+### Officer Shift Assignments
+
+1. **Rank**: Chief, Commander, Deputy Chief, and Lieutenant are combined to create a new **leadership** category. **Sergeant** and **Police Officer** remain the same. All other ranks are combined into an **other** category. Percentage-wise there are few shift assignments for those in leadership, but there are still tens of thousands of shifts assigned to those in leadership. Depending on one's analysis, this category may still be useful or not.
+2. I drop the **months_from_start_sq** column.
+3. I format the police officer race column to be more concise.
 
 ```{r, results = "asis"}
 officer_assignments <-
     officer_assignments %>%
     select(-months_from_start_sq) %>%
-    mutate(rank = fct_other(rank, keep = c("POLICE OFFICER", "SERGEANT")),
-           mutate(officer_race = str_replace(officer_race, "officer_", "")),
-           civ.race = tolower(civ.race))
+    mutate(rank = fct_collapse(rank,
+                               leadership = c("CHIEF", "COMMANDER",
+                                              "DEPUTY CHIEF", "LIEUTENANT")),
+           rank = as.factor(tolower(fct_other(rank,
+                                              keep = c("POLICE OFFICER",
+                                                       "SERGEANT",
+                                                       "leadership")))),
+           officer_race = str_replace(officer_race, "officer_", ""))
 
-stops1 <-
+kable(GetSummaryCol(officer_assignments, "rank"), format = "latex")
+```
+
+### Stops
+
+1. I decided to use the **contact_type** variable for categorizing stop types rather than **stop_type** in line with Ba et al. 2021. To see how contact type is created from stop type, see data-schemas.Rmd or the Ba et al. 2021 paper.
+2. **civ.race**: I combine Asian American/Pacific Islanders and Native Americans/Alaskan Natives into an **other** category.
+3. I drop the **civilian_race_short** column.
+4. **civ.gender**: Any civilians whose gender is categorized as **X** gets recoded as missing.
+
+```{r, results = "asis"}
+stops <-
     stops %>%
-    mutate(civ.gender = fct_drop(na_if(civ.gender, "X")),
-           civ.race = str_replace(civ.race, "civilian_", "")) %>%
+    mutate(civ.race = as.factor(tolower(fct_other(civ.race,
+                                                  keep = c("BLACK",
+                                                           "HISPANIC",
+                                                           "WHITE")))),
+           civ.gender = fct_drop(na_if(civ.gender, "X"))) %>%
+    select(-stop_type, -civilian_race_short)
+
+kable(GetSummaryCol(stops, "civ.race"), format = "latex")
+kable(GetSummaryCol(stops, "civ.gender"), format = "latex")
+```
+
+### Arrests
+1. I drop the **statute_description** column because there are too many unique values for it to be of use.
+2. **civ.race**: I combine Asian American/Pacific Islanders and Native Americans/Alaskan Natives into an **other** category.
+3. I drop the **civilian_race_short** column.
+
+```{r, results = "asis"}
+arrests <-
+    arrests %>%
+    mutate(civ.race = as.factor(tolower(fct_other(civ.race,
+                                                  keep = c("BLACK",
+                                                           "HISPANIC",
+                                                           "WHITE"))))) %>%
+    select(-statute_description, civilian_race_short)
+
+kable(GetSummaryCol(arrests, "civ.race"), format = "latex")
+```
+
+### Uses of Force
+1. **civ.race**: I combine Asian American/Pacific Islanders and Native Americans/Alaskan Natives into an **other** category.
+1. I drop the **civilian_race_short** column.
+
+```{r, results = "asis"}
+force <-
+    force %>%
+    mutate(civ.race = as.factor(tolower(fct_other(civ.race,
+                                                  keep = c("BLACK",
+                                                           "HISPANIC",
+                                                           "WHITE"))))) %>%
     select(-civilian_race_short)
 
-kable(GetSummaryCol(officer_assignments1, "rank"), format = "latex")
+kable(GetSummaryCol(force, "civ.race"), format = "latex")
 ```
 

@@ -94,7 +94,7 @@ pwalk(list(dfs, output_paths), function(df, path) {write_csv(df, path)})
 
 ### Officer Race
 
-> "We determine race/ethnicity of CPD officers based on demographic data obtained from the CPD through FOIA. The CPD usually classifies race/ethnicity in at most 7 mutually exclusive groups: White/Caucasian, White Hispanic, Black/African American, Black Hispanic, Asian/Pacific Islander, Native American/Native Alaskan, and unknown/missing. However, there are inconsistencies in how races and ethnicities are coded across files. For example, some files do not include 'Black Hispanic' as a racial category (very few officers are ever classified as Black Hispanic), and some files contain outdated racial categories which we update to the best of our ability. For consistency, we classify 'Hispanic' and 'White Hispanic' as 'Hispanic'; 'Black' and 'Black Hispanic' (rare cases) as 'Black.' 'White' in our analysis refers to non-Hispanic White. If an officer has multiple races associated with them across different datasets, we aggregate by most common non-missing races." page 5 of Appendix Section S1.1. in Ba et al. 2021.
+> "We determine race/ethnicity of CPD officers based on demographic data obtained from the CPD through FOIA. The CPD usually classifies race/ethnicity in at most 7 mutually exclusive groups: White/Caucasian, White Hispanic, Black/African American, Black Hispanic, Asian/Pacific Islander, Native American/Native Alaskan, and unknown/missing. However, there are inconsistencies in how races and ethnicities are coded across files. For example, some files do not include 'Black Hispanic' as a racial category (very few officers are ever classified as Black Hispanic), and some files contain outdated racial categories which we update to the best of our ability. For consistency, we classify 'Hispanic' and 'White Hispanic' as 'Hispanic'; 'Black' and 'Black Hispanic' (rare cases) as 'Black.' 'White' in our analysis refers to non-Hispanic White. If an officer has multiple races associated with them across different datasets, we aggregate by most common non-missing races." page 5 of Appendix Section S1.1 in Ba et al. 2021.
 
 ```{r, results = "asis"}
 map(summaries[["officers"]], kable, format = "latex")
@@ -156,6 +156,10 @@ numericTable %>%
 * Each stop involves only one civilian, but they can involve multiple officers. It is possible multiple stops are all a part of one larger incident involving multiple civilians. This can be investigated by examining stops that took place in the same location at the same time involving the same officers.
 * **Number of rows**: `r nrow(stops)`
 * **Number of unique stops**: `r length(unique(stops$stop_id))`
+
+### Stop Type vs. Contact Type
+
+> "Stops for 'dispersal' and 'gang and narcotics-related loitering' are coded as loitering stops; those that are 'gang / narcotics related' are coded as drug stops; 'investigatory stops' and stops of 'suspicious persons' are coded as suspicious behavior; and stops under the 'Repeat Offender Geographic Urban Enforcement Strategy (ROGUES)' program are combined with the 'other' category." page 8 of Appendix Section S1.5 in Ba et al. 2021.
 
 ```{r, results = "asis"}
 map(summaries[["stops"]], kable, format = "latex")
