@@ -30,7 +30,7 @@ PrettyPrint <- function(outcome_merged, outcome, shifts, missings, dupes, id_col
     
     df <-
         tibble(nrow = nrow(outcome_merged),
-               nr_outcome = length(unique(outcome_merged[[id_col]])),
+               nr_outcome = length(unique(na.omit(outcome_merged[[id_col]]))),
                prcnt_outcome = nr_outcome / nrow(outcome) * 100,
                nr_shift = length(unique(outcome_merged$shift_id)),
                prcnt_shift = nr_shift / nrow(shifts) * 100,
