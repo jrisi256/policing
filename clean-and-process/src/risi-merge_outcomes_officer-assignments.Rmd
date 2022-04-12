@@ -321,29 +321,3 @@ For notes on the differences between the Risi merging process and the Ba et al. 
     * `r ppfjr$nr_dupe_shifts` shift assignments are affected or `r ppfjr$prcnt_dupe_shifts`% of all shift assignments.
     * In total, there are `r ppfjr$nr_dupes` **duplicate force-shift observations** representing `r ppfjr$prcnt_dupes`% of all force-shift observations.
     * As noted above, **all these entries are dropped**.
-
-## Off-Duty Outcomes
-
-Given how similar the results are from my merging process vs. Ba et al. 2021, I just use my merging process to determine which stops are off-duty.
-
-```{r}
-stops <-
-    stops %>%
-    mutate(risi_offduty =
-               if_else(stop_officer_id %in% stops_shift_assignments$stop_officer_id,
-                       0,
-                       1))
-
-arrests <-
-    arrests %>%
-    mutate(risi_offduty =
-               if_else(arrest_officer_id %in% arrests_shift_assignments$arrest_officer_id,
-                       0,
-                       1))
-
-force <-
-    force %>%
-    mutate(risi_offduty =
-               if_else(force_id %in% force_shift_assignments$force_id, 0, 1))
-```
-

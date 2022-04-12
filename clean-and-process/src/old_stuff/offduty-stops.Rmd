@@ -1,0 +1,112 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+# Read in data
+path <- paste("clean-and-process", "output", sep = "/")
+officers <- my_read_csv(here(path, "cleaned-officers.csv"))
+stops <- my_read_csv(here(path, "cleaned-stops.csv"))
+arrests <- my_read_csv(here(path, "cleaned-arrests.csv"))
+force <- my_read_csv(here(path, "cleaned-force.csv"))
+stops_merged <- my_read_csv(here(path, "stops_officers_assignments_risi_min.csv"))
+arrests_merged <- my_read_csv(here(path, "arrests_officers_assignments_risi_min.csv"))
+force_merged <- my_read_csv(here(path, "force_officers_assignments_risi_min.csv"))
+
+# Some cleaning of the data to make it easier to graph
+officers <-
+    officers %>%
+    mutate(officer_race = str_replace(officer_race, "officer_", ""))
+
+stops <-
+    stops %>%
+    mutate(civ.race = as.factor(tolower(fct_other(civ.race,
+                                                  keep = c("BLACK",
+                                                           "HISPANIC",
+                                                           "WHITE")))),
+           civ.gender = fct_drop(na_if(civ.gender, "X"))) %>%
+    select(-stop_type, -civilian_race_short)
+
+arrests <-
+    arrests %>%
+    mutate(civ.race = as.factor(tolower(fct_other(civ.race,
+                                                  keep = c("BLACK",
+                                                           "HISPANIC",
+                                                           "WHITE"))))) %>%
+    select(-statute_description, civilian_race_short)
+
+force <-
+    force %>%
+    mutate(civ.race = as.factor(tolower(fct_other(civ.race,
+                                                  keep = c("BLACK",
+                                                           "HISPANIC",
+                                                           "WHITE"))))) %>%
+    select(-civilian_race_short)
+```
+
+
+## Off-Duty Outcomes
+
+Given how similar the results are from my merging process vs. Ba et al. 2021, I just use my merging process to determine which stops are off-duty.
+
+```{r}
+stops <-
+    stops %>%
+    mutate(offduty =
+               if_else(stop_officer_id %in% stops_merged$stop_officer_id,
+                       0,
+                       1)) %>%
+    left_join(officers, by = "officer_id")
+
+arrests <-
+    arrests %>%
+    mutate(offduty =
+               if_else(arrest_officer_id %in% arrests_merged$arrest_officer_id,
+                       0,
+                       1)) %>%
+    left_join(officers, by = "officer_id")
+
+force <-
+    force %>%
+    mutate(offduty = if_else(force_id %in% force_merged$force_id, 0, 1)) %>%
+    left_join(officers, by = "officer_id")
+```
+
+https://stackoverflow.com/questions/30720455/how-to-set-same-scales-across-different-facets-with-ggpairs
+
+Select relevant rows. Create custom functions. Profit.
+
+```{r}
+pairs <- force %>%
+    filter(!is.na(civ.gender) & !is.na(civ.race)) %>%
+    mutate(offduty = as.logical(offduty)) %>%
+    select(offduty, civ.age, civ.race, civ.gender, officer_race, civ.injured) %>%
+    ggpairs(lower = list(discrete = wrap("colbar", size = 3)),
+            upper = list(discrete = wrap("colbar", size = 3), combo = wrap("facethist", scales = "free"))) +
+    theme_bw()
+
+map(1:6, function(row_nr) getPlot(pairs, i = row_nr, j = 1))
+
+```
+
+
+```{r}
+force %>%
+    filter(!is.na(civ.gender) & !is.na(civ.race)) %>%
+    select(birth_year, civ.race, civ.gender, officer_race, officer_gender) %>%
+    ggpairs(lower = list(combo = "facetdensitystrip",
+                         discrete = wrap("colbar", size = 5)),
+            upper = list(discrete = wrap("colbar", size = 5))) +
+    theme_bw() +
+    theme(axis.text = element_text(size = 13),
+          strip.text = element_text(size = 5)) #+
+    # ggtitle("Officers")
+```
+
