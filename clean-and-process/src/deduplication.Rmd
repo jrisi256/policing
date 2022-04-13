@@ -57,11 +57,10 @@ deduped <- rbind(only_duplicates, no_duplicates)
 duplicate_stops_sf <-
     duplicate_stops %>%
     filter(!is.na(lon) & !is.na(lat)) %>%
-    st_as_sf(coords = c("lon", "lat"))
+    st_as_sf(coords = c("lon", "lat")) %>%
+    st_transform(st_crs(beats))
 
 beats <- beats %>% select(beat_num, geometry)
-
-st_crs(duplicate_stops_sf) <- st_crs(beats)
 
 join <-
     st_join(duplicate_stops_sf, beats) %>%
