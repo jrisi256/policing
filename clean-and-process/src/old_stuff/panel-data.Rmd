@@ -214,7 +214,7 @@ census_outcomes_final <-
     select(-GEOID, -NAMELSAD, -NAME) %>%
     group_by(dist_num) %>%
     summarise(across(-c("geometry"), ~sum(.x))) %>%
-    mutate(prcnt_single = (male_single + female_single) / total_pop,
+    mutate(prcnt_single = (male_single + female_single) / total_households,
            prcnt_hs = (less9th + more9thless12th) / pop_25older,
            prcnt_foreign = foreign_born / total_pop,
            prcnt_notlf = 1 - (labor_force / pop_16older),
@@ -251,11 +251,12 @@ final_vars <-
            black_ratio = prcnt_officer_black / prcnt_civ_black,
            hispanic_ratio = prcnt_officer_hisp / prcnt_civ_hispanic,
            white_ratio = prcnt_officer_white / prcnt_civ_white,
-           black_stop_rate = black_stops / black,
+           black_stop_rate = round(black_stops / black * 10000),
            log_total_officers = log(nr_officer),
            log_black_officers = log(nr_officer_black),
            log_white_officers = log(nr_officer_white),
            log_hispanic_officers = log(nr_officer_hisp),
+           disadvantage = (prcnt_poverty + prcnt_single + prcnt_notlf) / 3,
            date = month,
            unit = as.factor(unit),
            year = as.factor(year(month)),
@@ -267,7 +268,7 @@ final_vars <-
 
 ## Estimate models
 
-```{r, results = "asis"}
+```{r}
 library(fixest)
 library(MASS)
 
@@ -296,18 +297,52 @@ hispanic_stops_negbin <-
                  violent_cr_capita + property_cr_capita + log_total_officers +
                  offset(log(hispanic)) | unit + year + month,
              data = final_vars)
-# summary(black_stops_negbin)
-# summary(black_stops_negbin, vcov = "iid")
-etable(summary(black_stops_sig), summary(hispanic_stops_nosig),
-       summary(black_stops_negbin), summary(black_stops_negbin, vcov = "iid"),
-       summary(hispanic_stops_negbin), summary(hispanic_stops_negbin, vcov = "iid"),
-       tex = T)
+
+# etable(summary(black_stops_sig), summary(hispanic_stops_nosig),
+#        summary(black_stops_negbin), summary(black_stops_negbin, vcov = "iid"),
+#        summary(hispanic_stops_negbin), summary(hispanic_stops_negbin, vcov = "iid"),
+#        tex = T)
 
 nb.blackStops <- 
     MASS::glm.nb(black_stops ~ black_diff + prcnt_officer_FEMALE
                      + mean_days_exp + violent_cr_capita + property_cr_capita + log_total_officers + unit + year + month +
                      offset(log(black)),
            data = final_vars)
+
+
+################## Corina tests
+nb.blackStops.unit <-
+    MASS::glm.nb(black_stops ~ black_diff + violent_cr_capita + property_cr_capita +
+                     log_total_officers + unit + year + offset(log(black)),
+                 data = final_vars)
+summary(nb.blackStops.unit)
+
+# nb.blackStops.PCA <-
+#     MASS::glm.nb(black_stops ~ black_diff + violent_cr_capita + property_cr_capita +
+#                      log_total_officers + PCA1 + year + offset(log(black)),
+#                  data = final_vars)
+# summary(nb.blackStops.PCA)
+
+nb.blackStops.dis <-
+    MASS::glm.nb(black_stops ~ black_diff + violent_cr_capita + property_cr_capita +
+                     log_total_officers + disadvantage + year + offset(log(black)),
+                 data = final_vars)
+summary(nb.blackStops.dis)
+
+# nb.blackStops.dis <-
+#     MASS::glm.nb(black_stops ~ black_diff,
+#                  data = final_vars)
+# 
+# nb.blackStops.dis2 <-
+#     MASS::glm.nb(black_stop_rate ~ black_diff,
+#                  data = final_vars)
+# 
+# nb.blackStops.dis3 <-
+#     MASS::glm.nb(black_stops ~ black_diff + offset(log(black)), data = final_vars)
+# 
+# summary(nb.blackStops.dis)
+# summary(nb.blackStops.dis2)
+# summary(nb.blackStops.dis3)
 # summary(nb.blackStops)
 
 predictions <-
@@ -315,7 +350,7 @@ predictions <-
     mutate(predictions = predict(black_stops_negbin),
            predictions2 = exp(predict(nb.blackStops)))
 
-ggplot(predictions, aes(x = black_stops, y = predictions2)) + geom_point() + theme_bw() + geom_abline()
+# ggplot(predictions, aes(x = black_stops, y = predictions2)) + geom_point() + theme_bw() + geom_abline()
 
 new_data_predictions <-
     final_vars %>%
@@ -343,11 +378,18 @@ predictResults <-
 ```
 
 ```{r, fig.height = 15, fig.width = 12}
-ggplot(predictResults, aes(x = type, y = predicted_black_stops)) +
-    geom_point(aes(color = year)) +
-    geom_line(aes(color = year, group = year)) +
-    facet_wrap(~unit, scales = "free_y") +
-    theme_bw()
+ggcorr(dplyr::select(final_vars, black_diff, black_stop_rate, black_stops, disadvantage,
+              violent_cr_capita, property_cr_capita, log_total_officers),
+       label = T, label_round = 2, low = "#F21A00", high = "#3B9AB2")
+```
+
+
+```{r, fig.height = 15, fig.width = 12}
+# ggplot(predictResults, aes(x = type, y = predicted_black_stops)) +
+#     geom_point(aes(color = year)) +
+#     geom_line(aes(color = year, group = year)) +
+#     facet_wrap(~unit, scales = "free_y") +
+#     theme_bw()
 ```
 
 
@@ -359,11 +401,11 @@ predictResultsDiff <-
                 values_from = predicted_black_stops) %>%
     mutate(prcnt_decrease = (min - max) / min * 100)
 
-ggplot(predictResultsDiff, aes(x = fct_reorder(unit, prcnt_decrease), y = prcnt_decrease)) +
-    geom_bar(stat = "identity") +
-    facet_wrap(~year, scales = "free_y") +
-    theme_bw() +
-    xlab("unit") + ylab("Percent Decrease") +
-    ggtitle("Percent Decrease in Stops of Black Civilians From Going To Lowest to Highest Value of Black Difference") +
-    coord_flip()
+# ggplot(predictResultsDiff, aes(x = fct_reorder(unit, prcnt_decrease), y = prcnt_decrease)) +
+#     geom_bar(stat = "identity") +
+#     facet_wrap(~year, scales = "free_y") +
+#     theme_bw() +
+#     xlab("unit") + ylab("Percent Decrease") +
+#     ggtitle("Percent Decrease in Stops of Black Civilians From Going To Lowest to Highest Value of Black Difference") +
+#     coord_flip()
 ```
