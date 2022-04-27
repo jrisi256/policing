@@ -1,6 +1,10 @@
 library(here)
 source(here("functions.R"))
 
+# include stats on the number of shift assignments which have a stop, arrest, use of force, etc.
+# include updated stats after removing duplicates on number of officers, shifts, stops/arrests/uses of force
+# check to see how many officers I retain (how many officers made stops, arrests, uses of force, etc.)
+
 Create_Outcomes <- function(df, id_col) {
     
     flag <- df %>% mutate(count = if_else(is.na(.data[[id_col]]), 0, 1))

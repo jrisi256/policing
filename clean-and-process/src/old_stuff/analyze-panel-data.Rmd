@@ -23,7 +23,10 @@ library(parameters)
 
 final_vars <-
     read_csv(here("clean-and-process", "src", "old_stuff", "final_data.csv")) %>%
-    mutate(across(c("unit", "year", "unit"), ~as.factor(.x)))
+    mutate(across(c("unit", "year", "unit"), ~as.factor(.x)),
+           date = paste0(year, "-", month),
+           stop_rate = stops / total_pop,
+           black_stop_rate = black_stops / black)
 ```
 
 ## Estimate models better
@@ -46,25 +49,131 @@ ggplot(final_vars, aes(y = black_stops / black, x = black_ratio)) +
     geom_smooth(method = MASS::glm.nb, formula = y ~ x, se = F) +
     theme_bw()
 
+ggplot(final_vars, aes(y = black_stops / black, x = black_ratio)) +
+    geom_point(aes(color = unit)) +
+    geom_smooth(method = MASS::glm.nb, formula = y ~ x, se = F, aes(group = unit, color = unit)) +
+    geom_smooth(method = MASS::glm.nb, formula = y ~ x, se = F, aes(group = 1)) +
+    theme_bw()
+
 ggplot(final_vars, aes(y = nr_officer_black, x = black_ratio)) + 
     geom_point(aes(color = year)) +
     facet_wrap(~unit, scales = "free") +
     theme_bw()
 ```
 
-## Trying to follow along with the example
+## Let's do this
+
+Don't add stop rate because it's almost perfectly correlated with the black stop rate.
+
+```{r}
+ggplot(final_vars, aes(x = stop_rate, y = black_stops / black)) + geom_point()
+ggplot(final_vars, aes(x = stop_rate, y = black_stops / black)) + geom_point() + facet_wrap(~unit)
+```
+
+
+```{r}
+fixest_cluster_nb <-
+    femlm(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+              property_cr_capita + log_total_officers + year +
+              offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+fixest_cluster_rate <-
+    feglm(black_stop_rate ~ black_ratio + mean_days_exp + violent_cr_capita +
+              property_cr_capita + log_total_officers + year | unit,
+             data = final_vars)
+
+fixest_cluster_norate <-
+    feglm(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+              property_cr_capita + log_total_officers + year | unit,
+             data = final_vars)
+
+mass_nocluster_nb <-
+    glm.nb(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+               property_cr_capita + log_total_officers + year +
+               offset(log(black)) + unit,
+           data = final_vars)
+
+mass_nocluster_rate <-
+    lm(black_stop_rate ~ black_ratio + mean_days_exp + violent_cr_capita +
+               property_cr_capita + log_total_officers + year + unit,
+           data = final_vars)
+
+mass_nocluster_norate <-
+    lm(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+               property_cr_capita + log_total_officers + year + unit,
+           data = final_vars)
+
+# lme_random_intercept <-
+#     lmer(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+#               property_cr_capita + log_total_officers + year + (1 | unit),
+#           data = final_vars)
+
+# It doesn't like this
+# pglm_fixed <-
+#     pglm(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+#              property_cr_capita + log_total_officers + offset(log(black)) + year,
+#          family = negbin,
+#          data = final_vars, index = c("unit", "date"), model = "within")
+
+plm_fixed <-
+    plm(black_stop_rate ~ black_ratio + mean_days_exp + violent_cr_capita +
+              property_cr_capita + log_total_officers + year,
+        data = final_vars,
+        index = c("unit","date") , model = "within")
+
+plm_fixed_stops <-
+    plm(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+              property_cr_capita + log_total_officers + year,
+        data = final_vars,
+        index = c("unit","date") , model = "within")
+
+
+plm_random <-
+    plm(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+              property_cr_capita + log_total_officers + log(black) + year,
+        data = final_vars,
+        index = c("unit","date") , model = "random")
+
+plm_between <-
+    plm(black_stops ~ black_ratio + mean_days_exp + violent_cr_capita +
+            property_cr_capita + log_total_officers + year + log(black),
+        index = c('unit', 'date'), model = "between", data = final_vars)
+
+test <- final_vars %>% mutate(predicted_black_stops = predict(pglm_f))
+
+ggplot(test, aes(x = black_stops, y = predicted_black_stops)) + geom_point() + theme_bw()
+
+ggplot(test, aes(x = black_stops, y = predicted_black_stops)) +
+    facet_wrap(~unit, scales = "free") +
+    geom_point() +
+    theme_bw()
+```
 
 ```{r}
 test <-
     final_vars %>%
     group_by(unit) %>%
     mutate(black_diff_between = mean(black_diff),
-           black_diff_within = black_diff - black_diff_between)
+           black_diff_within = black_diff - black_diff_between,
+           black_ratio_between = mean(black_ratio),
+           black_ratio_within = black_ratio - black_diff_between)
 
-m1 <- MASS::glm.nb(black_stops ~ black_diff + year + offset(log(black)), data = final_vars)
-m2 <- MASS::glm.nb(black_stops ~ 0 + black_diff_within + year + offset(log(black)) + unit, data = test)
-m3 <- MASS::glm.nb(black_stops ~ black_diff_between + year + offset(log(black)), data = test)
-m4 <- glmer(black_stops ~ black_diff_between + black_diff_within + year +  offset(log(black)) + (1 | unit),
+stata_compare1 <-
+    MASS::glm.nb(black_stops ~ black_ratio + offset(log(black)) + unit, data = test)
+stata_compare2 <-
+    MASS::glm.nb(black_stops ~ black_ratio + unit, data = test)
+
+stata_compare2 <-
+    glmer.nb(black_stops ~ black_ratio + (1 | unit), data = test)
+
+
+m1 <- MASS::glm.nb(black_stops ~ black_ratio + year + offset(log(black)), data = test)
+m2 <- MASS::glm.nb(black_stops ~ black_ratio + offset(log(black)) + unit, data = test)
+fixest_pack <- femlm(black_stops ~ black_ratio + offset(log(black)) | unit, data = test, family = "negbin")
+m3 <- MASS::glm.nb(black_stops ~ black_ratio_between + year + offset(log(black)), data = test)
+m4 <- glmer(black_stops ~ black_ratio_between + black_diff_within + year +  offset(log(black)) + (1 | unit),
             data = test,
             family = MASS::negative.binomial(theta = summary(mass_pack)$theta))
 m5 <- glmer(black_stops ~ black_diff_between + black_diff_within + year +  offset(log(black)) + (1 + black_diff_within | unit),
@@ -153,7 +262,7 @@ nb.blackStops.unit <-
     MASS::glm.nb(black_stops ~ black_diff + violent_cr_capita + property_cr_capita +
                      log_total_officers + unit + year + offset(log(black)),
                  data = final_vars)
-summary(nb.blackStops.unit)
+# summary(nb.blackStops.unit)
 
 # nb.blackStops.PCA <-
 #     MASS::glm.nb(black_stops ~ black_diff + violent_cr_capita + property_cr_capita +
@@ -165,7 +274,7 @@ nb.blackStops.dis <-
     MASS::glm.nb(black_stops ~ black_diff + violent_cr_capita + property_cr_capita +
                      log_total_officers + disadvantage + year + offset(log(black)),
                  data = final_vars)
-summary(nb.blackStops.dis)
+# summary(nb.blackStops.dis)
 
 # nb.blackStops.dis <-
 #     MASS::glm.nb(black_stops ~ black_diff,

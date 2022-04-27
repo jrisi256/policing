@@ -10,15 +10,6 @@ opts_chunk$set(message = F, echo = F, warning = F)
 library(here)
 source(here("functions.R"))
 
-library(tidyr)
-library(readr)
-library(dplyr)
-library(purrr)
-library(stringr)
-library(ggplot2)
-library(lubridate)
-library(data.table)
-
 read_path <- paste("clean-and-process", "output", sep = "/")
 write_path <- paste("clean-and-process", "output", sep = "/")
 `%.%` <- paste0

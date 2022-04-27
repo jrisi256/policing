@@ -17,6 +17,7 @@ output: pdf_document
 
 * Violent crime encompasses murder, assault, rape, and robbery.
 * Property crime encompasses burglary, larceny, motor vehicle theft, and arson.
+* Crime counts are the number of crimes reported to the CPD.
 
 ```{r, include = F}
 library(knitr)

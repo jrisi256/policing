@@ -8,14 +8,6 @@ library(knitr)
 opts_chunk$set(message = F, echo = F, warning = F)
 
 library(here)
-library(readr)
-library(dplyr)
-library(tidyr)
-library(purrr)
-library(stringr)
-library(lubridate)
-library(kableExtra)
-
 source(here("functions.R"))
 ```
 

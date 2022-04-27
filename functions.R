@@ -8,6 +8,7 @@ library(ggplot2)
 library(forcats)
 library(lubridate)
 library(data.table)
+library(kableExtra)
 
 # Find if any shift assignments with missing start/end times matched to an outcome
 find_missing <- function(df, id_var) {
