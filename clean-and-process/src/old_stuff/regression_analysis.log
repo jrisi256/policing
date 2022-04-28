@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019/Debian) (preloaded format=pdflatex 2020.10.12)  27 APR 2022 17:36
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019/Debian) (preloaded format=pdflatex 2020.10.12)  27 APR 2022 21:30
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -803,86 +803,86 @@ Overfull \vbox (20.40106pt too high) has occurred while \output is active []
 
 [8 <./regression_analysis_files/figure-latex/unnamed-chunk-10-1.pdf> <./regress
 ion_analysis_files/figure-latex/unnamed-chunk-10-2.pdf>]
-<regression_analysis_files/figure-latex/unnamed-chunk-14-1.pdf, id=112, 469.755
-pt x 325.215pt>
-File: regression_analysis_files/figure-latex/unnamed-chunk-14-1.pdf Graphic fil
-e (type pdf)
-<use regression_analysis_files/figure-latex/unnamed-chunk-14-1.pdf>
-Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-1
-4-1.pdf  used on input line 401.
-(pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
-[9]
-<regression_analysis_files/figure-latex/unnamed-chunk-15-1.pdf, id=122, 469.755
+<regression_analysis_files/figure-latex/unnamed-chunk-15-1.pdf, id=112, 469.755
 pt x 325.215pt>
 File: regression_analysis_files/figure-latex/unnamed-chunk-15-1.pdf Graphic fil
 e (type pdf)
 <use regression_analysis_files/figure-latex/unnamed-chunk-15-1.pdf>
 Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-1
-5-1.pdf  used on input line 408.
+5-1.pdf  used on input line 403.
 (pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
-[10 <./regression_analysis_files/figure-latex/unnamed-chunk-14-1.pdf>]
-<regression_analysis_files/figure-latex/unnamed-chunk-16-1.pdf, id=132, 469.755
+[9]
+<regression_analysis_files/figure-latex/unnamed-chunk-16-1.pdf, id=122, 469.755
 pt x 325.215pt>
 File: regression_analysis_files/figure-latex/unnamed-chunk-16-1.pdf Graphic fil
 e (type pdf)
 <use regression_analysis_files/figure-latex/unnamed-chunk-16-1.pdf>
 Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-1
-6-1.pdf  used on input line 415.
+6-1.pdf  used on input line 410.
 (pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
-<regression_analysis_files/figure-latex/unnamed-chunk-16-2.pdf, id=133, 469.755
+[10 <./regression_analysis_files/figure-latex/unnamed-chunk-15-1.pdf>]
+<regression_analysis_files/figure-latex/unnamed-chunk-17-1.pdf, id=132, 469.755
 pt x 325.215pt>
-File: regression_analysis_files/figure-latex/unnamed-chunk-16-2.pdf Graphic fil
+File: regression_analysis_files/figure-latex/unnamed-chunk-17-1.pdf Graphic fil
 e (type pdf)
-<use regression_analysis_files/figure-latex/unnamed-chunk-16-2.pdf>
+<use regression_analysis_files/figure-latex/unnamed-chunk-17-1.pdf>
 Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-1
-6-2.pdf  used on input line 416.
+7-1.pdf  used on input line 417.
+(pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
+<regression_analysis_files/figure-latex/unnamed-chunk-17-2.pdf, id=133, 469.755
+pt x 325.215pt>
+File: regression_analysis_files/figure-latex/unnamed-chunk-17-2.pdf Graphic fil
+e (type pdf)
+<use regression_analysis_files/figure-latex/unnamed-chunk-17-2.pdf>
+Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-1
+7-2.pdf  used on input line 418.
 (pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
 
-Underfull \hbox (badness 10000) in paragraph at lines 415--417
+Underfull \hbox (badness 10000) in paragraph at lines 417--419
 [][]
  []
 
-[11 <./regression_analysis_files/figure-latex/unnamed-chunk-15-1.pdf>] [12 <./r
-egression_analysis_files/figure-latex/unnamed-chunk-16-1.pdf>]
-Overfull \hbox (66.71643pt too wide) in paragraph at lines 425--457
+[11 <./regression_analysis_files/figure-latex/unnamed-chunk-16-1.pdf>] [12 <./r
+egression_analysis_files/figure-latex/unnamed-chunk-17-1.pdf>]
+Overfull \hbox (66.71643pt too wide) in paragraph at lines 427--459
  [][] 
  []
 
-<regression_analysis_files/figure-latex/unnamed-chunk-18-1.pdf, id=157, 469.755
-pt x 325.215pt>
-File: regression_analysis_files/figure-latex/unnamed-chunk-18-1.pdf Graphic fil
-e (type pdf)
-<use regression_analysis_files/figure-latex/unnamed-chunk-18-1.pdf>
-Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-1
-8-1.pdf  used on input line 466.
-(pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
-[13 <./regression_analysis_files/figure-latex/unnamed-chunk-16-2.pdf>]
-Overfull \vbox (17.32834pt too high) has occurred while \output is active []
-
-[14 <./regression_analysis_files/figure-latex/unnamed-chunk-18-1.pdf>]
-<regression_analysis_files/figure-latex/unnamed-chunk-19-1.pdf, id=183, 469.755
+<regression_analysis_files/figure-latex/unnamed-chunk-19-1.pdf, id=157, 469.755
 pt x 325.215pt>
 File: regression_analysis_files/figure-latex/unnamed-chunk-19-1.pdf Graphic fil
 e (type pdf)
 <use regression_analysis_files/figure-latex/unnamed-chunk-19-1.pdf>
 Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-1
-9-1.pdf  used on input line 474.
+9-1.pdf  used on input line 468.
 (pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
-<regression_analysis_files/figure-latex/unnamed-chunk-20-1.pdf, id=184, 469.755
+[13 <./regression_analysis_files/figure-latex/unnamed-chunk-17-2.pdf>]
+Overfull \vbox (17.32834pt too high) has occurred while \output is active []
+
+[14 <./regression_analysis_files/figure-latex/unnamed-chunk-19-1.pdf>]
+<regression_analysis_files/figure-latex/unnamed-chunk-20-1.pdf, id=183, 469.755
 pt x 325.215pt>
 File: regression_analysis_files/figure-latex/unnamed-chunk-20-1.pdf Graphic fil
 e (type pdf)
 <use regression_analysis_files/figure-latex/unnamed-chunk-20-1.pdf>
 Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-2
-0-1.pdf  used on input line 493.
+0-1.pdf  used on input line 476.
 (pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
-[15 <./regression_analysis_files/figure-latex/unnamed-chunk-19-1.pdf>]
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 500.
-[16 <./regression_analysis_files/figure-latex/unnamed-chunk-20-1.pdf>]
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 500.
+<regression_analysis_files/figure-latex/unnamed-chunk-21-1.pdf, id=184, 469.755
+pt x 325.215pt>
+File: regression_analysis_files/figure-latex/unnamed-chunk-21-1.pdf Graphic fil
+e (type pdf)
+<use regression_analysis_files/figure-latex/unnamed-chunk-21-1.pdf>
+Package pdftex.def Info: regression_analysis_files/figure-latex/unnamed-chunk-2
+1-1.pdf  used on input line 495.
+(pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
+[15 <./regression_analysis_files/figure-latex/unnamed-chunk-20-1.pdf>]
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 502.
+[16 <./regression_analysis_files/figure-latex/unnamed-chunk-21-1.pdf>]
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 502.
 (./regression_analysis.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 500.
-Package atveryend Info: Empty hook `AtEndAfterFileList' on input line 500.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 502.
+Package atveryend Info: Empty hook `AtEndAfterFileList' on input line 502.
  ) 
 Here is how much of TeX's memory you used:
  17462 strings out of 483107
@@ -901,7 +901,7 @@ pfb></usr/share/texmf/fonts/type1/public/lm/lmr10.pfb></usr/share/texmf/fonts/t
 ype1/public/lm/lmr17.pfb></usr/share/texmf/fonts/type1/public/lm/lmri10.pfb></u
 sr/share/texmf/fonts/type1/public/lm/lmsy10.pfb></usr/share/texmf/fonts/type1/p
 ublic/lm/lmtt10.pfb>
-Output written on regression_analysis.pdf (16 pages, 606975 bytes).
+Output written on regression_analysis.pdf (16 pages, 607198 bytes).
 PDF statistics:
  291 PDF objects out of 1000 (max. 8388607)
  233 compressed objects within 3 object streams

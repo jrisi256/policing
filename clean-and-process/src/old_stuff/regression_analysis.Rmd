@@ -347,23 +347,39 @@ ggplot(final_vars, aes(y = black_stop_rate, x = black_ratio)) +
 ## Residualized Regression
 
 ```{r}
-residual_reg <- lm(black_ratio ~ mean_years_exp, data = final_vars)
+residual_reg <- lm(mean_years_exp ~ black_ratio, data = final_vars)
 residuals_exp <- residual_reg$residuals
-final_vars <- final_vars %>% mutate(residuals_exp = residuals_exp)
+final_vars <- final_vars %>% mutate(residual_exp = residuals_exp)
 residual_reg_nb <-
-    femlm(black_stops ~ black_ratio + residuals_exp + violent_cr_capita +
+    femlm(black_stops ~ black_ratio + residual_exp + violent_cr_capita +
               property_cr_capita + log_total_officers + year + offset(log(black)) | unit,
           family = "negbin",
           data = final_vars)
 
-offset_row <- tibble(term = c("", "Offset - Black Pop."),
-                     `Model 1` = c("Model 5", "Yes"))
-attr(offset_row, "position") <- c(1, 9)
+residual_reg2 <- lm(black_ratio ~ mean_years_exp, data = final_vars)
+residuals_ratio <- residual_reg2$residuals
+final_vars <- final_vars %>% mutate(residual_ratio = residuals_ratio)
+residual_reg_nb2 <-
+    femlm(black_stops ~ residual_ratio + mean_years_exp + violent_cr_capita +
+              property_cr_capita + log_total_officers + year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+```
 
-modelsummary(list("Stops of Black Civilians" = residual_reg_nb),
+
+```{r}
+offset_row <- tibble(term = c("", "Offset - Black Pop."),
+                     `Model 1` = c("Model 5", "Yes"),
+                     `Model 2` = c("Model 6", "Yes"))
+attr(offset_row, "position") <- c(1, 11)
+
+modelsummary(list("Stops of Black Civilians" = residual_reg_nb,
+                  "Stops of Black Civilians" = residual_reg_nb2),
              coef_omit = "(Intercept)|theta",
              coef_rename = c(black_ratio = "Black Racial Congruence",
-                             residuals_exp = "Residualized Mean Amount of Experience",
+                             residual_exp = "Residualized Mean Amount of Experience",
+                             residual_ratio = "Residualized Black Racial Congruence",
+                             mean_years_exp = "Mean Amount of Experience (Years)",
                              violent_cr_capita = "Violent Crime Per 10,000",
                              property_cr_capita = "Property Crime Per 10,000",
                              log_total_officers = "Log of the Total Number of Officers"),
