@@ -112,6 +112,38 @@ final_vars %>%
 ```
 
 ```{r}
+race_exp <-
+    final_vars %>%
+    group_by(year, unit) %>%
+    summarise(corr = cor(black_ratio, mean_years_exp)) %>%
+    ungroup()
+
+final_vars %>%
+    filter(unit %in% c(1, 10, 6)) %>%
+    ggplot(aes(x = black_ratio, y = mean_years_exp)) +
+    geom_point(aes(color = year)) +
+    facet_wrap(~unit, scales = "free") +
+    theme_bw() +
+    labs(x = "Black Racial Congruence", y = "Mean Years of Experience",
+         title = "Racial Congruence vs. Mean Years of Experience for Units 1, 6, and 10")
+
+final_vars %>%
+    ggplot(aes(x = black_ratio, y = mean_years_exp)) +
+    geom_point(aes(color = unit)) +
+    theme_bw() +
+    labs(x = "Black Racial Congruence", y = "Mean Years of Experience",
+         title = "Black Racial Congruence vs. Mean Years of Experience") +
+    geom_smooth(method = "lm",
+                formula = y ~ x,
+                se = F,
+                aes(group = unit, color = unit)) +
+    geom_smooth(method = "lm",
+                formula = y ~ x,
+                se = F,
+                aes(group = 1))
+```
+
+```{r}
 graph <-
     final_vars %>%
     dplyr::select(unit, year, month, white_stop_rate, black_stop_rate, hispanic_stop_rate,
@@ -245,6 +277,12 @@ fixest_cluster_nb_basic <-
           family = "negbin",
           data = final_vars)
 
+fixest_cluster_nb_exp <-
+    femlm(black_stops ~ mean_years_exp + violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
 fixest_cluster_nb_full <-
     femlm(black_stops ~ black_ratio + mean_years_exp + violent_cr_capita + property_cr_capita + log_total_officers +
               year + offset(log(black)) | unit,
@@ -252,11 +290,39 @@ fixest_cluster_nb_full <-
           data = final_vars)
 
 offset_row <- tibble(term = c("", "Offset - Black Pop."),
-                     `Model 1` = c("Model 3", "Yes"),
-                     `Model 2` = c("Model 4", "Yes"))
+                     `Model 1` = c("Model 1", "Yes"),
+                     `Model 2` = c("Model 2", "Yes"))
 attr(offset_row, "position") <- c(1, 9)
 
 modelsummary(list("Stops of Black Civilians" = fixest_cluster_nb_basic,
+                  "Stops of Black Civilians" = fixest_cluster_nb_exp,
+                  "Stops of Black Civilians" = fixest_cluster_nb_full),
+             coef_omit = "(Intercept)|theta",
+             coef_rename = c(black_ratio = "Black Racial Congruence",
+                             mean_years_exp = "Mean Amount of Experience (Years)",
+                             violent_cr_capita = "Violent Crime Per 10,000",
+                             property_cr_capita = "Property Crime Per 10,000",
+                             log_total_officers = "Log of the Total Number of Officers"),
+             estimate = "{estimate} ({std.error}){stars}",
+             statistic = NULL,
+             stars = T,
+             gof_omit = "R2$|R2 Adj|R2 Within",
+             exponentiate = T,
+             output = "latex",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
+```
+
+```{r}
+offset_row <- tibble(term = c("", "Offset - Black Pop."),
+                     `Model 1` = c("Model 7", "Yes"),
+                     `Model 2` = c("Model 8", "Yes"),
+                     `Model 3` = c("Model 9", "Yes"))
+attr(offset_row, "position") <- c(1, 9)
+
+modelsummary(list("Stops of Black Civilians" = fixest_cluster_nb_basic,
+                  "Stops of Black Civilians" = fixest_cluster_nb_exp,
                   "Stops of Black Civilians" = fixest_cluster_nb_full),
              coef_omit = "(Intercept)|theta",
              coef_rename = c(black_ratio = "Black Racial Congruence",
@@ -369,8 +435,8 @@ residual_reg_nb2 <-
 
 ```{r}
 offset_row <- tibble(term = c("", "Offset - Black Pop."),
-                     `Model 1` = c("Model 5", "Yes"),
-                     `Model 2` = c("Model 6", "Yes"))
+                     `Model 1` = c("Model 3", "Yes"),
+                     `Model 2` = c("Model 4", "Yes"))
 attr(offset_row, "position") <- c(1, 11)
 
 modelsummary(list("Stops of Black Civilians" = residual_reg_nb,
@@ -460,6 +526,13 @@ new_data_exp <-
 As mentioned above, I hold all other values constant at their means (for each unit in each year). I then systematically vary the value of Black racial congruence using the minimum value (for that unit in that year), the 25th percentile, the median, the 75th percentile, and the maximum value.
 
 ```{r}
+predict_results_ratio_no_exp <-
+    new_data_ratio %>%
+    mutate(predicted_black_stops = predict(fixest_cluster_nb_basic,
+                                           newdata = new_data_ratio) * black,
+           type = factor(type, levels = c("min", "p25", "median", "p75", "max")),
+           variable = "Black Racial Congruence (No Experience)")
+
 predict_results_ratio <-
     new_data_ratio %>%
     mutate(predicted_black_stops = predict(fixest_cluster_nb_full,
@@ -478,6 +551,31 @@ predict_results <-
     dplyr::select(predict_results_ratio, -nr_officer_black) %>%
     rbind(predict_results_exp)
 ```
+
+
+```{r}
+predict_results_both_models <-
+    dplyr::select(predict_results_ratio, -nr_officer_black) %>%
+    rbind(predict_results_exp) %>%
+    rbind(dplyr::select(predict_results_ratio_no_exp, -nr_officer_black))
+
+predict_results_diff <-
+    predict_results_both_models %>%
+    dplyr::select(unit, year, type, variable, predicted_black_stops) %>%
+    filter(type == "min" | type == "max") %>%
+    pivot_wider(id_cols = c("unit", "year", "variable"),
+                names_from = type,
+                values_from = c("predicted_black_stops")) %>%
+    mutate(decrease_stops = min - max) %>%
+    filter(year == 2014)
+
+ggplot(predict_results_diff, aes(y = fct_reorder(unit, decrease_stops), x = decrease_stops)) + 
+    geom_bar(aes(fill = variable), stat = "identity") +
+    theme_bw() +
+    labs(x = "Decrease in Stops (Moving From Minimum to Maximum Value)", y = "Unit",
+         title = "Decrease in Predicted Number of Stops: Comparison of Effects")
+```
+
 
 ```{r}
 predict_results_ratio %>%
