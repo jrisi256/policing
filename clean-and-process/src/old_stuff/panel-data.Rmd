@@ -46,6 +46,20 @@ panel2 <-
     read_csv(here("clean-and-process", "input", "monthly_panel_units_1965-2016.csv")) %>%
     mutate(officer_id = as.character(officer_id))
 
+panel_new_exp <-
+    full_join(panel2, panel1) %>%
+    mutate(unit = as.numeric(unit)) %>%
+    filter(unit <= 25,
+           !(unit %in% c(13, 21, 23))) %>%
+    mutate(unit = as.character(unit)) %>%
+    mutate(employed = 1) %>%
+    arrange(officer_id, month, unit) %>%
+    group_by(officer_id, unit) %>%
+    mutate(months_worked_unit = cumsum(employed)) %>%
+    group_by(month, unit) %>%
+    summarise(mean_months_worked_unit = mean(months_worked_unit)) %>%
+    filter(year(month) >= 2013 & year(month) <= 2015)
+
 panel <-
     full_join(panel2, panel1) %>%
     mutate(unit = as.numeric(unit)) %>%
@@ -114,7 +128,7 @@ police_units_gender <-
                 values_from = c("nr_officer", "prcnt_officer"))
 
 police_units_final <-
-    reduce(list(police_units, police_units_race, police_units_gender),
+    reduce(list(police_units, police_units_race, police_units_gender, panel_new_exp),
            full_join,
            by = c("unit", "month"))
 ```
