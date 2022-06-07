@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019/Debian) (preloaded format=pdflatex 2020.10.12)  16 MAY 2022 18:29
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019/Debian) (preloaded format=pdflatex 2020.10.12)  26 MAY 2022 03:25
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -744,7 +744,7 @@ LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 2
 (/usr/share/texmf/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2009/10/30 v1.6 Font defs for Latin Modern
 ) [4 <./regression_analysis_revision_files/figure-latex/unnamed-chunk-8-1.pdf>]
-<regression_analysis_revision_files/figure-latex/unnamed-chunk-11-1.pdf, id=71,
+<regression_analysis_revision_files/figure-latex/unnamed-chunk-11-1.pdf, id=72,
  1011.78pt x 650.43pt>
 File: regression_analysis_revision_files/figure-latex/unnamed-chunk-11-1.pdf Gr
 aphic file (type pdf)
@@ -757,7 +757,7 @@ Overfull \hbox (66.71643pt too wide) in paragraph at lines 250--282
  [][] 
  []
 
-<regression_analysis_revision_files/figure-latex/unnamed-chunk-13-1.pdf, id=72,
+<regression_analysis_revision_files/figure-latex/unnamed-chunk-13-1.pdf, id=73,
  1011.78pt x 650.43pt>
 File: regression_analysis_revision_files/figure-latex/unnamed-chunk-13-1.pdf Gr
 aphic file (type pdf)
@@ -767,71 +767,66 @@ d-chunk-13-1.pdf  used on input line 288.
 (pdftex.def)             Requested size: 469.76266pt x 301.99028pt.
 [5 <./regression_analysis_revision_files/figure-latex/unnamed-chunk-11-1.pdf>] 
 [6 <./regression_analysis_revision_files/figure-latex/unnamed-chunk-13-1.pdf>]
-Overfull \hbox (57.46672pt too wide) in paragraph at lines 321--347
- [][] 
- []
-
-<regression_analysis_revision_files/figure-latex/unnamed-chunk-15-1.pdf, id=95,
+<regression_analysis_revision_files/figure-latex/unnamed-chunk-14-1.pdf, id=95,
  1011.78pt x 650.43pt>
+File: regression_analysis_revision_files/figure-latex/unnamed-chunk-14-1.pdf Gr
+aphic file (type pdf)
+<use regression_analysis_revision_files/figure-latex/unnamed-chunk-14-1.pdf>
+Package pdftex.def Info: regression_analysis_revision_files/figure-latex/unname
+d-chunk-14-1.pdf  used on input line 334.
+(pdftex.def)             Requested size: 469.76266pt x 301.99028pt.
+[7 <./regression_analysis_revision_files/figure-latex/unnamed-chunk-14-1.pdf>]
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 3
+63.
+(/usr/share/texmf/tex/latex/lm/t1lmtt.fd
+File: t1lmtt.fd 2009/10/30 v1.6 Font defs for Latin Modern
+)
+<regression_analysis_revision_files/figure-latex/unnamed-chunk-15-1.pdf, id=112
+, 867.24pt x 505.89pt>
 File: regression_analysis_revision_files/figure-latex/unnamed-chunk-15-1.pdf Gr
 aphic file (type pdf)
 <use regression_analysis_revision_files/figure-latex/unnamed-chunk-15-1.pdf>
 Package pdftex.def Info: regression_analysis_revision_files/figure-latex/unname
-d-chunk-15-1.pdf  used on input line 364.
-(pdftex.def)             Requested size: 469.76266pt x 301.99028pt.
-[7]
-LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 3
-93.
-(/usr/share/texmf/tex/latex/lm/t1lmtt.fd
-File: t1lmtt.fd 2009/10/30 v1.6 Font defs for Latin Modern
-)
-<regression_analysis_revision_files/figure-latex/unnamed-chunk-16-1.pdf, id=105
+d-chunk-15-1.pdf  used on input line 367.
+(pdftex.def)             Requested size: 469.75827pt x 274.02563pt.
+<regression_analysis_revision_files/figure-latex/unnamed-chunk-15-2.pdf, id=113
 , 867.24pt x 505.89pt>
-File: regression_analysis_revision_files/figure-latex/unnamed-chunk-16-1.pdf Gr
+File: regression_analysis_revision_files/figure-latex/unnamed-chunk-15-2.pdf Gr
 aphic file (type pdf)
-<use regression_analysis_revision_files/figure-latex/unnamed-chunk-16-1.pdf>
+<use regression_analysis_revision_files/figure-latex/unnamed-chunk-15-2.pdf>
 Package pdftex.def Info: regression_analysis_revision_files/figure-latex/unname
-d-chunk-16-1.pdf  used on input line 397.
+d-chunk-15-2.pdf  used on input line 374.
 (pdftex.def)             Requested size: 469.75827pt x 274.02563pt.
 [8 <./regression_analysis_revision_files/figure-latex/unnamed-chunk-15-1.pdf>]
-<regression_analysis_revision_files/figure-latex/unnamed-chunk-16-2.pdf, id=118
+<regression_analysis_revision_files/figure-latex/unnamed-chunk-15-3.pdf, id=124
 , 867.24pt x 505.89pt>
-File: regression_analysis_revision_files/figure-latex/unnamed-chunk-16-2.pdf Gr
+File: regression_analysis_revision_files/figure-latex/unnamed-chunk-15-3.pdf Gr
 aphic file (type pdf)
-<use regression_analysis_revision_files/figure-latex/unnamed-chunk-16-2.pdf>
+<use regression_analysis_revision_files/figure-latex/unnamed-chunk-15-3.pdf>
 Package pdftex.def Info: regression_analysis_revision_files/figure-latex/unname
-d-chunk-16-2.pdf  used on input line 404.
+d-chunk-15-3.pdf  used on input line 381.
 (pdftex.def)             Requested size: 469.75827pt x 274.02563pt.
-<regression_analysis_revision_files/figure-latex/unnamed-chunk-16-3.pdf, id=119
-, 867.24pt x 505.89pt>
-File: regression_analysis_revision_files/figure-latex/unnamed-chunk-16-3.pdf Gr
-aphic file (type pdf)
-<use regression_analysis_revision_files/figure-latex/unnamed-chunk-16-3.pdf>
-Package pdftex.def Info: regression_analysis_revision_files/figure-latex/unname
-d-chunk-16-3.pdf  used on input line 411.
-(pdftex.def)             Requested size: 469.75827pt x 274.02563pt.
-[9 <./regression_analysis_revision_files/figure-latex/unnamed-chunk-16-1.pdf> <
-./regression_analysis_revision_files/figure-latex/unnamed-chunk-16-2.pdf>]
-Overfull \hbox (48.96591pt too wide) in paragraph at lines 439--464
+[9 <./regression_analysis_revision_files/figure-latex/unnamed-chunk-15-2.pdf> <
+./regression_analysis_revision_files/figure-latex/unnamed-chunk-15-3.pdf>]
+Overfull \hbox (48.96591pt too wide) in paragraph at lines 409--434
  [][] 
  []
 
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 466.
-[10 <./regression_analysis_revision_files/figure-latex/unnamed-chunk-16-3.pdf>]
-[11]
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 466.
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 436.
+[10]
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 436.
 (./regression_analysis_revision.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 466.
-Package atveryend Info: Empty hook `AtEndAfterFileList' on input line 466.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 436.
+Package atveryend Info: Empty hook `AtEndAfterFileList' on input line 436.
  ) 
 Here is how much of TeX's memory you used:
- 17364 strings out of 483107
- 296143 string characters out of 5964629
- 568566 words of memory out of 5000000
+ 17363 strings out of 483107
+ 296136 string characters out of 5964629
+ 572565 words of memory out of 5000000
  31978 multiletter control sequences out of 15000+600000
  592749 words of font info for 99 fonts, out of 8000000 for 9000
  59 hyphenation exceptions out of 8191
- 41i,13n,42p,1373b,785s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 41i,14n,42p,1373b,823s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/share/texmf/fonts/enc/dvips/lm/lm-ec.enc}{/usr/share/texmf/fonts/enc/dv
 ips/lm/lm-ts1.enc}{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy.enc}{/usr/shar
 e/texmf/fonts/enc/dvips/lm/lm-mathit.enc}{/usr/share/texmf/fonts/enc/dvips/lm/l
@@ -840,10 +835,10 @@ onts/type1/public/lm/lmbx12.pfb></usr/share/texmf/fonts/type1/public/lm/lmmi10.
 pfb></usr/share/texmf/fonts/type1/public/lm/lmr10.pfb></usr/share/texmf/fonts/t
 ype1/public/lm/lmr17.pfb></usr/share/texmf/fonts/type1/public/lm/lmsy10.pfb></u
 sr/share/texmf/fonts/type1/public/lm/lmtt10.pfb>
-Output written on regression_analysis_revision.pdf (11 pages, 388830 bytes).
+Output written on regression_analysis_revision.pdf (10 pages, 387498 bytes).
 PDF statistics:
- 235 PDF objects out of 1000 (max. 8388607)
- 192 compressed objects within 2 object streams
- 41 named destinations out of 1000 (max. 500000)
+ 231 PDF objects out of 1000 (max. 8388607)
+ 189 compressed objects within 2 object streams
+ 40 named destinations out of 1000 (max. 500000)
  16547 words of extra memory for PDF output out of 17280 (max. 10000000)
 

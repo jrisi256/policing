@@ -230,6 +230,20 @@ ggplot(final_vars, aes(y = black_stop_rate, x = black_ratio)) +
 ## Regression Models
 
 ```{r, results = "asis"}
+fixest_cluster_nb_prcnt_basic <-
+    femlm(black_stops ~ prcnt_officer_black + violent_cr_capita +
+              property_cr_capita + log_total_officers + year +
+              offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+fixest_cluster_nb_prcnt_full <-
+    femlm(black_stops ~ prcnt_officer_black + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
 fixest_cluster_nb_basic <-
     femlm(black_stops ~ black_ratio + violent_cr_capita + property_cr_capita +
               log_total_officers + year + offset(log(black)) | unit,
@@ -245,17 +259,23 @@ fixest_cluster_nb_full <-
 
 offset_row <- tibble(term = c("", "Offset - Black Pop."),
                      `Model 1` = c("Model 1", "Yes"),
-                     `Model 2` = c("Model 2", "Yes"))
-attr(offset_row, "position") <- c(1, 9)
+                     `Model 2` = c("Model 2", "Yes"),
+                     `Model 3` = c("Model 3", "Yes"),
+                     `Model 4` = c("Model 4", "Yes"))
+attr(offset_row, "position") <- c(1, 10)
+rename = c(black_ratio = "Black Racial Congruence",
+           prcnt_officer_black = "Percentage of Officers Who Are Black",
+           mean_years_worked_unit = "Years Worked In Unit (Mean)",
+           violent_cr_capita = "Violent Crime Per 10,000",
+           property_cr_capita = "Property Crime Per 10,000",
+           log_total_officers = "Log of the Total Number of Officers")
 
 modelsummary(list("Stops of Black Civilians" = fixest_cluster_nb_basic,
-                  "Stops of Black Civilians" = fixest_cluster_nb_full),
+                  "Stops of Black Civilians" = fixest_cluster_nb_prcnt_basic,
+                  "Stops of Black Civilians" = fixest_cluster_nb_full,
+                  "Stops of Black Civilians" = fixest_cluster_nb_prcnt_full),
              coef_omit = "(Intercept)|theta",
-             coef_rename = c(black_ratio = "Black Racial Congruence",
-                             mean_years_worked_unit = "Years Worked In Unit (Mean)",
-                             violent_cr_capita = "Violent Crime Per 10,000",
-                             property_cr_capita = "Property Crime Per 10,000",
-                             log_total_officers = "Log of the Total Number of Officers"),
+             coef_map = rename,
              estimate = "{estimate} ({std.error}){stars}",
              statistic = NULL,
              stars = T,
@@ -264,7 +284,8 @@ modelsummary(list("Stops of Black Civilians" = fixest_cluster_nb_basic,
              output = "latex",
              add_rows = offset_row,
              notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
-                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001")) %>%
+    kable_styling(full_width = F, latex_options = "scale_down")
 ```
 
 ## Predictions To Aid In Interpretation of Coefficients
@@ -326,6 +347,25 @@ new_data_exp <-
                  names_to = "type",
                  values_to = "mean_years_worked_unit") %>%
     ungroup()
+
+new_data_prop <-
+    final_vars %>%
+    group_by(unit, year, black) %>%
+    summarise(prcnt_officer_FEMALE = mean(prcnt_officer_FEMALE),
+              black_ratio = mean(black_ratio),
+              violent_cr_capita = mean(violent_cr_capita),
+              mean_years_worked_unit = mean(mean_years_worked_unit),
+              log_total_officers = mean(log_total_officers),
+              black = mean(black),
+              min = min(property_cr_capita),
+              max = max(property_cr_capita),
+              med = median(property_cr_capita),
+              p25 = quantile(property_cr_capita)[["25%"]],
+              p75 = quantile(property_cr_capita)[["75%"]]) %>%
+    pivot_longer(c("min", "max", "med", "p25", "p75"),
+                 names_to = "type",
+                 values_to = "property_cr_capita") %>%
+    ungroup()
 ```
 
 ### The effect of moving from the least amount of racial congruence to the most for each year for each unit
@@ -347,9 +387,16 @@ predict_results_exp <-
            type = factor(type, levels = c("min", "p25", "med", "p75", "max")),
            variable = "Years Worked In Unit (Mean)")
 
+predict_results_prop <-
+    new_data_prop %>%
+    mutate(predicted_black_stops = predict(fixest_cluster_nb_full,
+                                           newdata = new_data_prop) * black,
+           type = factor(type, levels = c("min", "p25","med", "p75", "max")),
+           variable = "Property Crime Per 10,000")
+
 predict_results <-
     dplyr::select(predict_results_ratio, -nr_officer_black) %>%
-    rbind(predict_results_exp)
+    rbind(predict_results_exp, predict_results_prop)
 
 predict_results_ratio %>%
     ggplot(aes(x = type, y = predicted_black_stops)) +
@@ -431,41 +478,6 @@ Demonstrates how racial congruence compares to the mean amount of experience in 
 * Racial congruence and work experience in the unit are not strongly correlated (r = `r cor(final_vars$black_ratio, final_vars$mean_years_worked_unit)`).
 * Meanwhile, work experience in the unit and the percentage of the police force that is Black are moderately negatively correlated (r = `r cor(final_vars$prcnt_officer_black, final_vars$mean_years_worked_unit)`).
 
-```{r}
-fixest_cluster_nb_prcnt <-
-    femlm(black_stops ~ prcnt_officer_black + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita +
-              log_total_officers + year + offset(log(black)) | unit,
-          family = "negbin",
-          data = final_vars)
-
-offset_row <- tibble(term = c("", "Offset - Black Pop."),
-                     `Model 1` = c("Model A3", "Yes"),
-                     `Model 2` = c("Model A4", "Yes"),
-                     `Model 3` = c("Model A5", "Yes"))
-attr(offset_row, "position") <- c(1, 10)
-
-modelsummary(list("Stops of Black Civilians" = fixest_cluster_nb_basic,
-                  "Stops of Black Civilians" = fixest_cluster_nb_full,
-                  "Stops of Black Civilians" = fixest_cluster_nb_prcnt),
-             coef_omit = "(Intercept)|theta",
-             coef_rename = c(black_ratio = "Black Racial Congruence",
-                             mean_years_worked_unit = "Years Worked In Unit (Mean)",
-                             prcnt_officer_black = "Percentage of Officers Who Are Black",
-                             violent_cr_capita = "Violent Crime Per 10,000",
-                             property_cr_capita = "Property Crime Per 10,000",
-                             log_total_officers = "Log of the Total Number of Officers"),
-             estimate = "{estimate} ({std.error}){stars}",
-             statistic = NULL,
-             stars = T,
-             gof_omit = "R2$|R2 Adj|R2 Within",
-             exponentiate = T,
-             output = "latex",
-             add_rows = offset_row,
-             notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
-                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
-```
-
 ### Using Predicted Number of Black Stops To Contextualize Percentage of Officers Who Are Black vs. Racial Congruence
 
 * For almost all units, the association goes in the same direction and the predicted number of Black stops are similar for percentage vs. racial congruence. However, an increasing percentage of the force that is Black seems to be associated with greater reductions in the number of stops of Black civilians as compared to racial congruence.
@@ -493,7 +505,7 @@ new_data_prcnt <-
 
 predict_results_prcnt <-
     new_data_prcnt %>%
-    mutate(predicted_black_stops = predict(fixest_cluster_nb_prcnt,
+    mutate(predicted_black_stops = predict(fixest_cluster_nb_prcnt_full,
                                            newdata = new_data_prcnt) * black,
            type = factor(type, levels = c("min", "p25", "med", "p75", "max")),
            variable = "Percentage of Officers Who Are Black") %>%
@@ -513,7 +525,7 @@ predict_results_compare %>%
     facet_wrap(~unit, scales = "free_y") +
     theme_bw() +
     labs(x = "Percentiles", y = "Predicted Number of Stops of Black Civilians") +
-    theme(text = element_text(size = 17))
+    theme(text = element_text(size = 16))
 ```
 
 ## Dividing up the sample by Percentage of the Population That Is White
@@ -534,7 +546,7 @@ final_vars_list <-
 
 map(final_vars_list, function(df) {
     
-    ggplot(df, aes(y = black_stop_rate, x = black_ratio)) +
+    ggplot(df, aes(y = black_stop_rate, x = prcnt_officer_black)) +
     geom_point(aes(color = unit)) +
     geom_smooth(method = MASS::glm.nb,
                 formula = y ~ x,
