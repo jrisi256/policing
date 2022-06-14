@@ -288,6 +288,87 @@ modelsummary(list("Stops of Black Civilians" = fixest_cluster_nb_basic,
     kable_styling(full_width = F, latex_options = "scale_down")
 ```
 
+## Investigating thresholds
+
+```{r}
+final_vars <-
+    final_vars %>%
+    mutate(percent10 = prcnt_officer_black >= 0.1,
+           percent15 = prcnt_officer_black >= 0.15,
+           percent20 = prcnt_officer_black >= 0.2,
+           percent25 = prcnt_officer_black >= 0.25,
+           percent30 = prcnt_officer_black >= 0.3)
+
+fixest_cluster_nb_t10 <-
+    femlm(black_stops ~ black_ratio + mean_years_exp + percent10 +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+fixest_cluster_nb_t15 <-
+    femlm(black_stops ~ black_ratio + mean_years_exp + percent15 +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+fixest_cluster_nb_t20 <-
+    femlm(black_stops ~ black_ratio + mean_years_exp + percent20 +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+fixest_cluster_nb_t25 <-
+    femlm(black_stops ~ black_ratio + mean_years_exp + percent25 +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+fixest_cluster_nb_t30 <-
+    femlm(black_stops ~ black_ratio + mean_years_exp + percent30 +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+offset_row <- tibble(term = c("", "Offset - Black Pop."),
+                     `Model 1` = c("Model 10%", "Yes"),
+                     `Model 2` = c("Model 15%", "Yes"),
+                     `Model 3` = c("Model 20%", "Yes"),
+                     `Model 4` = c("Model 25%", "Yes"),
+                     `Model 5` = c("Model 30%", "Yes"))
+attr(offset_row, "position") <- c(1, 12)
+
+modelsummary(list("Stops of Black Civilians" = fixest_cluster_nb_t10,
+                  "Stops of Black Civilians" = fixest_cluster_nb_t15,
+                  "Stops of Black Civilians" = fixest_cluster_nb_t20,
+                  "Stops of Black Civilians" = fixest_cluster_nb_t25,
+                  "Stops of Black Civilians" = fixest_cluster_nb_t30),
+             coef_omit = "(Intercept)|theta",
+             coef_rename = c(black_ratio = "Black Racial Congruence",
+                             percent10 = "10% Threshold",
+                             percent15 = "15% Threshold",
+                             percent20 = "20% Threshold",
+                             percent25 = "25% Threshold",
+                             percent30 = "30% Threshold",
+                             mean_years_exp = "Mean Amount of Experience (Years)",
+                             violent_cr_capita = "Violent Crime Per 10,000",
+                             property_cr_capita = "Property Crime Per 10,000",
+                             log_total_officers = "Log of the Total Number of Officers"),
+             estimate = "{estimate} ({std.error}){stars}",
+             statistic = NULL,
+             stars = T,
+             gof_omit = "R2$|R2 Adj|R2 Within",
+             exponentiate = T,
+             output = "latex",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
+```
+
 ## Predictions To Aid In Interpretation of Coefficients
 
 * Standardized coefficients do not make much sense to use in aiding in the interpretation of panel regressions. Should one standardize using the **total** mean and standard deviation? Within time unit mean and standard deviation? Within police unit? Within police unit crossed by time unit? Furthermore such interpretations in the context of a fixed effects regression remain unclear.
