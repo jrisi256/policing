@@ -34,10 +34,11 @@ final_vars <-
            log_black = log(black),
            property_cr_capita = property_cr * 10000 / total_pop,
            violent_cr_capita = violent_cr * 10000 /  total_pop,
-           mean_years_exp = mean_days_exp / 365)
+           mean_years_exp = mean_days_exp / 365,
+           mean_years_worked_unit = mean_months_worked_unit / 12)
 ```
 
-## Corrrelationx Matrix
+## Corrrelation Matrix
 
 ```{r}
 corr_vars <-
@@ -269,6 +270,7 @@ modelsummary(list("Stops of Black Civilians" = between_within_count,
                        "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
 ```
 
+<<<<<<< HEAD
 ## Investigating thresholds
 
 ```{r}
@@ -350,6 +352,8 @@ modelsummary(list("Stops of Black Civilians" = fixest_cluster_nb_t10,
                        "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
 ```
 
+=======
+>>>>>>> 794d4896215281b1c6822f3253f476630411a92c
 ```{r, results = "asis"}
 fixest_cluster_nb_basic <-
     femlm(black_stops ~ black_ratio + violent_cr_capita + property_cr_capita +
