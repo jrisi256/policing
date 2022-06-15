@@ -300,35 +300,35 @@ final_vars <-
            percent30 = prcnt_officer_black >= 0.3)
 
 fixest_cluster_nb_t10 <-
-    femlm(black_stops ~ black_ratio + mean_years_exp + percent10 +
+    femlm(black_stops ~ black_ratio + mean_years_worked_unit + percent10 +
               violent_cr_capita + property_cr_capita + log_total_officers +
               year + offset(log(black)) | unit,
           family = "negbin",
           data = final_vars)
 
 fixest_cluster_nb_t15 <-
-    femlm(black_stops ~ black_ratio + mean_years_exp + percent15 +
+    femlm(black_stops ~ black_ratio + mean_years_worked_unit + percent15 +
               violent_cr_capita + property_cr_capita + log_total_officers +
               year + offset(log(black)) | unit,
           family = "negbin",
           data = final_vars)
 
 fixest_cluster_nb_t20 <-
-    femlm(black_stops ~ black_ratio + mean_years_exp + percent20 +
+    femlm(black_stops ~ black_ratio + mean_years_worked_unit + percent20 +
               violent_cr_capita + property_cr_capita + log_total_officers +
               year + offset(log(black)) | unit,
           family = "negbin",
           data = final_vars)
 
 fixest_cluster_nb_t25 <-
-    femlm(black_stops ~ black_ratio + mean_years_exp + percent25 +
+    femlm(black_stops ~ black_ratio + mean_years_worked_unit + percent25 +
               violent_cr_capita + property_cr_capita + log_total_officers +
               year + offset(log(black)) | unit,
           family = "negbin",
           data = final_vars)
 
 fixest_cluster_nb_t30 <-
-    femlm(black_stops ~ black_ratio + mean_years_exp + percent30 +
+    femlm(black_stops ~ black_ratio + mean_years_worked_unit + percent30 +
               violent_cr_capita + property_cr_capita + log_total_officers +
               year + offset(log(black)) | unit,
           family = "negbin",
