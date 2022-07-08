@@ -1,5 +1,5 @@
 ---
-title: "Replicate Ba et al. 2021 - Merging Stops to Officer Assignments"
+title: "Replicate Ba et al. 2021 - Merging Stops, Arrests, and Uses of Force to Officer Assignments"
 output: pdf_document
 ---
 
