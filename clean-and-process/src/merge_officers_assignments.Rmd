@@ -16,8 +16,8 @@ write_path <- paste("clean-and-process", "output", sep = "/")
 ```
 
 ```{r}
-officers <- my_read_csv(here(read_path, "cleaned_officers.csv"))
-assignments <- my_read_csv(here(read_path, "cleaned_assignments.csv"))
+officers <- my_read_csv(here(read_path, "cleaned-officers.csv"))
+assignments <- my_read_csv(here(read_path, "cleaned-assignments.csv"))
 setDT(officers)
 setDT(assignments)
 
