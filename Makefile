@@ -44,7 +44,7 @@ $(CLEAN_REPORTS)$(RISI_OUTCOMES).pdf: $(CLEAN_SRC)$(RISI_OUTCOMES).Rmd $(CLEAN_O
 	Rscript -e "a <- commandArgs(trailingOnly = T); Sys.setenv(RSTUDIO_PANDOC = a[1]); rmarkdown::render(a[2], output_dir = a[3])" $(PANDOC) $< $(CLEAN_REPORTS)
 
 ###################
-.PHONY : clean_data make_officer_assignments impute ba_outcomes risi_outcomes
+.PHONY : clean_data merge_officer_assignments impute ba_outcomes risi_outcomes
 clean_data : $(CLEAN_REPORTS)$(DATA_SCHEMA).pdf
 merge_officer_assignments: $(CLEAN_REPORTS)$(OFFICER_SHIFTS).pdf
 impute: $(CLEAN_REPORTS)$(IMPUTE).pdf
