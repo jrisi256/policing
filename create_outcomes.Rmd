@@ -1,0 +1,44 @@
+---
+title: "Creating Outcomes"
+author: "Joseph Risi"
+date: '2022-08-23'
+output: pdf_document
+---
+
+## Libraries
+
+```{r}
+
+```
+
+## Read in packages
+
+```{r}
+
+```
+
+## Some basic number rundowns
+
+As in the number of observatons and what each observation entails... what does the data frame represent?
+
+```{r}
+
+```
+
+## Create outcomes
+
+First just find the distribution of stops, arrests, and uses of force by shift.
+
+How many shift assignments have a recorded action? Then look at the distribution by shift, subset maybe? Time of day and place? Too much?
+
+How many officers have these recorded actions? Then look at the distribution by officer, subset maybe? Gender, age, race.
+
+Then look to Ba to see what outcomes he is creating and my code to see what I was creating. And then create those outcomes.
+
+```{r}
+
+```
+
+## Replicability
+
+It is important my methods are general enough so that I can re-run them, if need be, on all of my data.
