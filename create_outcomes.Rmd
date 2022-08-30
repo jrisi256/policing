@@ -27,6 +27,8 @@ rforce <- force %>% filter(!is.na(force_id))
 
 For each outcome (stops, arrests, and uses of force), the resulting data frame is a representation of every shift assignment along with any outcomes which occurred during the shift. Any shift which did not have an outcome associated with it is still captured in the data frame, but it has a missing value for all columns associated with the outcome (e.g., stop_id).
 
+Stated more plainly, each row is a specific shift assignment **and** outcome (i.e., a stop, an arrest, a use of force) pairing. This means the same shift (as represented by the shift_id) can appear multiple times if multiple outcomes occurred during the shift. If the shift in question did not have the outcome occur during the shift, the shift will still appear in the data but with the outcome variables listed as missing.
+
 ### Stops
 
 * Number of total rows: `r nrow(stops)`
@@ -44,10 +46,10 @@ For each outcome (stops, arrests, and uses of force), the resulting data frame i
 * Number of shift assignments: `r length(unique(arrests$shift_id))`
     * Number of arrest incidents: `r length(unique(arrests$arrest_id))`
     * Number of shift assignments of with a recorded arrest: `r length(unique(rarrests$shift_id))`
-    * Proportion of shifts with a recorded stop: `r length(unique(rarrests$shift_id)) / length(unique(stops$shift_id))`
+    * Proportion of shifts with a recorded arrest: `r length(unique(rarrests$shift_id)) / length(unique(stops$shift_id))`
 * Number of officers: `r length(unique(arrests$officer_id))`
     * Number of officers with a recorded arrest: `r length(unique(rarrests$officer_id))`
-    * Proportion of officers with a recorded stop: `r length(unique(rarrests$officer_id)) / length(unique(stops$officer_id))`
+    * Proportion of officers with a recorded arrest: `r length(unique(rarrests$officer_id)) / length(unique(stops$officer_id))`
 
 ### Uses Of Force
 
@@ -55,10 +57,10 @@ For each outcome (stops, arrests, and uses of force), the resulting data frame i
 * Number of shift assignments: `r length(unique(force$shift_id))`
     * Number of force incidents: `r length(unique(force$force_id))`
     * Number of shift assignments of with a recorded use of force: `r length(unique(rforce$shift_id))`
-    * Proportion of shifts with a recorded stop: `r length(unique(rforce$shift_id)) / length(unique(stops$shift_id))`
+    * Proportion of shifts with a recorded use of force: `r length(unique(rforce$shift_id)) / length(unique(stops$shift_id))`
 * Number of officers: `r length(unique(force$officer_id))`
     * Number of officers with a recorded use of force: `r length(unique(rforce$officer_id))`
-    * Proportion of officers with a recorded stop: `r length(unique(rforce$officer_id)) / length(unique(stops$officer_id))`
+    * Proportion of officers with a recorded use of force: `r length(unique(rforce$officer_id)) / length(unique(stops$officer_id))`
 
 ## Create outcomes
 
@@ -71,7 +73,60 @@ How many officers have these recorded actions? Then look at the distribution by 
 Then look to Ba to see what outcomes he is creating and my code to see what I was creating. And then create those outcomes.
 
 ```{r}
+total_stops <-
+    stops %>%
+    mutate(count = if_else(is.na(stop_id), 0, 1)) %>%
+    count(shift_id, wt = count)
 
+ggplot(total_stops) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+
+total_stops %>%
+    filter(n != 0 & n < 40) %>%
+    ggplot() +
+    geom_histogram(bins = 40, aes(x = n)) +
+    theme_bw()
+
+summary(total_stops$n)
+table(total_stops$n)
+prop.table(table(total_stops$n))
+```
+
+```{r}
+total_arrests <-
+    arrests %>%
+    mutate(count = if_else(is.na(arrest_id), 0, 1)) %>%
+    count(shift_id, wt = count)
+
+ggplot(total_arrests) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+
+total_arrests %>%
+    filter(n != 0) %>%
+    ggplot() +
+    geom_histogram(bins = 40, aes(x = n)) +
+    theme_bw()
+
+summary(total_arrests$n)
+table(total_arrests$n)
+prop.table(table(total_arrests$n))
+```
+
+```{r}
+total_force <-
+    force %>%
+    mutate(count = if_else(is.na(force_id), 0, 1)) %>%
+    count(shift_id, wt = count)
+
+ggplot(total_force) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+
+total_force %>%
+    filter(n != 0) %>%
+    ggplot() +
+    geom_histogram(bins = 40, aes(x = n)) +
+    theme_bw()
+
+summary(total_force$n)
+table(total_force$n)
+prop.table(table(total_force$n))
 ```
 
 ## Replicability
