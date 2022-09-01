@@ -64,6 +64,31 @@ Stated more plainly, each row is a specific shift assignment **and** outcome (i.
 
 ## Create outcomes
 
+### Stops
+
+* Total number of stops
+* Stops by contact type
+* Stops by civilian race
+* Stops by civilian sex
+* Stops by civilian age
+
+```{r}
+Create_Outcomes <- function(.df, .id_col, ...) {
+    
+    .df %>%
+        mutate(count = if_else(is.na(.data[[.id_col]]), 0, 1)) %>%
+        filter(if_all(c(...), ~ !is.na(.))) %>%
+        count(shift_id, ..., wt = count) %>%
+        pivot_wider(id_cols = shift_id,
+                    names_from = c(...),
+                    values_from = n,
+                    values_fill = 0)
+}
+
+a2 <- Create_Outcomes(.df = rstops, .id_col = "stop_id", civ.race)
+```
+
+
 First just find the distribution of stops, arrests, and uses of force by shift.
 
 How many shift assignments have a recorded action? Then look at the distribution by shift, subset maybe? Time of day and place? Too much?
@@ -132,3 +157,15 @@ prop.table(table(total_force$n))
 ## Replicability
 
 It is important my methods are general enough so that I can re-run them, if need be, on all of my data.
+
+
+```{r}
+a <- rstops %>% add_count(shift_id) %>% distinct(shift_id, months_from_start, n) %>% mutate(exp_n = ntile(months_from_start, 10))
+a2 <- a %>% count(exp_n, wt = n)
+ggplot(a2, aes(x = exp_n, y = n)) + geom_bar(stat = "identity")
+a3 <- rstops %>% filter(!is.na(officer_race)) %>% count(officer_race, civ.race) %>% group_by(officer_race) %>% mutate(prcnt = n / sum(n))
+ggplot(a3, aes(x = officer_race, y = prcnt)) + geom_bar(stat = "identity") + facet_wrap(~civ.race, scales = "free")
+```
+
+
+## COMPARE OFF DUTY TO ON DUTY OUTCOMES
