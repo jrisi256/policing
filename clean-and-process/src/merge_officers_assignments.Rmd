@@ -141,39 +141,3 @@ Note the numbers above won't completely add up to the numbers below because of i
     * Percentage reduction: `r (length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_ba$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`%
 * Of the `r nrow(officer_assignments_ba)` shift assignments, `r missing_time_ba` are missing their start time and end time.
     * This represents `r 100 * missing_time_ba / nrow(officer_assignments_ba)`% of all shift assignments.
-
-## Visualizing Results
-
-### What are the demographic breakdowns of active officers?
-
-* Racially, about 50% of all active patrol officers are White. 25% are Black. 20% are Hispanic.
-* 75% of officers are male.
-* 85% do not speak Spanish.
-* When looking at race and gender, Native Americans, White Americans, and Hispanic Americans have roughly an 80/20 split when it comes to male/female representation. Black Americans actually have a 65/35 split and Asian Americans & Pacific Islanders have a nearly 90/10 split. Interestingly, white women are not the majority among women but a plurality.
-* Not surprisingly, Hispanic Americans are the most common racial group among those who speak Spanish. Roughly 46.5% of all Hispanic officer speak Spanish while most other racial groups have around 5-10% of their groups being able to speak Spanish.
-
-```{r}
-officer_level <-
-    officer_assignments %>%
-    count(officer_id, officer_race, officer_gender, spanish)
-
-officer_level %>%
-    select(-n, -officer_id) %>%
-    filter(!is.na(officer_race)) %>%
-    mutate(officer_race = str_replace(officer_race, "officer_", "")) %>%
-    ggpairs(upper = list(discrete = "colbar"), lower = list(discrete = "colbar"))
-```
-
-How many shift assignments do officers typically get assigned to?
-
-```{r}
-ggplot(officer_level, aes(x = n)) +
-    geom_histogram(bins = 40) +
-    theme_bw() +
-    labs(x = "Number of Shift Assignments", y = "Number of Officers")
-
-GetSummaryCol(officer_level, "n")
-```
-
-
-
