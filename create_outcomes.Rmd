@@ -5,6 +5,8 @@ date: '2022-08-23'
 output: pdf_document
 ---
 
+## Number of observations
+
 ```{r, include = F}
 library(knitr)
 opts_chunk$set(message = F, echo = F, warning = F)
@@ -22,8 +24,6 @@ rstops <- stops %>% filter(!is.na(stop_id))
 rarrests <- arrests %>% filter(!is.na(arrest_id))
 rforce <- force %>% filter(!is.na(force_id))
 ```
-
-## Number of observations
 
 For each outcome (stops, arrests, and uses of force), the resulting data frame is a representation of every shift assignment along with any outcomes which occurred during the shift. Any shift which did not have an outcome associated with it is still captured in the data frame, but it has a missing value for all columns associated with the outcome (e.g., stop_id).
 
@@ -62,52 +62,246 @@ Stated more plainly, each row is a specific shift assignment **and** outcome (i.
     * Number of officers with a recorded use of force: `r length(unique(rforce$officer_id))`
     * Proportion of officers with a recorded use of force: `r length(unique(rforce$officer_id)) / length(unique(stops$officer_id))`
 
-## Visualizing Results
-
-### What are the demographic breakdowns of active patrol officers?
-
-There are `r nrow(officers)` active patrol officers from 2012 - 2015.
-
-**RACE**
-* About 50% of all active patrol officers are White. 25% are Black. 20% are Hispanic.
-* When looking at race and gender, Native Americans, White Americans, and Hispanic Americans have roughly an 80/20 split when it comes to male/female representation. Black Americans actually have a 65/35 split and Asian Americans & Pacific Islanders have a nearly 90/10 split. Interestingly, white women are not the majority among women but a plurality. Black women officers are over-represented based on the patrol officer population average for men vs. women.
-* Not surprisingly, Hispanic Americans are the most common racial group among those who speak Spanish (71% of those who speak Spanish are Hispanic). Roughly 46.5% of all Hispanic officer speak Spanish while most other racial groups have around 5-10% of their groups being able to speak Spanish.
-* Black Officers are, on average, older than officers from other racial groups with the average officer age being around 47 - 48. Hispanic and Asian-American/Pacific Islander officers tend to be younger with average ages around 40 - 42. White officers are in the middle with an average age around 45.
-
-**SEX**
-* 75% of officers are male.
-* Male and female officers have very similar age distributions.
-
-**SPANISH SPEAKING ABILITY**
-* 85% do not speak Spanish.
-* There does not appear to be any major differences in age or gender between those who do and do not speak Spanish.
-
-**Age**
-* The mean/median officer age is 44 with a standard deviation of around 9 years.
-
-```{r}
-officers <-
-    stops %>%
-    distinct(officer_id, officer_race, officer_gender, spanish, birth_year) %>%
-    mutate(age = 2015 - birth_year) %>%
-    select(-officer_id, -birth_year)
-
-officers %>%
-    filter(!is.na(officer_race)) %>%
-    ggpairs(upper = list(discrete = "colbar", combo = "facetdensitystrip"),
-            lower = list(discrete = "colbar", combo = "box"),
-            diag = list(wrap("barDiag")))
-```
-
-### Examine shift assignment patterns
+## Missing values
 
 ```{r}
 shift_assignments <-
     stops %>%
     distinct(shift_id, .keep_all = T) %>%
     select(-stop_id, -district, -po_first, -contact_type, -civ.race, -civ.gender,
-           -civ.age, -lat, -lon, -hour, -stop_officer_id, -time)
+           -civ.age, -lat, -lon, -hour, -stop_officer_id, -months_from_start,
+           -time, -start_datetime, -end_datetime, -month, -unit, -date,
+           -weekday, -beat_assigned, -appointed_month, -start_time, -end_time) %>%
+    rename(officer_sex = officer_gender) %>%
+    ungroup() %>%
+    mutate(age = 2015 - birth_year,
+           age_bracket = ntile(age, 10),
+           officer_race = fct_recode(officer_race,
+                                     aapi_native = "aapi",
+                                     aapi_native = "native"),
+           officer_race = fct_relevel(officer_race,
+                                      c("white", "black", "hisp",
+                                        "aapi_native"))) %>%
+    group_by(age_bracket) %>%
+    mutate(min_age = min(age),
+           max_age = max(age),
+           age_range = paste0(min_age, " - ", max_age)) %>%
+    select(-birth_year) %>%
+    ungroup()
+
+officers <-
+    shift_assignments %>%
+    distinct(officer_id, .keep_all = T) %>%
+    select(officer_id, officer_race, officer_sex, spanish, age, age_bracket,
+           age_range)
+
+missing_race <- officers %>% filter(is.na(officer_race)) %>% nrow()
+missing_sex <- officers %>% filter(is.na(officer_sex)) %>% nrow()
+missing_age <- officers %>% filter(is.na(age)) %>% nrow()
+missing_race_shift <- shift_assignments %>% filter(is.na(officer_race)) %>% nrow()
+missing_duration_shift <- shift_assignments %>% filter(is.na(duration)) %>% nrow()
+
+shift_assignments <- shift_assignments %>% filter(!is.na(officer_race))
+officers <- officers %>% filter(!is.na(officer_race))
 ```
+
+**MARKED FOR REMOVAL**
+
+* `r missing_race` officers have a missing value for race.
+* `r missing_sex` officers have a missing value for sex.
+* `r missing_age` officers have a missing value for age.
+* `r missing_race_shift` shift assignments were assigned to an officer with a missing value for race.
+
+**NOT REMOVED**
+
+* `r missing_duration_shift` shift assignments were missing a duration.
+
+## Visualizing Results
+
+### What are the demographic breakdowns of active patrol officers?
+
+```{r}
+officers %>%
+    filter(!is.na(officer_race)) %>%
+    ggpairs(columns = c("officer_race", "officer_sex", "spanish", "age"),
+            upper = list(discrete = "colbar", combo = "facetdensitystrip"),
+            lower = list(discrete = "colbar", combo = "box")) +
+    theme_bw()
+```
+
+There are `r nrow(officers)` active patrol officers from 2012 - 2015.
+
+**RACE**
+* About 50.5% of all active patrol officers are White, 24% are Black, 22% are Hispanic, and 3.5% are Asian-American/Pacific Islander/Native American.
+* When looking at race and sex, AAPI/Native Americans, White Americans, and Hispanic Americans have roughly an 80/20 split when it comes to male/female representation. Black Americans actually have a 65/35 split. Interestingly, white women are not the majority among women but a plurality. Black women officers are over-represented based on the patrol officer population average for men vs. women.
+* Not surprisingly, Hispanic Americans are the most common racial group among those who speak Spanish (71% of those who speak Spanish are Hispanic). Roughly 46.5% of all Hispanic officer speak Spanish while most other racial groups have around 5-10% of their groups being able to speak Spanish.
+* Black Officers are, on average, older than officers from other racial groups with the average officer age being around 47 - 48. Hispanic and AAPI/Native American officers tend to be younger with average ages around 40 - 42. White officers are in the middle with an average age around 45.
+
+**SEX**
+* 75% of officers are male.
+* Male and female officers have very similar age distributions.
+
+**SPANISH SPEAKING ABILITY**
+* 85% of officers do not speak Spanish.
+* There does not appear to be any major differences in age or sex between those who do and do not speak Spanish.
+
+**AGE**
+* The mean/median officer age is `r mean(officers$age)` with a standard deviation of around `r sd(officers$age)` years.
+
+### Shift Assignment Patterns
+
+```{r}
+# Count the number of shifts each officer 
+shifts_per_officer <-
+    shift_assignments %>%
+    add_count(officer_id) %>%
+    distinct(officer_id, n, age, officer_sex, officer_race, age_bracket,
+             min_age, max_age, age_range)
+
+# Graph every graph pair
+all_graphs_shiftn <-
+    shifts_per_officer %>%
+    ggpairs(columns = c("n", "age", "officer_sex", "officer_race"),
+            upper = list(continuous = "trends"),
+            lower = list(combo = "facetdensitystrip")) +
+    theme_bw()
+
+# Select race and sex graphs
+race_matrix_shiftn <- ggmatrix(list(all_graphs_shiftn[1, 4],
+                                    all_graphs_shiftn[4, 1]), 1, 2)
+
+# Select sex graphs
+sex_matrix_shiftn <- ggmatrix(list(all_graphs_shiftn[1, 3],
+                                   all_graphs_shiftn[3, 1]), 1, 2)
+
+# Create violin plot for age brackets
+age_bracket_graph <-
+    shifts_per_officer %>%
+    mutate(age_range = paste0(min_age, " - ", max_age)) %>%
+    ggplot(aes(x = age_range, y = n)) +
+    geom_violin() +
+    geom_boxplot(width = 0.1) +
+    theme_bw()
+
+# Select age graphs
+age_matrix_shiftn <- ggmatrix(list(age_bracket_graph,
+                                   all_graphs_shiftn[1, 2]), 1, 2)
+
+# Plot results
+ggplot(shifts_per_officer, aes(x = n)) +
+    geom_histogram(bins = 100) +
+    theme_bw() +
+    labs(x = "Number of Shifts")
+sex_matrix_shiftn
+age_matrix_shiftn
+race_matrix_shiftn
+
+shifts_per_officer %>%
+    filter(!is.na(officer_race)) %>%
+    ggplot(aes(x = officer_race, y = n)) +
+    geom_violin() +
+    geom_boxplot(width = 0.1) +
+    theme_bw() +
+    facet_wrap(~age_bracket)
+```
+
+```{r, results = "asis"}
+shift_model <-
+    lm(n ~ officer_race + officer_sex + age + I(age ** 2),
+       data = shifts_per_officer)
+ 
+shift_model_count <-
+    MASS::glm.nb(n ~ officer_race + officer_sex + age + I(age ** 2),
+                 data = shifts_per_officer)
+
+modelsummary(list("Number of Shift Assignments (OLS)" = shift_model),
+             estimate = "{estimate} ({std.error}){stars}",
+             statistic = NULL,
+             stars = T,
+             output = "latex",
+             notes = c("Standard Errors in parentheses.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
+
+modelsummary(list("Number of Shift Assignments (Negative Binomial)" = shift_model_count),
+             estimate = "{estimate} ({std.error}){stars}",
+             exponentiate = T,
+             statistic = NULL,
+             stars = T,
+             output = "latex",
+             notes = c("Standard Errors in parentheses. Coefficients are odds ratios.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
+```
+
+**NUMBER OF SHIFTS**
+
+* Looking by sex, there does not appear to be any substantive differences in the distributions in the number of shifts worked.
+* Looking by age, there are some interesting patterns which emerge. First, officers in their early forties to mid fifties have the highest number of shifts. Second, officers 40 and younger and 60 and older have comparatively fewer shifts. However, most officers are between the ages of 40 and 60. It is possible officers ages 40 - 60 simply have the most shifts because they are the most common age group.
+    * Another way of thinking about this is to imagine every officer was only assigned 1 shift over this four year period. There would not be any difference in the amount of shifts assigned to officers by age, but we would still officers aged 40 - 60 having the most shifts.
+* To account for this issue, I bucket officers into 10 equally sized age range buckets i.e., each of these buckets has the same number of officers. I then graph a violin plot for each age range showing the distribution of the number of shifts. Here we see evidence of the fact that younger officers do indeed get assigned to less shifts as do older officers.
+* Looking by race, we see Black officers have the highest average number of shifts with the median number of shifts for Black officers around 485. Next are AAPI/Native American officers who have median number of shifts around 437. Then there are Hispanic officers who have a median number of shifts around 420. Finally, there are White officers who have a median number of shifts around 400. Could these differences in the number of shifts be related to the different age distributions within each racial group? This is a point we will turn to next.
+* Looking at age and race, it does not appear to be the case that that any particular racial group has substantively more shifts than any other racial group for any given age bucket. This leads me to believe that age may help to, at least, partially explain why certain minority groups seem to be getting more shift assignments.
+* The regression models demonstrate to me that age/experience is the major variable in terms of explaining the number of shifts an officer is assigned.
+
+```{r}
+duration_by_race <-
+    shift_assignments %>%
+    filter(!is.na(duration)) %>%
+    group_by(officer_race) %>%
+    summarise(mean = mean(duration),
+              sd = sd(duration))
+
+duration_by_sex <-
+    shift_assignments %>%
+    filter(!is.na(duration)) %>%
+    group_by(officer_sex) %>%
+    summarise(mean = mean(duration),
+              sd = sd(duration))
+
+duration_by_age <-
+    shift_assignments %>%
+    filter(!is.na(duration)) %>%
+    group_by(age_range) %>%
+    summarise(mean = mean(duration),
+              sd = sd(duration))
+
+kable(duration_by_age)
+kable(duration_by_race)
+kable(duration_by_sex)
+```
+
+**LENGTH OF SHIFTS**
+* The overwhelming number of shifts are 9 hours. There are some ***trends*** indicated by the above tables where some groups have slightly small shift lengths than other groups. However, the differences are so small it is hard to determine how substantive they really are.
+* One interesting trend I will note is there is a pretty monotonic decrease in average shift length as the age of the officer on patrol increases. The same caveat applies, though, from the previous bullet point. The decreases in average shift length are so small it is hard to determine how substantive they really are.
+
+```{r}
+all_graphs_shiftT <-
+    shift_assignments %>%
+    ggpairs(columns = c("shift", "officer_race", "officer_sex", "age"),
+            upper = list(discrete = "colbar", combo = "facetdensitystrip"),
+            lower = list(discrete = "colbar", combo = "box")) +
+    theme_bw()
+
+race_matrix_shiftT <- ggmatrix(list(all_graphs_shiftT[1, 2],
+                                    all_graphs_shiftT[2, 1]), 1, 2)
+
+sex_matrix_shiftT <- ggmatrix(list(all_graphs_shiftT[1, 3],
+                                    all_graphs_shiftT[3, 1]), 1, 2)
+
+age_matrix_shiftT <- ggmatrix(list(all_graphs_shiftT[1, 4],
+                                    all_graphs_shiftT[4, 1]), 1, 2)
+```
+
+**SHIFT TIMING**
+
+* First shift is from the evening until the morning (typically starts from 8pm - 10pm and goes until 5 - 7am), second shift is from the morning until the afternoon/early evening (typically starts from 5am - 9am and goes until 2pm - 6pm), and third shift is from the afternoon until the evening (typically starts from 2pm - 5pm and goes until 11pm - 2am).
+
+
+
+
+
+
+
+
 
 
 
@@ -148,79 +342,77 @@ First just find the distribution of stops, arrests, and uses of force by shift.
 
 How many shift assignments have a recorded action? Then look at the distribution by shift, subset maybe? Time of day and place? Too much?
 
-How many officers have these recorded actions? Then look at the distribution by officer, subset maybe? Gender, age, race.
+How many officers have these recorded actions? Then look at the distribution by officer, subset maybe? sex, age, race.
 
 Then look to Ba to see what outcomes he is creating and my code to see what I was creating. And then create those outcomes.
 
 ```{r}
-total_stops <-
-    stops %>%
-    mutate(count = if_else(is.na(stop_id), 0, 1)) %>%
-    count(shift_id, wt = count)
-
-ggplot(total_stops) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
-
-total_stops %>%
-    filter(n != 0 & n < 40) %>%
-    ggplot() +
-    geom_histogram(bins = 40, aes(x = n)) +
-    theme_bw()
-
-summary(total_stops$n)
-table(total_stops$n)
-prop.table(table(total_stops$n))
+# total_stops <-
+#     stops %>%
+#     mutate(count = if_else(is.na(stop_id), 0, 1)) %>%
+#     count(shift_id, wt = count)
+# 
+# ggplot(total_stops) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+# 
+# total_stops %>%
+#     filter(n != 0 & n < 40) %>%
+#     ggplot() +
+#     geom_histogram(bins = 40, aes(x = n)) +
+#     theme_bw()
+# 
+# summary(total_stops$n)
+# table(total_stops$n)
+# prop.table(table(total_stops$n))
 ```
 
 ```{r}
-total_arrests <-
-    arrests %>%
-    mutate(count = if_else(is.na(arrest_id), 0, 1)) %>%
-    count(shift_id, wt = count)
-
-ggplot(total_arrests) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
-
-total_arrests %>%
-    filter(n != 0) %>%
-    ggplot() +
-    geom_histogram(bins = 40, aes(x = n)) +
-    theme_bw()
-
-summary(total_arrests$n)
-table(total_arrests$n)
-prop.table(table(total_arrests$n))
+# total_arrests <-
+#     arrests %>%
+#     mutate(count = if_else(is.na(arrest_id), 0, 1)) %>%
+#     count(shift_id, wt = count)
+# 
+# ggplot(total_arrests) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+# 
+# total_arrests %>%
+#     filter(n != 0) %>%
+#     ggplot() +
+#     geom_histogram(bins = 40, aes(x = n)) +
+#     theme_bw()
+# 
+# summary(total_arrests$n)
+# table(total_arrests$n)
+# prop.table(table(total_arrests$n))
 ```
 
 ```{r}
-total_force <-
-    force %>%
-    mutate(count = if_else(is.na(force_id), 0, 1)) %>%
-    count(shift_id, wt = count)
-
-ggplot(total_force) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
-
-total_force %>%
-    filter(n != 0) %>%
-    ggplot() +
-    geom_histogram(bins = 40, aes(x = n)) +
-    theme_bw()
-
-summary(total_force$n)
-table(total_force$n)
-prop.table(table(total_force$n))
+# total_force <-
+#     force %>%
+#     mutate(count = if_else(is.na(force_id), 0, 1)) %>%
+#     count(shift_id, wt = count)
+# 
+# ggplot(total_force) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+# 
+# total_force %>%
+#     filter(n != 0) %>%
+#     ggplot() +
+#     geom_histogram(bins = 40, aes(x = n)) +
+#     theme_bw()
+# 
+# summary(total_force$n)
+# table(total_force$n)
+# prop.table(table(total_force$n))
 ```
-
-## Replicability
-
-It is important my methods are general enough so that I can re-run them, if need be, on all of my data.
 
 
 ```{r}
-a <- rstops %>% add_count(shift_id) %>% distinct(shift_id, months_from_start, n) %>% mutate(exp_n = ntile(months_from_start, 10))
-a2 <- a %>% count(exp_n, wt = n)
-ggplot(a2, aes(x = exp_n, y = n)) + geom_bar(stat = "identity")
-a3 <- rstops %>% filter(!is.na(officer_race)) %>% count(officer_race, civ.race) %>% group_by(officer_race) %>% mutate(prcnt = n / sum(n))
-ggplot(a3, aes(x = officer_race, y = prcnt)) + geom_bar(stat = "identity") + facet_wrap(~civ.race, scales = "free")
+# a <- rstops %>% add_count(shift_id) %>% distinct(shift_id, months_from_start, n) %>% mutate(exp_n = ntile(months_from_start, 10))
+# a2 <- a %>% count(exp_n, wt = n)
+# ggplot(a2, aes(x = exp_n, y = n)) + geom_bar(stat = "identity")
+# a3 <- rstops %>% filter(!is.na(officer_race)) %>% count(officer_race, civ.race) %>% group_by(officer_race) %>% mutate(prcnt = n / sum(n))
+# ggplot(a3, aes(x = officer_race, y = prcnt)) + geom_bar(stat = "identity") + facet_wrap(~civ.race, scales = "free")
 ```
 
 
 ## COMPARE OFF DUTY TO ON DUTY OUTCOMES
+## Time
+## Place
