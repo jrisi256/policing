@@ -122,7 +122,6 @@ officers <- officers %>% filter(!is.na(officer_race))
 
 ```{r}
 officers %>%
-    filter(!is.na(officer_race)) %>%
     ggpairs(columns = c("officer_race", "officer_sex", "spanish", "age"),
             upper = list(discrete = "colbar", combo = "facetdensitystrip"),
             lower = list(discrete = "colbar", combo = "box")) +
@@ -147,8 +146,6 @@ There are `r nrow(officers)` active patrol officers from 2012 - 2015.
 
 **AGE**
 * The mean/median officer age is `r mean(officers$age)` with a standard deviation of around `r sd(officers$age)` years.
-
-### Shift Assignment Patterns
 
 ```{r}
 # Count the number of shifts each officer 
@@ -197,7 +194,6 @@ age_matrix_shiftn
 race_matrix_shiftn
 
 shifts_per_officer %>%
-    filter(!is.na(officer_race)) %>%
     ggplot(aes(x = officer_race, y = n)) +
     geom_violin() +
     geom_boxplot(width = 0.1) +
@@ -206,15 +202,15 @@ shifts_per_officer %>%
 ```
 
 ```{r, results = "asis"}
-shift_model <-
+shiftn_model <-
     lm(n ~ officer_race + officer_sex + age + I(age ** 2),
        data = shifts_per_officer)
  
-shift_model_count <-
+shiftn_model_count <-
     MASS::glm.nb(n ~ officer_race + officer_sex + age + I(age ** 2),
                  data = shifts_per_officer)
 
-modelsummary(list("Number of Shift Assignments (OLS)" = shift_model),
+modelsummary(list("Number of Shift Assignments (OLS)" = shiftn_model),
              estimate = "{estimate} ({std.error}){stars}",
              statistic = NULL,
              stars = T,
@@ -222,7 +218,7 @@ modelsummary(list("Number of Shift Assignments (OLS)" = shift_model),
              notes = c("Standard Errors in parentheses.",
                        "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
 
-modelsummary(list("Number of Shift Assignments (Negative Binomial)" = shift_model_count),
+modelsummary(list("Number of Shift Assignments (Negative Binomial)" = shiftn_model_count),
              estimate = "{estimate} ({std.error}){stars}",
              exponentiate = T,
              statistic = NULL,
@@ -232,15 +228,28 @@ modelsummary(list("Number of Shift Assignments (Negative Binomial)" = shift_mode
                        "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
 ```
 
-**NUMBER OF SHIFTS**
+### NUMBER OF SHIFTS
 
-* Looking by sex, there does not appear to be any substantive differences in the distributions in the number of shifts worked.
-* Looking by age, there are some interesting patterns which emerge. First, officers in their early forties to mid fifties have the highest number of shifts. Second, officers 40 and younger and 60 and older have comparatively fewer shifts. However, most officers are between the ages of 40 and 60. It is possible officers ages 40 - 60 simply have the most shifts because they are the most common age group.
-    * Another way of thinking about this is to imagine every officer was only assigned 1 shift over this four year period. There would not be any difference in the amount of shifts assigned to officers by age, but we would still officers aged 40 - 60 having the most shifts.
-* To account for this issue, I bucket officers into 10 equally sized age range buckets i.e., each of these buckets has the same number of officers. I then graph a violin plot for each age range showing the distribution of the number of shifts. Here we see evidence of the fact that younger officers do indeed get assigned to less shifts as do older officers.
-* Looking by race, we see Black officers have the highest average number of shifts with the median number of shifts for Black officers around 485. Next are AAPI/Native American officers who have median number of shifts around 437. Then there are Hispanic officers who have a median number of shifts around 420. Finally, there are White officers who have a median number of shifts around 400. Could these differences in the number of shifts be related to the different age distributions within each racial group? This is a point we will turn to next.
-* Looking at age and race, it does not appear to be the case that that any particular racial group has substantively more shifts than any other racial group for any given age bucket. This leads me to believe that age may help to, at least, partially explain why certain minority groups seem to be getting more shift assignments.
-* The regression models demonstrate to me that age/experience is the major variable in terms of explaining the number of shifts an officer is assigned.
+**SEX**
+Looking by sex, there does not appear to be any substantive differences in the distributions in the number of shifts worked.
+
+**AGE**
+
+Looking by age, there are some interesting patterns which emerge. First, officers in their early forties to mid fifties have the highest number of shifts. Second, officers 40 and younger and 60 and older have comparatively fewer shifts. However, most officers are between the ages of 40 and 60. It is possible officers ages 40 - 60 simply have the most shifts because they are the most common age group.
+
+Another way of thinking about this is to imagine every officer was only assigned 1 shift over this four year period. There would not be any difference in the amount of shifts assigned to officers by age, but we would still officers aged 40 - 60 having the most shifts.
+
+To account for this issue, I bucket officers into 10 equally sized age range buckets i.e., each of these buckets has the same number of officers. I then graph a violin plot for each age range showing the distribution of the number of shifts. Here we see evidence of the fact that younger officers do indeed get assigned to less shifts as do older officers.
+
+**RACE**
+
+Looking by race, we see Black officers have the highest average number of shifts with the median number of shifts for Black officers around 485. Next are AAPI/Native American officers who have median number of shifts around 437. Then there are Hispanic officers who have a median number of shifts around 420. Finally, there are White officers who have a median number of shifts around 400. Could these differences in the number of shifts be related to the different age distributions within each racial group? This is a point we will turn to next.
+
+**AGE AND RACE**
+
+Looking at age and race, it does not appear to be the case that that any particular racial group has substantively more shifts than any other racial group for any given age bucket. This leads me to believe that age may, at least, partially explain why certain minority groups seem to be getting more shift assignments.
+
+The regression models demonstrate to me that age/experience is the major variable in terms of explaining the number of shifts an officer is assigned.
 
 ```{r}
 duration_by_race <-
@@ -269,37 +278,198 @@ kable(duration_by_race)
 kable(duration_by_sex)
 ```
 
-**LENGTH OF SHIFTS**
-* The overwhelming number of shifts are 9 hours. There are some ***trends*** indicated by the above tables where some groups have slightly small shift lengths than other groups. However, the differences are so small it is hard to determine how substantive they really are.
-* One interesting trend I will note is there is a pretty monotonic decrease in average shift length as the age of the officer on patrol increases. The same caveat applies, though, from the previous bullet point. The decreases in average shift length are so small it is hard to determine how substantive they really are.
+### Length of shifts
+
+The overwhelming number of shifts are 9 hours. There are some ***trends*** indicated by the above tables where some groups have slightly small shift lengths than other groups. However, the differences are so small it is hard to determine how substantive they really are.
+
+One interesting trend I will note is there is a pretty monotonic decrease in average shift length as the age of the officer on patrol increases. The same caveat applies, though, from the previous bullet point. The decreases in average shift length are so small it is hard to determine how substantive they really are.
 
 ```{r}
+# graph all combinations of variables
 all_graphs_shiftT <-
     shift_assignments %>%
-    ggpairs(columns = c("shift", "officer_race", "officer_sex", "age"),
+    mutate(age_bracket = as.factor(age_bracket)) %>%
+    ggpairs(columns = c("shift", "officer_race", "officer_sex", "age",
+                        "age_bracket"),
             upper = list(discrete = "colbar", combo = "facetdensitystrip"),
             lower = list(discrete = "colbar", combo = "box")) +
     theme_bw()
 
+# Extract the graphs we actually want
 race_matrix_shiftT <- ggmatrix(list(all_graphs_shiftT[1, 2],
-                                    all_graphs_shiftT[2, 1]), 1, 2)
+                                    all_graphs_shiftT[2, 1]),
+                               1, 2)
 
 sex_matrix_shiftT <- ggmatrix(list(all_graphs_shiftT[1, 3],
-                                    all_graphs_shiftT[3, 1]), 1, 2)
+                                   all_graphs_shiftT[3, 1]),
+                              1, 2)
 
 age_matrix_shiftT <- ggmatrix(list(all_graphs_shiftT[1, 4],
-                                    all_graphs_shiftT[4, 1]), 1, 2)
+                                   all_graphs_shiftT[4, 1],
+                                   all_graphs_shiftT[1, 5]),
+                              1, 3)
+
+# Plot results
+race_matrix_shiftT
+sex_matrix_shiftT
+age_matrix_shiftT
 ```
 
-**SHIFT TIMING**
+```{r}
+# Plot age and race
+shift_assignments %>%
+    ggplot(aes(x = shift, y = age)) +
+    geom_violin() +
+    geom_boxplot(width = 0.1) +
+    theme_bw() +
+    facet_wrap(~officer_race)
 
-* First shift is from the evening until the morning (typically starts from 8pm - 10pm and goes until 5 - 7am), second shift is from the morning until the afternoon/early evening (typically starts from 5am - 9am and goes until 2pm - 6pm), and third shift is from the afternoon until the evening (typically starts from 2pm - 5pm and goes until 11pm - 2am).
+shift_assignments %>%
+    ggplot(aes(x = officer_race, y = age)) +
+    geom_violin() +
+    geom_boxplot(width = 0.1) +
+    theme_bw() +
+    facet_wrap(~shift)
+
+age_race <-
+    shift_assignments %>%
+    count(officer_race, age_bracket, shift) %>%
+    group_by(officer_race, age_bracket) %>%
+    mutate(age_bracket = as.factor(age_bracket),
+           prcnt = n / sum(n)) %>%
+    ungroup()
+
+ggplot(age_race, aes(x = age_bracket, y = n, fill = shift)) +
+    geom_bar(position = "fill", stat = "identity") +
+    geom_text(aes(label = paste0(sprintf("%1.1f", prcnt * 100), "%")),
+              position = position_fill(vjust = 0.5), color = "white", size = 3) +
+    facet_wrap(~officer_race) +
+    theme_bw()
+
+ggplot(age_race, aes(x = officer_race, y = n, fill = shift)) +
+    geom_bar(position = "fill", stat = "identity") +
+    geom_text(aes(label = paste0(sprintf("%1.1f", prcnt * 100), "%")),
+              position = position_fill(vjust = 0.5), color = "white", size = 3) +
+    facet_wrap(~age_bracket) +
+    theme_bw()
+
+ggplot(age_race, aes(x = age_bracket, y = prcnt, color = officer_race)) +
+    geom_line(aes(group = officer_race)) +
+    facet_wrap(~shift) +
+    theme_bw()
+```
+
+```{r}
+shift_model_mn <-
+    nnet::multinom(shift ~ officer_race + officer_sex + age + I(age ** 2),
+                   data = shift_assignments)
+effects <-
+    effects::Effect(focal.predictors = c("officer_race", "officer_sex", "age"),
+                    shift_model_mn)
+
+effects_df <-
+    as_tibble(effects) %>%
+    select(officer_race, officer_sex, age, prob.X1, prob.X2, prob.X3) %>%
+    pivot_longer(cols = matches("prob"),
+                 names_to = "shift",
+                 values_to = "probability") %>%
+    mutate(shift = str_replace(shift, "prob.X", ""))
+
+ggplot(effects_df, aes(x = age, y = probability, color = officer_race)) +
+    geom_line(aes(group = officer_race)) +
+    facet_wrap(shift ~ officer_sex) + 
+    theme_bw()
+
+race_effect_df <- 
+    tibble(officer_race = unique(shift_assignments$officer_race),
+           officer_sex = "MALE",
+           age = mean(shift_assignments$age))
+
+age_effect_df <- 
+    tibble(officer_race = "white",
+           officer_sex = "MALE",
+           age = 22:60)
+
+predict_race_effect <-
+    predict(shift_model_mn, newdata = race_effect_df, type = "probs") %>%
+    as_tibble() %>%
+    bind_cols(race_effect_df) %>%
+    pivot_longer(cols = matches("[1,2,3]"),
+                 names_to = "shift",
+                 values_to = "probability")
+
+ggplot(predict_race_effect,
+       aes(x = shift, y = probability, color = officer_race)) +
+    geom_line(aes(group = officer_race)) +
+    theme_bw()
+
+predict_age_effect <-
+    predict(shift_model_mn, newdata = age_effect_df, type = "probs") %>%
+    as_tibble() %>%
+    bind_cols(age_effect_df) %>%
+    pivot_longer(cols = matches("[1,2,3]"),
+                 names_to = "shift",
+                 values_to = "probability")
+
+ggplot(predict_age_effect,
+       aes(x = age, y = probability, color = shift)) +
+    geom_line(aes(group = shift)) +
+    theme_bw()
+
+age_race_effect_df <- 
+    tibble(officer_race = rep(unique(shift_assignments$officer_race), each = 39),
+           officer_sex = "MALE",
+           age = rep(c(22:60), 4))
+
+predict_race_age_effect <-
+    predict(shift_model_mn, newdata = age_race_effect_df, type = "probs") %>%
+    as_tibble() %>%
+    bind_cols(age_race_effect_df) %>%
+    pivot_longer(cols = matches("[1,2,3]"),
+                 names_to = "shift",
+                 values_to = "probability")
+
+ggplot(predict_race_age_effect,
+       aes(x = age, y = probability, color = shift)) +
+    geom_line(aes(group = paste0(shift, officer_race))) + 
+    facet_wrap(~officer_race) +
+    theme_bw()
+
+ggplot(predict_race_age_effect,
+       aes(x = age, y = probability, color = officer_race)) +
+    geom_line(aes(group = paste0(shift, officer_race))) + 
+    facet_wrap(~shift) +
+    theme_bw()
+```
 
 
+### SHIFT TIMING
 
+1st shift is from the evening until the morning (typically starts from 8pm - 10pm and goes until 5 - 7am), 2nd shift is from the morning until the afternoon/early evening (typically starts from 5am - 9am and goes until 2pm - 6pm), and 3rd shift is from the afternoon until the evening (typically starts from 2pm - 5pm and goes until 11pm - 2am). We do see differences by age, race, and sex in terms of how patrol officers get assigned to shifts.
 
+**RACE**
 
+We see that White officers and Hispanic officers have roughly similar shift assignment patterns. 25% - 30% of all shift assignments for White/Hispanic officers were 1st shift. 29% - 33.5% of all shifts assignments for them were 2nd shift. 40.5% of all shift assignments for these officers were third shift.
 
+Black officers have different shift assignment patterns, though. 40% of their shift assignments were 2nd shift. Meanwhile, Black officers had the 1st and 3rd shifts assigned to them 28% and 30% of the time, respectively.
+
+So the big difference between the racial/ethnic groups is that White and Hispanic officers' most common shift is 3rd shift while it is 2nd shift for Black officers. I am not sure why this would be the case. Future analysis examining time and place trends may help to address this.
+
+**SEX**
+
+The most common shift for female officers is 2nd shift while the most common shift for male officers is 3rd shift.
+
+**AGE**
+
+The most interesting pattern to emerge is that we see older officers are much, much more likely to be working the 2nd shift as opposed to the 1st or 3rd shift. Looking at the youngest age bracket, younger officers almost never work the 2nd shift and instead are almost equally assigned to the 1st and 3rd shifts. The rate of decline for 1st shift is sharper for 1st shift than for 3rd shift, but both decline in probability of assignment as we move up the age bracket pretty quickly.
+
+**AGE AND RACE**
+ 
+I probably made too many plots. But the last line plot is the one most convincing to me that it is an age effect and not a racial effect we are observing when we see Black officers mostly 2nd shifts (because they have an older age distribution and older officers are more likely to get 2nd shift). We see with this last line plot that nearly every racial/ethnic group has similar declines in 1st and 3rd shift assignments and similar increases in 2nd shift assignments for older officers.
+
+**MULTINOMIAL REGRESSION**
+
+There is evidence of a race and age effect, but the age effect seems to be the more important variable.
 
 
 
