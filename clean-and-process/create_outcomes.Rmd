@@ -147,6 +147,8 @@ There are `r nrow(officers)` active patrol officers from 2012 - 2015.
 **AGE**
 * The mean/median officer age is `r mean(officers$age)` with a standard deviation of around `r sd(officers$age)` years.
 
+### NUMBER OF SHIFTS
+
 ```{r}
 # Count the number of shifts each officer 
 shifts_per_officer <-
@@ -228,8 +230,6 @@ modelsummary(list("Number of Shift Assignments (Negative Binomial)" = shiftn_mod
                        "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
 ```
 
-### NUMBER OF SHIFTS
-
 **SEX**
 Looking by sex, there does not appear to be any substantive differences in the distributions in the number of shifts worked.
 
@@ -250,6 +250,8 @@ Looking by race, we see Black officers have the highest average number of shifts
 Looking at age and race, it does not appear to be the case that that any particular racial group has substantively more shifts than any other racial group for any given age bucket. This leads me to believe that age may, at least, partially explain why certain minority groups seem to be getting more shift assignments.
 
 The regression models demonstrate to me that age/experience is the major variable in terms of explaining the number of shifts an officer is assigned.
+
+### Length of shifts
 
 ```{r}
 duration_by_race <-
@@ -278,11 +280,11 @@ kable(duration_by_race)
 kable(duration_by_sex)
 ```
 
-### Length of shifts
-
 The overwhelming number of shifts are 9 hours. There are some ***trends*** indicated by the above tables where some groups have slightly small shift lengths than other groups. However, the differences are so small it is hard to determine how substantive they really are.
 
 One interesting trend I will note is there is a pretty monotonic decrease in average shift length as the age of the officer on patrol increases. The same caveat applies, though, from the previous bullet point. The decreases in average shift length are so small it is hard to determine how substantive they really are.
+
+### SHIFT TIMING
 
 ```{r}
 # graph all combinations of variables
@@ -441,9 +443,6 @@ ggplot(predict_race_age_effect,
     facet_wrap(~shift) +
     theme_bw()
 ```
-
-
-### SHIFT TIMING
 
 1st shift is from the evening until the morning (typically starts from 8pm - 10pm and goes until 5 - 7am), 2nd shift is from the morning until the afternoon/early evening (typically starts from 5am - 9am and goes until 2pm - 6pm), and 3rd shift is from the afternoon until the evening (typically starts from 2pm - 5pm and goes until 11pm - 2am). We do see differences by age, race, and sex in terms of how patrol officers get assigned to shifts.
 
