@@ -15,29 +15,29 @@ source(here("functions.R"))
 read_path <- paste("clean-and-process", "input", sep = "/")
 write_path <- paste("clean-and-process", "output", sep = "/")
 
-officers <- my_read_csv(here(read_path, "officers.csv"))
+# officers <- my_read_csv(here(read_path, "officers.csv"))
 force <- my_read_csv(here(read_path, "force.csv"))
-assignments <- my_read_csv(here(read_path, "assignments.csv"))
+# assignments <- my_read_csv(here(read_path, "assignments.csv"))
 
 # create start and end times for the shift in a datetime format
-assignments <-
-    assignments %>%
-    mutate(shift_id = as.character(row_number()),
-           start_date = if_else(is.na(start_time), NA_Date_, date),
-           start_hms = hms::hms(rep(0, nrow(assignments)),
-                                rep(0, nrow(assignments)),
-                                start_time),
-           start_datetime = as_datetime(paste0(start_date, " ", start_hms)),
-           end_date = case_when(is.na(end_time) ~ NA_Date_,
-                                end_time > 24 ~ date + 1,
-                                TRUE ~ date),
-           end_hms = hms::hms(rep(0, nrow(assignments)),
-                              rep(0, nrow(assignments)),
-                              case_when(is.na(end_time) ~ NA_real_,
-                                        end_time > 24 ~ end_time - 24,
-                                        TRUE ~ end_time)),
-           end_datetime = as_datetime(paste0(end_date, " ", end_hms))) %>%
-    select(-start_date, -start_hms, -end_date, -end_hms)
+# assignments <-
+#     assignments %>%
+#     mutate(shift_id = as.character(row_number()),
+#            start_date = if_else(is.na(start_time), NA_Date_, date),
+#            start_hms = hms::hms(rep(0, nrow(assignments)),
+#                                 rep(0, nrow(assignments)),
+#                                 start_time),
+#            start_datetime = as_datetime(paste0(start_date, " ", start_hms)),
+#            end_date = case_when(is.na(end_time) ~ NA_Date_,
+#                                 end_time > 24 ~ date + 1,
+#                                 TRUE ~ date),
+#            end_hms = hms::hms(rep(0, nrow(assignments)),
+#                               rep(0, nrow(assignments)),
+#                               case_when(is.na(end_time) ~ NA_real_,
+#                                         end_time > 24 ~ end_time - 24,
+#                                         TRUE ~ end_time)),
+#            end_datetime = as_datetime(paste0(end_date, " ", end_hms))) %>%
+#     select(-start_date, -start_hms, -end_date, -end_hms)
 
 stops <-
     my_read_csv(here(read_path, "stops.csv")) %>%
@@ -49,16 +49,16 @@ arrests <-
 
 # Summarize each of the data sets
 summaries <-
-    map(list("officers" = officers,
+    map(list(#"officers" = officers,
              "force" = force,
-             "assignments" = assignments,
+             # "assignments" = assignments,
              "stops" = stops,
              "arrests" = arrests),
         GetSummary)
 
 # Write out the new data sets as "cleaned"
-dfs <- list(officers = officers,
-            assignments = assignments,
+dfs <- list(#officers = officers,
+            #assignments = assignments,
             stops = stops,
             arrests = arrests,
             force = force)
@@ -89,7 +89,7 @@ pwalk(list(dfs, output_paths), function(df, path) {write_csv(df, path)})
 > "We determine race/ethnicity of CPD officers based on demographic data obtained from the CPD through FOIA. The CPD usually classifies race/ethnicity in at most 7 mutually exclusive groups: White/Caucasian, White Hispanic, Black/African American, Black Hispanic, Asian/Pacific Islander, Native American/Native Alaskan, and unknown/missing. However, there are inconsistencies in how races and ethnicities are coded across files. For example, some files do not include 'Black Hispanic' as a racial category (very few officers are ever classified as Black Hispanic), and some files contain outdated racial categories which we update to the best of our ability. For consistency, we classify 'Hispanic' and 'White Hispanic' as 'Hispanic'; 'Black' and 'Black Hispanic' (rare cases) as 'Black.' 'White' in our analysis refers to non-Hispanic White. If an officer has multiple races associated with them across different datasets, we aggregate by most common non-missing races." page 5 of Appendix Section S1.1 in Ba et al. 2021.
 
 ```{r, results = "asis"}
-map(summaries[["officers"]], kable, format = "latex")
+#map(summaries[["officers"]], kable, format = "latex")
 ```
 
 ## Shift Assignments
@@ -115,14 +115,14 @@ map(summaries[["officers"]], kable, format = "latex")
 * **Number of shift assignments**: `r nrow(assignments)`
 
 ```{r, results = "asis"}
-numericTable <- summaries[["assignments"]][["numeric"]]
-summaries[["assignments"]][["numeric"]] <- NULL
-map(summaries[["assignments"]], kable, format = "latex")
-
-# Have to do this because the numeric table is too wide
-numericTable %>%
-    kable(format = "latex") %>%
-    kable_styling(latex_options = "scale_down")
+# numericTable <- summaries[["assignments"]][["numeric"]]
+# summaries[["assignments"]][["numeric"]] <- NULL
+# map(summaries[["assignments"]], kable, format = "latex")
+# 
+# # Have to do this because the numeric table is too wide
+# numericTable %>%
+#     kable(format = "latex") %>%
+#     kable_styling(latex_options = "scale_down")
 ```
 
 ## Stops

@@ -1,5 +1,5 @@
 ---
-title: "Data Schemas"
+title: "Officer Codebook"
 format: pdf
 editor: visual
 ---
@@ -13,59 +13,10 @@ source(here("functions.R"))
 ```
 
 ```{r}
-read_path <- paste("clean-and-process", "input", sep = "/")
-write_path <- paste("clean-and-process", "output", sep = "/")
+officers <-
+    my_read_csv(here("create-officer-assignments", "input", "officers.csv"))
 
-# officers <- my_read_csv(here(read_path, "officers.csv"))
-force <- my_read_csv(here(read_path, "force.csv"))
-# assignments <- my_read_csv(here(read_path, "assignments.csv"))
-
-# create start and end times for the shift in a datetime format
-# assignments <-
-#     assignments %>%
-#     mutate(shift_id = as.character(row_number()),
-#            start_date = if_else(is.na(start_time), NA_Date_, date),
-#            start_hms = hms::hms(rep(0, nrow(assignments)),
-#                                 rep(0, nrow(assignments)),
-#                                 start_time),
-#            start_datetime = as_datetime(paste0(start_date, " ", start_hms)),
-#            end_date = case_when(is.na(end_time) ~ NA_Date_,
-#                                 end_time > 24 ~ date + 1,
-#                                 TRUE ~ date),
-#            end_hms = hms::hms(rep(0, nrow(assignments)),
-#                               rep(0, nrow(assignments)),
-#                               case_when(is.na(end_time) ~ NA_real_,
-#                                         end_time > 24 ~ end_time - 24,
-#                                         TRUE ~ end_time)),
-#            end_datetime = as_datetime(paste0(end_date, " ", end_hms))) %>%
-#     select(-start_date, -start_hms, -end_date, -end_hms)
-
-stops <-
-    my_read_csv(here(read_path, "stops.csv")) %>%
-    mutate(stop_officer_id = as.character(row_number()))
-
-arrests <-
-    my_read_csv(here(read_path, "arrests.csv")) %>%
-    mutate(arrest_officer_id = as.character(row_number()))
-
-# Summarize each of the data sets
-summaries <-
-    map(list(#"officers" = officers,
-             "force" = force,
-             # "assignments" = assignments,
-             "stops" = stops,
-             "arrests" = arrests),
-        GetSummary)
-
-# Write out the new data sets as "cleaned"
-dfs <- list(#officers = officers,
-            # assignments = assignments,
-            stops = stops,
-            arrests = arrests,
-            force = force)
-
-output_paths <- as.list(here(write_path, paste0("cleaned-", names(dfs), ".csv")))
-pwalk(list(dfs, output_paths), function(df, path) {write_csv(df, path)})
+summary <- GetSummary(officers)
 ```
 
 ## Officer Roster
@@ -77,7 +28,7 @@ pwalk(list(dfs, output_paths), function(df, path) {write_csv(df, path)})
 -   **officer_gender**: Sex of the officer.
 -   **spanish**: Does the officer speak Spanish or not?
 -   Uniquely identified by **officer_id**. The unit of observation is an officer.
--   **Number of officers**: `#r nrow(officers)`
+-   **Number of officers**: `r nrow(officers)`
 
 ### Creating the officer roster
 
@@ -89,6 +40,8 @@ pwalk(list(dfs, output_paths), function(df, path) {write_csv(df, path)})
 
 > "We determine race/ethnicity of CPD officers based on demographic data obtained from the CPD through FOIA. The CPD usually classifies race/ethnicity in at most 7 mutually exclusive groups: White/Caucasian, White Hispanic, Black/African American, Black Hispanic, Asian/Pacific Islander, Native American/Native Alaskan, and unknown/missing. However, there are inconsistencies in how races and ethnicities are coded across files. For example, some files do not include 'Black Hispanic' as a racial category (very few officers are ever classified as Black Hispanic), and some files contain outdated racial categories which we update to the best of our ability. For consistency, we classify 'Hispanic' and 'White Hispanic' as 'Hispanic'; 'Black' and 'Black Hispanic' (rare cases) as 'Black.' 'White' in our analysis refers to non-Hispanic White. If an officer has multiple races associated with them across different datasets, we aggregate by most common non-missing races." page 5 of Appendix Section S1.1 in Ba et al. 2021.
 
+\newpage
+
 ```{r, results = "asis"}
-# map(summaries[["officers"]], kable, format = "latex")
+map(summary, kable, format = "latex")
 ```
