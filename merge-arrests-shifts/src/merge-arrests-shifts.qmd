@@ -1,0 +1,128 @@
+---
+title: "Merge Arrests to Shift Assignments"
+format: pdf
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+# Read in data
+in_path <- paste("merge-arrests-shifts", "input", sep = "/")
+out_path <- paste("merge-arrests-shifts", "output", sep = "/")
+
+officer_assignments <- my_read_csv(here(in_path, "officers_assignments_risi.csv"))
+arrests <-
+    my_read_csv(here(in_path, "arrests.csv")) %>%
+    mutate(arrest_officer_id = as.character(row_number()))
+
+# convert to data.table
+setDT(officer_assignments)
+setDT(arrests)
+```
+
+## Arrests
+
+1. I drop the **statute_description** column because there are too many unique values for it to be of use.
+2. **civ.race**: I combine Asian American/Pacific Islanders and Native Americans/Alaskan Natives into an their own category.
+3. I drop the **civilian_race_short** column.
+4. I rename **civ.gender** to **civ.sex**.
+
+```{r, results = "asis"}
+arrests <-
+    arrests %>%
+    mutate(civ.race = fct_recode(civ.race,
+                                 aapi_native = "ASIAN/PACIFIC ISLANDER",
+                                 aapi_native = "NATIVE AMERICAN/ALASKAN NATIVE")) %>%
+    rename(civ.sex = civ.gender) %>%
+    select(-statute_description, civilian_race_short)
+
+kable(GetSummaryCol(arrests, "civ.race"), format = "latex")
+```
+
+```{r}
+# Match arrests to the shift assignments they occurred during
+arrests_merged <- ba_merge(officer_assignments, arrests, arrest_officer_id)
+missing_times_arrests <- arrests_merged %>% find_missing(arrest_officer_id)
+duplicate_arrests <- arrests_merged %>% find_dupes(arrest_officer_id)
+pretty_print_arrests <- PrettyPrint(arrests_merged, arrests, officer_assignments,
+                                    missing_times_arrests, duplicate_arrests,
+                                    "arrest_officer_id")
+write_csv(arrests_merged, here(out_path, "arrests_officers_assignments_risi_max.csv"))
+```
+
+## Merge arrests - Risi using Ba et al. 2021
+
+* **Number of resulting rows**: `r pretty_print_arrests$nrow`
+* **Number of arrests which occurred during a shift**: `r pretty_print_arrests$nr_outcome`
+    * **Percentage of arrests** (`r nrow(arrests)`): `r pretty_print_arrests$prcnt_outcome`%
+* **Number of shift assignments retained:** `r pretty_print_arrests$nr_shift`
+    * **Percentage of shift assignments**: `r pretty_print_arrests$prcnt_shift`%
+* `r pretty_print_arrests$nr_missing_shifts` shift assignments matched with at least one arrest **without having** a start time and an end time.
+    * This represents `r pretty_print_arrests$prcnt_missing_shifts`% of all shift assignments.
+    * `r pretty_print_arrests$nr_missing_outcomes` arrests are affected or `r pretty_print_arrests$prcnt_missing_outcomes`% of all arrests.
+* There are `r pretty_print_arrests$nr_dupe_outcomes` arrests which match to more than one shift assignment.
+    * These **duplicate** arrests represent `r pretty_print_arrests$prcnt_dupe_outcomes`% of all arrests (`r nrow(arrests)`).
+    * `r pretty_print_arrests$nr_dupe_shifts` shift assignments are affected or `r pretty_print_arrests$prcnt_dupe_shifts`% of all shift assignments.
+    * In total, there are `r pretty_print_arrests$nr_dupes` **duplicate stop-shift observations** representing `r pretty_print_arrests$prcnt_dupes`% of all arrest-shift observations.
+    
+```{r}
+# Arrests don't have a time associated with them. Only the hour they occurred.
+arrests <-
+    arrests %>%
+    mutate(time = as_datetime(paste0(date,
+                                     " ",
+                                     hms::hms(rep(0, nrow(arrests)),
+                                              rep(0, nrow(arrests)),
+                                              hour)))) %>%
+    select(-date, -month)
+
+# Right non-equi join arrests to officer assignments
+arrests_shift_assignments <-
+    arrests[officer_assignments,
+            on = .(officer_id, time >= start_datetime, time <= end_datetime)] %>%
+    rename(start_datetime = time, end_datetime = time.1) %>%
+    left_join(select(arrests, time, arrest_officer_id), by = "arrest_officer_id")
+
+# Find outcomes with matched with shift assignments that have a missing start and end time
+# In theory there should be 0
+missing_arrests_risi <- arrests_shift_assignments %>% find_missing(arrest_officer_id)
+
+# Find outcomes which matched with multiple shifts
+duplicate_arrests_risi <- arrests_shift_assignments %>% find_dupes(arrest_officer_id)
+
+# Pretty print the results
+ppajr <-
+    PrettyPrint(arrests_shift_assignments, arrests, officer_assignments,
+                missing_arrests_risi, duplicate_arrests_risi, "arrest_officer_id")
+
+# Remove duplicates
+arrests_shift_assignments <-
+    arrests_shift_assignments %>%
+    group_by(arrest_officer_id) %>%
+    filter(is.na(arrest_officer_id) | n() <= 1) %>%
+    ungroup()
+
+# Write out results
+write_csv(arrests_shift_assignments, here(out_path, "arrests_officers_assignments_risi_min.csv"))
+```
+
+## Merge arrests - Risi
+
+* **Number of resulting arrests**: `r ppajr$nrow`
+* **Number of arrests which occurred during a shift**: `r ppajr$nr_outcome`
+    * **Percentage of arrests** (`r nrow(arrests)`): `r ppajr$prcnt_outcome`%
+    * **Number of fewer arrests matched than Ba et al. 2021**: `r pretty_print_arrests$nr_outcome - ppajr$nr_outcome`
+    * **Percent reduction from Ba et al. 2021**: `r (pretty_print_arrests$nr_outcome - ppajr$nr_outcome) / pretty_print_arrests$nr_outcome * 100`%
+* **Number of shift assignments retained:** `r ppajr$nr_shift`
+    * **Percentage of shift assignments**: `r ppajr$prcnt_shift`% **NOTE** this should be 100%.
+* `r ppajr$nr_missing_shifts` shift assignments matched with at least one arrest **without having** a start time and an end time. **NOTE** that this should be 0.
+* There are `r ppajr$nr_dupe_outcomes` arrests which match to more than one shift assignment.
+    * These **duplicate** arrests represent `r ppajr$prcnt_dupe_outcomes`% of all arrests (`r nrow(arrests)`).
+    * `r ppajr$nr_dupe_shifts` shift assignments are affected or `r ppajr$prcnt_dupe_shifts`% of all shift assignments.
+    * In total, there are `r ppajr$nr_dupes` **duplicate arrest-shift observations** representing `r ppajr$prcnt_dupes`% of all arrest-shift observations.
+    * As noted above, **all these entries are dropped**.
+    

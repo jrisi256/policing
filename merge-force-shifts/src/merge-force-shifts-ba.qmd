@@ -1,0 +1,99 @@
+---
+title: "Replicate Ba et al. 2021 - Merge Uses of Force to Shift Assignments"
+format: pdf
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+# Read in data
+in_path <- paste("merge-force-shifts", "input", sep = "/")
+out_path <- paste("merge-force-shifts", "output", sep = "/")
+
+officer_assignments <- my_read_csv(here(in_path, "officers_assignments_ba.csv"))
+force <- my_read_csv(here(in_path, "force.csv"))
+
+# convert to data.table
+setDT(officer_assignments)
+setDT(force)
+```
+
+```{r}
+# Match uses of force to the shift assignments they occurred during
+force_merged <- ba_merge(officer_assignments, force, force_id)
+missing_times_force <- force_merged %>% find_missing(force_id)
+duplicate_force <- force_merged %>% find_dupes(force_id)
+pretty_print_force <- PrettyPrint(force_merged, force, officer_assignments,
+                                  missing_times_force, duplicate_force,
+                                  "force_id")
+write_csv(force_merged, here(out_path, "force_officers_assignments_ba_max.csv"))
+```
+
+## Merge uses of force - Ba et al. 2021
+
+* **Number of resulting rows**: `r pretty_print_force$nrow`
+* **Number of uses of force which occurred during a shift**: `r pretty_print_force$nr_outcome`
+    * **Percentage of uses of force** (`r nrow(force)`): `r pretty_print_force$prcnt_outcome`%
+* **Number of shift assignments retained:** `r pretty_print_force$nr_shift`
+    * **Percentage of shift assignments**: `r pretty_print_force$prcnt_shift`%
+* `r pretty_print_force$nr_missing_shifts` shift assignments matched with at least one use of force **without having** a start time and an end time.
+    * This represents `r pretty_print_force$prcnt_missing_shifts`% of all shift assignments.
+    * `r pretty_print_force$nr_missing_outcomes` uses of force are affected or `r pretty_print_force$prcnt_missing_outcomes`% of all uses of force.
+* There are `r pretty_print_force$nr_dupe_outcomes` uses of force which match to more than one shift assignment.
+    * These **duplicate** uses of force represent `r pretty_print_force$prcnt_dupe_outcomes`% of all uses of force (`r nrow(force)`).
+    * `r pretty_print_force$nr_dupe_shifts` shift assignments are affected or `r pretty_print_force$prcnt_dupe_shifts`% of all shift assignments.
+    * In total, there are `r pretty_print_force$nr_dupes` **duplicate stop-shift observations** representing `r pretty_print_force$prcnt_dupes`% of all force-shift observations.
+    
+```{r}
+# Drop these columns as they are redundant    
+force <- force %>% select(-date, -month)
+
+# Right non-equi joins force to officer assignments
+force_shift_assignments <-
+    force[officer_assignments,
+          on = .(officer_id, time >= start_datetime, time <= end_datetime)] %>%
+    rename(start_datetime = time, end_datetime = time.1) %>%
+    left_join(select(force, time, force_id), by = "force_id")
+
+# Find outcomes with matched with shift assignments that have a missing start and end time
+# In theory there should be 0
+missing_force_risi <- force_shift_assignments %>% find_missing(force_id)
+
+# Find outcomes which matched with multiple shifts
+duplicate_force_risi <- force_shift_assignments %>% find_dupes(force_id)
+
+# Pretty print the results
+ppfjr <-
+    PrettyPrint(force_shift_assignments, force, officer_assignments,
+                missing_force_risi, duplicate_force_risi, "force_id")
+
+# Remove duplicates
+force_shift_assignments <-
+    force_shift_assignments %>%
+    group_by(force_id) %>%
+    filter(is.na(force_id) | n() <= 1) %>%
+    ungroup()
+
+# Write out results
+write_csv(force_shift_assignments, here(out_path, "force_officers_assignments_ba_min.csv"))
+```
+
+### Merge force - Risi
+
+* **Number of resulting rows**: `r ppfjr$nrow`
+* **Number of uses of force which occurred during a shift**: `r ppfjr$nr_outcome`
+    * **Percentage of uses of force** (`r nrow(force)`): `r ppfjr$prcnt_outcome`%
+    * **Number of fewer uses of force matched than Ba et al. 2021**: `r pretty_print_force$nr_outcome - ppfjr$nr_outcome`
+    * **Percent reduction from Ba et al. 2021**: `r (pretty_print_force$nr_outcome - ppfjr$nr_outcome) / pretty_print_force$nr_outcome * 100`%
+* **Number of shift assignments retained:** `r ppfjr$nr_shift`
+    * **Percentage of shift assignments**: `r ppfjr$prcnt_shift`% **NOTE** this should be 100%.
+* `r ppfjr$nr_missing_shifts` shift assignments matched with at least one use of force **without having** a start time and an end time. **NOTE** that this should be 0.
+* There are `r ppfjr$nr_dupe_outcomes` uses of force which match to more than one shift assignment.
+    * These **duplicate** uses of force represent `r ppfjr$prcnt_dupe_outcomes`% of all uses of force (`r nrow(force)`).
+    * `r ppfjr$nr_dupe_shifts` shift assignments are affected or `r ppfjr$prcnt_dupe_shifts`% of all shift assignments.
+    * In total, there are `r ppfjr$nr_dupes` **duplicate force-shift observations** representing `r ppfjr$prcnt_dupes`% of all force-shift observations.
+    * As noted above, **all these entries are dropped**.

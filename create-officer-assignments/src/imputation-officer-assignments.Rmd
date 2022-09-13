@@ -18,17 +18,10 @@ opts_chunk$set(message = F, echo = F, warning = F)
 library(here)
 source(here("functions.R"))
 
-library(tidyr)
-library(readr)
-library(dplyr)
-library(purrr)
-library(forcats)
-library(stringr)
-library(ggplot2)
-library(lubridate)
-
-path <- paste("clean-and-process", "output", sep = "/")
-officer_assignments <- my_read_csv(here(path, "officers_assignments_risi.csv"))
+path <- paste("create-officer-assignments", "input", sep = "/")
+officers <- my_read_csv(here(path, "officers.csv"))
+assignments <- my_read_csv(here(path, "assignments.csv"))
+officer_assignments <- inner_join(assignments, officers, by = "officer_id")
 ```
 
 ```{r}

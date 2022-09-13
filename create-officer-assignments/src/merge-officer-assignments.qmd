@@ -1,0 +1,188 @@
+---
+title: "Merge Officers To Their Shift Assignments"
+format: pdf
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+read_path <- paste("create-officer-assignments", "input", sep = "/")
+write_path <- paste("create-officer-assignments", "output", sep = "/")
+
+officers <- my_read_csv(here(read_path, "officers.csv"))
+assignments <- my_read_csv(here(read_path, "assignments.csv"))
+```
+
+## Changes to the officer data
+
+**Changing existing columns**
+
+1.  I format the police officer race column to be more concise. Additionally due to low sample sizes, Asian-American/Pacific Islanders and Native American police officers are combined into one category: **aapi_native**.
+2.  Rename **officer_gender** to **officer_sex**.
+
+```{r}
+officers <-
+    officers %>%
+    rename(officer_sex = officer_gender) %>%
+    mutate(officer_race = str_replace(officer_race, "officer_", ""),
+           officer_race = fct_recode(officer_race,
+                                     aapi_native = "aapi",
+                                     aapi_native = "native"))
+```
+
+## Changes to the shift assignment data
+
+**Adding new columns**
+
+1.  **start_datetime**: I create this new column which combines **start_time** and **date** into a starting datetime for the shift in YYYY-MM-DD HH:MM:SS format.
+2.  **end_datetime**: I create this new column which combines **end_time** and **date** into an ending datetime for the shift in YYYY-MM-DD HH:MM:SS format.
+3.  **shift_id**: Unique identifier for each shift assignment.
+
+**Changing existing columns**
+
+1.  **rank**: Chief, Commander, Deputy Chief, and Lieutenant are combined to create a new **leadership** category. **Sergeant** and **Police Officer** remain the same. All other ranks are combined into an **other** category. Percentage-wise there are only a few shift assignments for those in leadership, but there is still a large absolute number of patrols shifts conducted by those in leadership (in the tens of thousands). Depending on one's analysis, this category could be useful.
+
+**Dropping existing columns**
+
+1.  I drop the **months_from_start_sq** column.
+
+```{r}
+# create start and end times for the shift in a datetime format
+assignments <-
+    assignments %>%
+    mutate(shift_id = as.character(row_number()),
+           start_date = if_else(is.na(start_time), NA_Date_, date),
+           start_hms = hms::hms(rep(0, nrow(assignments)),
+                                rep(0, nrow(assignments)),
+                                start_time),
+           start_datetime = as_datetime(paste0(start_date, " ", start_hms)),
+           end_date = case_when(is.na(end_time) ~ NA_Date_,
+                                end_time > 24 ~ date + 1,
+                                TRUE ~ date),
+           end_hms = hms::hms(rep(0, nrow(assignments)),
+                              rep(0, nrow(assignments)),
+                              case_when(is.na(end_time) ~ NA_real_,
+                                        end_time > 24 ~ end_time - 24,
+                                        TRUE ~ end_time)),
+           end_datetime = as_datetime(paste0(end_date, " ", end_hms)),
+           rank = fct_collapse(rank,
+                               leadership = c("CHIEF", "COMMANDER",
+                                              "DEPUTY CHIEF", "LIEUTENANT")),
+           rank = as.factor(tolower(fct_other(rank,
+                                              keep = c("POLICE OFFICER",
+                                                       "SERGEANT",
+                                                       "leadership"))))) %>%
+    select(-start_date, -start_hms, -end_date, -end_hms, -months_from_start_sq,
+           -appointed_month)
+```
+
+## Merging Officers To Their Shift Assignments - Risi
+
+```{r}
+# Merge officers to their shift assignments
+officer_assignments <- inner_join(assignments, officers, by = "officer_id")
+
+# Find officers which had no shifts and any shifts which had no officers
+anti_join_assignments <-
+    anti_join(assignments, officers, by = "officer_id") %>%
+    nrow()
+
+anti_join_officers <-
+    anti_join(officers, assignments, by = "officer_id") %>%
+    nrow()
+```
+
+* Number of shift assignments: `r nrow(officer_assignments)`
+* Number of unique officers who had at least one shift assignment: `r length(unique(officer_assignments$officer_id))`
+* Number of non-matching assignments: `r anti_join_assignments`
+    * Percentage of assignments which don't match: `r anti_join_assignments / nrow(assignments) * 100`%
+*   Number of non-matching officers: `r anti_join_officers`
+    * Percentage of officers who don't match: `r anti_join_officers / nrow(officers) * 100`%
+
+### Why are there so many officers who do not have a shift?
+
+```{r, results = "asis"}
+compare <-
+    officers %>%
+    mutate(has_a_shift = as.character(
+        if_else(officer_id %in% officer_assignments$officer_id,
+                1,
+                0)))
+
+ggplot(compare, aes(x = birth_year)) +
+    geom_histogram(bins = 40, aes(fill = has_a_shift)) +
+    facet_wrap(~has_a_shift) +
+    theme_bw()
+ 
+compare1 <-
+    GetSummaryCol(filter(compare, has_a_shift == 1), "birth_year") %>%
+    mutate(shift = 1)
+
+compare0 <-
+    GetSummaryCol(filter(compare, has_a_shift == 0), "birth_year") %>%
+    mutate(shift = 0)
+
+kable(rbind(compare1, compare0), format = "latex")
+```
+
+It's unclear why so many officers don't have a shift assignment. Most of the non-matches are likely due to the fact that this is a roster of every person who ever served as an officer so it includes retired officers or officers who quit (as of when these shift assignments start). Additionally some of the officers listed in the roster likely do not get assigned to patrol shifts due to the nature of their role (e.g. they are in a leadership role).
+
+More worrisome might be officers who don't get shift assignments for some other, unknown reason which might hurt the validity of the study (e.g. they're being punished or rewarded).
+
+Officers who do have at least one shift assignment are noticeably younger lending some support to the idea that officers who don't have a shift assignment have retired.
+
+### Missing values for officers
+
+```{r}
+active_officers <-
+    officer_assignments %>%
+    distinct(officer_id, .keep_all = T) %>%
+    select(officer_id, officer_race, officer_sex, spanish, birth_year,
+           appointed_month)
+
+missing_race <- active_officers %>% filter(is.na(officer_race)) %>% nrow()
+missing_sex <- active_officers %>% filter(is.na(officer_sex)) %>% nrow()
+missing_age <- active_officers %>% filter(is.na(birth_year)) %>% nrow()
+missing_spanish <- active_officers %>% filter(is.na(spanish)) %>% nrow()
+missing_exp <- active_officers %>% filter(is.na(appointed_month)) %>% nrow()
+```
+
+* `r missing_race` officers are missing their race.
+* `r missing_sex` officers are missing their sex.
+* `r missing_age` officers are missing their age.
+* `r missing_spanish` officers are missing their Spanish-speaking ability.
+* `r missing_exp` officers are missing their level of experience.
+
+### Missing values for shift assignments
+
+```{r}
+officer_assignments_final <-
+    officer_assignments %>%
+    filter(!is.na(rank)) %>%
+    filter(!is.na(start_datetime)) %>%
+    filter(!is.na(officer_race)) %>%
+    mutate(months_from_start = if_else(is.na(months_from_start) &
+                                           appointed_month <= date,
+                                       0, months_from_start))
+
+write_csv(officer_assignments_final,
+          here(write_path, "officers_assignments_risi.csv"))
+```
+
+We can look to the code book and see we are missing values for: **start_datetime**/**start_time**, **end_datetime**/**end_time**, **duration**, **rank**, and **months_from_start**.
+
+* `r table(is.na(officer_assignments$officer_race))[["TRUE"]]` shift assignments are associated with officers who are missing their race.
+* `r table(is.na(officer_assignments$start_datetime))[["TRUE"]]` shift assignments are missing their start time/end time.
+* `r table(is.na(officer_assignments$rank))[["TRUE"]]` shift assignments are missing their rank.
+* `r table(is.na(officer_assignments$months_from_start))[["TRUE"]]` shift assignments are missing the amount of experience of the officer. However, I recode these values to 0.
+    * `r table(is.na(officer_assignments_final$months_from_start))[["FALSE"]] - nrow(officer_assignments_final)` shift assignments are missing the amount of experience of the officer after recoding.
+* `r nrow(officer_assignments) - nrow(officer_assignments_final)` shift assignments are dropped due to missing values.
+    * This is a `r (nrow(officer_assignments) - nrow(officer_assignments_final)) / nrow(officer_assignments) * 100`% reduction.
+    * **Final number of shift assignments**: `r nrow(officer_assignments_final)`
+* `r length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_final$officer_id))` officers are dropped due to missing values.
+    * This is a `r (length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_final$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`% reduction.
+    * **Final number of officers**: `r length(unique(officer_assignments_final$officer_id))`

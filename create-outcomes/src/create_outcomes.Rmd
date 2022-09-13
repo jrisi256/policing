@@ -1,0 +1,181 @@
+---
+title: "Creating Outcomes"
+author: "Joseph Risi"
+date: '2022-08-23'
+output: pdf_document
+---
+
+## Number of observations
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+# Read in data
+path <- paste("clean-and-process", "output", sep = "/")
+stops <- my_read_csv(here(path, "stops_officers_assignments_risi_min.csv"))
+arrests <- my_read_csv(here(path, "arrests_officers_assignments_risi_min.csv"))
+force <- my_read_csv(here(path, "force_officers_assignments_risi_min.csv"))
+
+rstops <- stops %>% filter(!is.na(stop_id))
+rarrests <- arrests %>% filter(!is.na(arrest_id))
+rforce <- force %>% filter(!is.na(force_id))
+```
+
+For each outcome (stops, arrests, and uses of force), the resulting data frame is a representation of every shift assignment along with any outcomes which occurred during the shift. Any shift which did not have an outcome associated with it is still captured in the data frame, but it has a missing value for all columns associated with the outcome (e.g., stop_id).
+
+Stated more plainly, each row is a specific shift assignment **and** outcome (i.e., a stop, an arrest, a use of force) pairing. This means the same shift (as represented by the shift_id) can appear multiple times if multiple outcomes occurred during the shift. If the shift in question did not have the outcome occur during the shift, the shift will still appear in the data but with the outcome variables listed as missing.
+
+### Stops
+
+* Number of total rows: `r nrow(stops)`
+* Number of shift assignments: `r length(unique(stops$shift_id))`
+    * Number of stop incidents: `r length(unique(stops$stop_id))`
+    * Number of shift assignments of with a recorded stop: `r length(unique(rstops$shift_id))`
+    * Proportion of shifts with a recorded stop: `r length(unique(rstops$shift_id)) / length(unique(stops$shift_id))`
+* Number of officers: `r length(unique(stops$officer_id))`
+    * Number of officers with a recorded stop: `r length(unique(rstops$officer_id))`
+    * Proportion of officers with a recorded stop: `r length(unique(rstops$officer_id)) / length(unique(stops$officer_id))`
+
+### Arrests
+
+* Number of total rows: `r nrow(arrests)`
+* Number of shift assignments: `r length(unique(arrests$shift_id))`
+    * Number of arrest incidents: `r length(unique(arrests$arrest_id))`
+    * Number of shift assignments of with a recorded arrest: `r length(unique(rarrests$shift_id))`
+    * Proportion of shifts with a recorded arrest: `r length(unique(rarrests$shift_id)) / length(unique(stops$shift_id))`
+* Number of officers: `r length(unique(arrests$officer_id))`
+    * Number of officers with a recorded arrest: `r length(unique(rarrests$officer_id))`
+    * Proportion of officers with a recorded arrest: `r length(unique(rarrests$officer_id)) / length(unique(stops$officer_id))`
+
+### Uses Of Force
+
+* Number of total rows: `r nrow(force)`
+* Number of shift assignments: `r length(unique(force$shift_id))`
+    * Number of force incidents: `r length(unique(force$force_id))`
+    * Number of shift assignments of with a recorded use of force: `r length(unique(rforce$shift_id))`
+    * Proportion of shifts with a recorded use of force: `r length(unique(rforce$shift_id)) / length(unique(stops$shift_id))`
+* Number of officers: `r length(unique(force$officer_id))`
+    * Number of officers with a recorded use of force: `r length(unique(rforce$officer_id))`
+    * Proportion of officers with a recorded use of force: `r length(unique(rforce$officer_id)) / length(unique(stops$officer_id))`
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Create outcomes
+
+### Stops
+
+* Total number of stops
+* Stops by contact type
+* Stops by civilian race
+* Stops by civilian sex
+* Stops by civilian age
+
+```{r}
+Create_Outcomes <- function(.df, .id_col, ...) {
+    
+    .df %>%
+        mutate(count = if_else(is.na(.data[[.id_col]]), 0, 1)) %>%
+        filter(if_all(c(...), ~ !is.na(.))) %>%
+        count(shift_id, ..., wt = count) %>%
+        pivot_wider(id_cols = shift_id,
+                    names_from = c(...),
+                    values_from = n,
+                    values_fill = 0)
+}
+
+a2 <- Create_Outcomes(.df = rstops, .id_col = "stop_id", civ.race)
+```
+
+
+First just find the distribution of stops, arrests, and uses of force by shift.
+
+How many shift assignments have a recorded action? Then look at the distribution by shift, subset maybe? Time of day and place? Too much?
+
+How many officers have these recorded actions? Then look at the distribution by officer, subset maybe? sex, age, race.
+
+Then look to Ba to see what outcomes he is creating and my code to see what I was creating. And then create those outcomes.
+
+```{r}
+# total_stops <-
+#     stops %>%
+#     mutate(count = if_else(is.na(stop_id), 0, 1)) %>%
+#     count(shift_id, wt = count)
+# 
+# ggplot(total_stops) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+# 
+# total_stops %>%
+#     filter(n != 0 & n < 40) %>%
+#     ggplot() +
+#     geom_histogram(bins = 40, aes(x = n)) +
+#     theme_bw()
+# 
+# summary(total_stops$n)
+# table(total_stops$n)
+# prop.table(table(total_stops$n))
+```
+
+```{r}
+# total_arrests <-
+#     arrests %>%
+#     mutate(count = if_else(is.na(arrest_id), 0, 1)) %>%
+#     count(shift_id, wt = count)
+# 
+# ggplot(total_arrests) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+# 
+# total_arrests %>%
+#     filter(n != 0) %>%
+#     ggplot() +
+#     geom_histogram(bins = 40, aes(x = n)) +
+#     theme_bw()
+# 
+# summary(total_arrests$n)
+# table(total_arrests$n)
+# prop.table(table(total_arrests$n))
+```
+
+```{r}
+# total_force <-
+#     force %>%
+#     mutate(count = if_else(is.na(force_id), 0, 1)) %>%
+#     count(shift_id, wt = count)
+# 
+# ggplot(total_force) + geom_histogram(bins = 40, aes(x = n)) + theme_bw()
+# 
+# total_force %>%
+#     filter(n != 0) %>%
+#     ggplot() +
+#     geom_histogram(bins = 40, aes(x = n)) +
+#     theme_bw()
+# 
+# summary(total_force$n)
+# table(total_force$n)
+# prop.table(table(total_force$n))
+```
+
+
+```{r}
+# a <- rstops %>% add_count(shift_id) %>% distinct(shift_id, months_from_start, n) %>% mutate(exp_n = ntile(months_from_start, 10))
+# a2 <- a %>% count(exp_n, wt = n)
+# ggplot(a2, aes(x = exp_n, y = n)) + geom_bar(stat = "identity")
+# a3 <- rstops %>% filter(!is.na(officer_race)) %>% count(officer_race, civ.race) %>% group_by(officer_race) %>% mutate(prcnt = n / sum(n))
+# ggplot(a3, aes(x = officer_race, y = prcnt)) + geom_bar(stat = "identity") + facet_wrap(~civ.race, scales = "free")
+```
+
+
+## COMPARE OFF DUTY TO ON DUTY OUTCOMES
+## Time
+## Place

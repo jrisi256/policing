@@ -1,0 +1,48 @@
+---
+title: "Arrests Codebook"
+format: pdf
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+```
+
+```{r}
+arrests <- my_read_csv(here("merge-arrests-shifts", "input", "arrests.csv"))
+summary <- GetSummary(arrests)
+```
+
+## Arrests
+
+* **date**: Date of the arrest in YYYY-MM-DD format.
+* **hour**: Hour of the day when the arrest took place rounded to the nearest hour in military time.
+* **crime_code**: The suspected crime type causing the arrest.
+* **statute_description**: More detailed categories describing what specific statute was suspected to have been violated.
+* **lat**: Latitude of the arrest.
+* **lon**: Longitude of the arrest.
+* **district**: Police district where the arrest took place.
+* **civ.race**: Race of the civilian.
+* **civ.gender**: Sex of the civilian.
+* **civ.age**: Age of the civilian at the time of the stop.
+* **arrest_id**: Identifier for each arrest.
+* **officer_id**: Unique identifier for each officer.
+* **month**: Month of the arrest in YYYY-MM-DD format. The day is always the first day of the month.
+* **civilian_race_short**: Collapsed version of **civ.race** (less categories).
+* The unit of analysis is a unique officer involved in an arrest. Each row can be uniquely identified by **officer_id** and **arrest_id**.
+* Each arrest involves only one civilian, but they can involve multiple officers. It is possible multiple arrests are all a part of one larger incident involving multiple civilians. This can be investigated by examining arrests that took place in the same location at the same time involving the same officers.
+* **Number of rows**: `r nrow(arrests)`
+* **Number of unique arrests**: `r length(unique(arrests$arrest_id))`
+
+> "Arrests for municipal code violations and outstanding warrants are categorized as 'other'". page 8 of Appendix Section S1.5 in Ba et al. 2021.
+
+\newpage
+
+```{r, results = "asis"}
+summary[["numeric"]] %>% kable(format = "latex")
+summary[["other"]] %>% kable(format = "latex")
+summary[["factor"]] %>% kable(format = "latex", longtable = T)
+```
