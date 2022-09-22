@@ -21,7 +21,7 @@ arrest_network <-
     group_by(arrest_id) %>%
     filter(n() > 1) %>%
     ungroup()
-s
+
 #1184685
 a <-
     arrest_network %>%
@@ -39,6 +39,7 @@ a <-
     count(officer_id.x, officer_id.y)
 
 net <- graph_from_data_frame(d = a, directed = F)
+V(net)$size <- 1
 
 l <- layout_with_fr(net)
 plot(net, vertex.label = NA)
