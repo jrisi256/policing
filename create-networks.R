@@ -1,27 +1,39 @@
 library(here)
 source(here("functions.R"))
 
+CreateNetwork <- function(df, id_col) {
+    
+    df %>%
+        filter(!is.na(.data[[id_col]])) %>%
+        group_by(.data[[id_col]]) %>%
+        filter(n() > 1) %>%
+        ungroup() %>%
+        select(all_of(id_col), officer_id) %>%
+        inner_join(select(df, all_of(id_col), officer_id), by = id_col) %>%
+        filter(officer_id.x != officer_id.y) %>%
+        group_by(across(everything())) %>%
+        mutate(pair = paste0(min(officer_id.x, officer_id.y),
+                             ";",
+                             max(officer_id.x, officer_id.y))) %>%
+        ungroup() %>%
+        distinct(.data[[id_col]], pair, .keep_all = T) %>%
+        select(-all_of(id_col), -pair) %>%
+        count(officer_id.x, officer_id.y)
+}
+
 stops <-
     my_read_csv(here("merge-stops-shifts",
                      "output",
-                     "stops_officers_assignments_risi_min.csv")) %>%
-    filter(!is.na(stop_id)) %>%
-    group_by(stop_id) %>%
-    filter(n() > 1) %>%
-    ungroup()
+                     "stops_officers_assignments_risi_min.csv"))
 
 arrests <-
     my_read_csv(here("merge-arrests-shifts",
                      "output",
                      "arrests_officers_assignments_risi_min.csv"))
 
-arrest_network <-
-    arrests %>%
-    filter(!is.na(arrest_id)) %>%
-    group_by(arrest_id) %>%
-    filter(n() > 1) %>%
-    ungroup()
-s
+stop_network <- CreateNetwork(stops, "stop_id")
+arrest_network <- CreateNetwork(arrests, "arrest_id")
+
 #1184685
 a <-
     arrest_network %>%
