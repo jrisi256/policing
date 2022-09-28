@@ -31,8 +31,17 @@ arrests <-
                      "output",
                      "arrests_officers_assignments_risi_min.csv"))
 
+<<<<<<< HEAD
 stop_network <- CreateNetwork(stops, "stop_id")
 arrest_network <- CreateNetwork(arrests, "arrest_id")
+=======
+arrest_network <-
+    arrests %>%
+    filter(!is.na(arrest_id)) %>%
+    group_by(arrest_id) %>%
+    filter(n() > 1) %>%
+    ungroup()
+>>>>>>> ca884af120f9b09f6663daab6801007165914c5c
 
 #1184685
 a <-
@@ -51,6 +60,7 @@ a <-
     count(officer_id.x, officer_id.y)
 
 net <- graph_from_data_frame(d = a, directed = F)
+V(net)$size <- 1
 
 l <- layout_with_fr(net)
 plot(net, vertex.label = NA)
