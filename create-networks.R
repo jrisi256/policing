@@ -34,6 +34,20 @@ arrests <-
 stop_network <- CreateNetwork(stops, "stop_id")
 arrest_network <- CreateNetwork(arrests, "arrest_id")
 
+a_pre <-
+    arrests %>%
+    filter(!is.na(arrest_id)) %>%
+    select(arrest_id, officer_id)
+
+a <-
+    arrests %>%
+    filter(!is.na(arrest_id)) %>%
+    select(arrest_id, officer_id) %>%
+    group_by(arrest_id) %>%
+    mutate(officer = paste0("officer_", row_number())) %>%
+    pivot_wider(names_from = officer, values_from = officer_id) %>%
+    select(-arrest_id)
+
 #1184685
 a <-
     arrest_network %>%
