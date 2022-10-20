@@ -103,14 +103,24 @@ ba_merge <- function(df1, df2, id_col) {
 }
 
 # Takes in a file path and returns a data frame with the correct column types.
-my_read_csv <- function(file_path) {
+my_read_csv <- function(file_path, injured = F) {
     
-    df <- read_csv(file_path)
+    # read in injured as a numeric to avoid coercion and loss of information
+    if(injured)
+        {
+        df <- read_csv(file_path,
+                       col_types = cols(force_injured_true = "d",
+                                        force_injured_false = "d"))
+        }
+    else
+        {
+            df <- read_csv(file_path)
+        }
     
-    # Factors, characters, logical. Everything not mentioned uses the default.
+    # Factors, characters, logical, and numeric. Those not mentioned use default.
     f <- "race|gender|district|rank|weekday|unit|shift|type|code"
     c <- "id|lat|lon"
-    l <- "spanish|injured|first"
+    l <- "spanish|first"
     
     df %>%
         mutate(across(matches(f), function(col) {as.factor(col)}),
@@ -278,4 +288,42 @@ CreateEdgelist <- function(df, id_col, dir_col = " ") {
     }
     
     return(edgelist)
+}
+
+# df: the data frame
+# .prefix: character, appended to beginning of each column to indicate outcome
+# .id_col: column used for identifying if an outcome happened during a shift
+# ...: column(s) to be used for creating outcomes, if left blank will simply
+# count the total number of instances of the outcome.
+
+Create_Outcomes <- function(.df, .prefix, .id_col, ...) {
+    
+    # Sum up the total number of instances of the outcome.
+    outcome <-
+        .df %>%
+        mutate(count = if_else(is.na({{ .id_col }}), 0, 1)) %>%
+        count(shift_id, ..., wt = count)
+    
+    # if no other grouping variables were provided, skip this step.
+    if(nargs() - 3 != 0) {
+
+        # since we have other grouping variables, turn each group into a column
+        outcome <-
+            outcome %>%
+            filter(if_any(c(...), ~ !is.na(.x))) %>%
+            pivot_wider(id_cols = shift_id,
+                        names_from = c(...),
+                        values_from = "n",
+                        values_fill = 0)
+    }
+
+    # rename the columns so they are clean and have the appropriate outcome
+    outcome <-
+        outcome %>%
+        rename_with(~ paste0(.prefix,
+                             "_",
+                             str_replace_all(tolower(.x), fixed(" "), "")),
+                    -shift_id)
+
+    return(outcome)
 }

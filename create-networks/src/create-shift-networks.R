@@ -2,8 +2,8 @@ library(here)
 source(here("functions.R"))
 
 officer_assignments <-
-    my_read_csv(here("create-networks",
-                     "input",
+    my_read_csv(here("create-officer-assignments",
+                     "output",
                      "officers_assignments_risi.csv"))
 
 officers <-
