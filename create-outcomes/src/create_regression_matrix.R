@@ -2,13 +2,13 @@ library(here)
 source(here("functions.R"))
 
 # Read in shift assignments (independent variables)
-shift_assignments <- my_read_csv(here("estimate-regression-models",
+shift_assignments <- my_read_csv(here("create-outcomes",
                                       "input",
                                       "officers_assignments_ba.csv"))
 
 # Read in outcomes (dependent variables)
-outcomes <- my_read_csv(here("estimate-regression-models",
-                             "input",
+outcomes <- my_read_csv(here("create-outomces",
+                             "output",
                              "outcomes_ba_max.csv"),
                         injured = T)
 
@@ -56,14 +56,17 @@ shift_assignments_feasible <-
     mutate(officer_race = fct_relevel(officer_race, "officer_white", "officer_black", "officer_hisp"),
            month = as.factor(month))
 
-stops_model_race <- lm(stops_n ~ officer_race + months_from_start + months_from_start_sq +
-                           month + shift + weekday + unit,
-                       data = shift_assignments_feasible)
+demean <-
+    shift_assignments_feasible %>%
+    group_by(month, shift, weekday, beat_assigned) %>%
+    summarise(across(c(stops_n, arrests_n, force_n), mean, na.rm = T)) %>%
+    rename(stops_n_mean = stops_n,
+           arrests_n_mean = arrests_n,
+           force_n_mean = force_n)
 
-# arrests_model <- lm(stops_n ~ officer_race + months_from_start + months_from_start_sq +
-#                       month + shift + weekday + unit,
-#                   data = shift_assignments_feasible)
-# 
-# force_model <- lm(stops_n ~ officer_race + months_from_start + months_from_start_sq +
-#                       month + shift + weekday + unit,
-#                   data = shift_assignments_feasible)
+shift_assignments_feasible <-
+    shift_assignments_feasible %>%
+    inner_join(demean, by = c("month", "weekday", "shift", "beat_assigned"))
+
+write_csv(shift_assignments_feasible,
+          here("create-outcomes", "output", "outcomes_feasible_ba_max.csv"))
