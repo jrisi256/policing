@@ -4,10 +4,10 @@ source(here("functions.R"))
 # Read in shift assignments (independent variables)
 shift_assignments <- my_read_csv(here("create-outcomes",
                                       "input",
-                                      "officers_assignments_ba.csv"))
+                                      "officer_assignments_ba.csv"))
 
 # Read in outcomes (dependent variables)
-outcomes <- my_read_csv(here("create-outomces",
+outcomes <- my_read_csv(here("create-outcomes",
                              "output",
                              "outcomes_ba_max.csv"),
                         injured = T)
