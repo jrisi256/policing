@@ -54,8 +54,16 @@ officer_assignments_ba <-
     filter(officer_race %in% c(paste0("officer_", c("white", "black", "hisp"))),
            rank == "POLICE OFFICER")
 
+active_officers <-
+    officer_assignments_ba %>%
+    distinct(officer_id, .keep_all = T) %>%
+    select(officer_id, officer_race, officer_gender, spanish, birth_year,
+           appointed_month)
+
 write_csv(officer_assignments_ba,
           here(write_path, "officers_assignments_ba.csv"))
+
+write_csv(active_officers, here(write_path, "active_officers_ba.csv"))
 ```
 
 ## Filtering - Ba et al. 2021

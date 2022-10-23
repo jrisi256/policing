@@ -1,0 +1,213 @@
+---
+title: "Visualizing Networks"
+format: pdf
+---
+
+```{r, include = F}
+library(knitr)
+library(backbone)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+```
+
+```{r}
+# read in officer assignments
+officer_assignments <-
+    my_read_csv(here("create-networks",
+                     "input",
+                     "officers_assignments_ba.csv")) %>%
+    select(unit, shift, date, beat_assigned, officer_id)
+
+# Create a version of officer assignments where the beats do not have letters
+officer_assignments_beat_noletter <-
+    officer_assignments %>%
+    mutate(beat_assigned = str_replace_all(beat_assigned, "[A-Za-z]", ""))
+
+# Read in the active officers
+officers <-
+    my_read_csv(here('create-networks',
+                     'input',
+                     'active_officers_ba.csv'))
+
+# Read in the stops
+stops <-
+    my_read_csv(here('create-networks',
+                     'input',
+                     'stops_officers_assignments_ba_max.csv')) %>%
+    filter(!is.na(stop_id)) %>%
+    # add in a letter to differentiate stop vertices for officer vertices
+    mutate(stop_id = paste0(stop_id, "a")) %>%
+    select(officer_id, stop_id, po_first) %>%
+    # Have to do this due to errors in cleaning from Ba et al. 2021
+    distinct(officer_id, stop_id, .keep_all = T)
+
+# Read in the arrests
+arrests <-
+    my_read_csv(here('create-networks',
+                     'input',
+                     'arrests_officers_assignments_ba_max.csv')) %>%
+    filter(!is.na(arrest_id)) %>%
+    # add in a letter to differentiate arrest vertices for officer vertices
+    mutate(arrest_id = paste0(arrest_id, "a")) %>%
+    select(officer_id, arrest_id) %>%
+    # Have to do this due to errors in cleaning from Ba et al. 2021
+    distinct(officer_id, arrest_id, .keep_all = T)
+```
+
+```{r}
+# Create a "beat shift event" id to link each officer to a unique beat shift
+beat_shifts <-
+    officer_assignments %>%
+    distinct(unit, shift, date, beat_assigned) %>%
+    # add in a letter to differentiate shift vertices for officer vertices
+    mutate(beat_shift_id = paste0(row_number(), "a")) %>%
+    full_join(officer_assignments) %>%
+    select(officer_id, beat_shift_id)
+
+# Create a "beat shift event" id to link each officer to a unique beat shift
+# (counting only the beat number and not letter)
+beat_noletter_shifts <-
+    officer_assignments_beat_noletter %>%
+    mutate(beat_assigned = str_replace_all(beat_assigned, "[A-Za-z]", "")) %>%
+    distinct(unit, shift, date, beat_assigned) %>%
+    # add in a letter to differentiate shift vertices for officer vertices
+    mutate(beat_shift_id = paste0(row_number(), "a")) %>%
+    full_join(officer_assignments_beat_noletter) %>%
+    select(officer_id, beat_shift_id)
+
+# # Create a "unit shift event" id to link each officer to a unique unit shift
+unit_shifts <-
+    officer_assignments %>%
+    distinct(unit, shift, date) %>%
+    # add in a letter to differentiate shift vertices for officer vertices
+    mutate(unit_shift_id = paste0(row_number(), "a")) %>%
+    full_join(officer_assignments) %>%
+    select(officer_id, unit_shift_id)
+```
+
+## Bipartite Projections & Directed Stops
+
+```{r}
+# Create igraph objects for each of the above edge list data frames
+beat_shift_net <- graph_from_data_frame(beat_shifts, directed = F)
+beat_noletter_shift_net <- graph_from_data_frame(beat_noletter_shifts, directed = F)
+unit_shift_net <- graph_from_data_frame(unit_shifts, directed = F)
+stop_net <- graph_from_data_frame(select(stops, -po_first), directed = F)
+arrest_net <- graph_from_data_frame(arrests, directed = F)
+
+# Turn each of the igraph objects into bipartite graphs
+V(beat_shift_net)$type <- V(beat_shift_net)$name %in% beat_shifts$beat_shift_id
+V(beat_noletter_shift_net)$type <- V(beat_noletter_shift_net)$name %in% beat_noletter_shifts$beat_shift_id
+V(unit_shift_net)$type <- V(unit_shift_net)$name %in% unit_shifts$unit_shift_id
+V(stop_net)$type <- V(stop_net)$name %in% stops$stop_id
+V(arrest_net)$type <- V(arrest_net)$name %in% arrests$arrest_id
+
+# Conduct bipartite projection
+beat_shift_net_bp <- bipartite.projection(beat_shift_net, which = F, multiplicity = T)
+beat_noletter_shift_net_bp <- bipartite.projection(beat_noletter_shift_net, which = F, multiplicity = T)
+unit_shift_net_bp <- bipartite.projection(unit_shift_net, which = F, multiplicity = T)
+
+# Bipartite projection and add in officers who had no stops with other officers
+stop_net_bp <- bipartite.projection(stop_net, which = F, multiplicity = T)
+no_stops <- officers %>% filter(!(officer_id %in% V(stop_net_bp)$name))
+stop_net_bp <-
+    stop_net_bp %>%
+    add_vertices(nrow(no_stops), name = no_stops$officer_id)
+
+# Bipartite projection and add in officers who had no arrests with other officers
+arrest_net_bp <- bipartite.projection(arrest_net, which = F, multiplicity = T)
+no_arrests <- officers %>% filter(!(officer_id %in% V(arrest_net_bp)$name))
+arrest_net_bp <-
+    arrest_net_bp %>%
+    add_vertices(nrow(no_arrests), name = no_arrests$officer_id)
+
+directed_stops <-
+    stops %>%
+    full_join(select(stops, officer_id, stop_id), by = "stop_id") %>%
+    group_by(stop_id) %>%
+    filter(officer_id.x != officer_id.y & po_first) %>%
+    ungroup() %>%
+    count(officer_id.x, officer_id.y)
+
+stop_directed_net <- graph_from_data_frame(directed_stops, directed = T, vertices = officers)
+
+# Save the outputs
+saveRDS(beat_shift_net_bp, here("create-networks", "output", "beat_shift_net_bp.rds"))
+saveRDS(beat_noletter_shift_net_bp, here("create-networks", "output", "beat_noletter_shift_net_bp.rds"))
+saveRDS(unit_shift_net_bp, here("create-networks", "output", "unit_shift_net_bp.rds"))
+saveRDS(stop_net_bp, here("create-networks", "output", "stop_net_bp.rds"))
+saveRDS(stop_directed_net, here("create-networks", "output", "stop_directed_net.rds"))
+saveRDS(arrest_net_bp, here("create-networks", "output", "arrest_net_bp.rds"))
+
+# Double check that all the igraph objects have the same number of vertices
+# as there are active officers
+length(V(beat_shift_net_bp))
+length(V(beat_noletter_shift_net_bp))
+length(V(unit_shift_net_bp))
+length(V(stop_net_bp))
+length(V(stop_directed_net))
+length(V(arrest_net_bp))
+```
+
+```{r, fig.width = 8, fig.height = 8}
+plot(unit_shift_net_bp, vertex.label = NA, vertex.size = 1,
+     main = "Bipartite Projection of Shift Assignment Network")
+
+plot(stop_net_bp, vertex.label = NA, vertex.size = 1,
+     main = "Bipartite Projection of Co-Stopping Network")
+
+plot(arrest_net_bp, vertex.label = NA, vertex.size = 1,
+     main = "Bipartite Projection of Co-Arrest Network")
+```
+
+## Backbone Extractions
+
+Unfortunately after I changed my networks into bipartite graphs, I could not conduct the backbone analyses. This is because I run out of memory. I will have to turn to ROAR.
+
+```{r}
+# unit_shift_net_bb <-
+#     sdsm(unit_shift_net, alpha = 0.05, significance = T, class = "igraph")
+# 
+# stop_net_bb <-
+#     sdsm(stop_net, alpha = 0.05, significance = T, class = "igraph")
+# 
+# arrest_net_bb <-
+#     sdsm(arrest_net, alpha = 0.075, significance = T, class = "igraph")
+```
+
+## Loops
+
+I noticed in the bipartite projections that loops are not included. While I do not visualize these networks here (because visualizing them is uninformative), I think they will be important control variables for later on.
+
+```{r}
+# Find the number of shifts, stops, and arrests each officer conducted alone
+
+FindSolo <- function(df, id_col) {
+    
+    df %>%
+        group_by({{ id_col }}) %>%
+        filter(n() == 1) %>%
+        ungroup() %>%
+        count(officer_id) %>%
+        mutate(to = officer_id) %>%
+        rename(from = officer_id) %>%
+        relocate(from, to, n)
+}
+
+solo_beat_shifts <- FindSolo(beat_shifts, beat_shift_id)
+solo_beat_shifts_net <- graph_from_data_frame(solo_beat_shifts, directed = F)
+
+solo_noletter_beat_shifts <- FindSolo(beat_shifts, beat_shift_id)
+solo_noletter_beat_shifts_net <- graph_from_data_frame(solo_noletter_beat_shifts, directed = F)
+
+solo_unit_shifts <- FindSolo(unit_shifts, unit_shift_id)
+solo_unit_shifts_net <- graph_from_data_frame(solo_unit_shifts, directed = F)
+
+solo_stops <- FindSolo(stops, stop_id)
+solo_stops_net <- graph_from_data_frame(solo_stops, directed = F)
+
+solo_arrests <- FindSolo(arrests, arrest_id)
+solo_arrests_net <- graph_from_data_frame(solo_arrests, directed = F)
+```

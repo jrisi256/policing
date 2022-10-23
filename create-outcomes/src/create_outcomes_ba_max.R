@@ -41,4 +41,4 @@ outcomes <- reduce(list(stop_outcomes, arrest_outcomes, force_outcomes),
                    full_join,
                    by = "shift_id")
 
-write_csv(outcomes, here("create-outcomes", "output", "outcomes_ba_max.csv"))
+write_csv(outcomes, here("create-outcomes", "output", "outcomes_raw_ba_max.csv"))

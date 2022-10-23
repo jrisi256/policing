@@ -186,3 +186,16 @@ We can look to the code book and see we are missing values for: **start_datetime
 * `r length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_final$officer_id))` officers are dropped due to missing values.
     * This is a `r (length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_final$officer_id))) / length(unique(officer_assignments$officer_id)) * 100`% reduction.
     * **Final number of officers**: `r length(unique(officer_assignments_final$officer_id))`
+
+## Also create a new officers file for active officers.
+
+```{r}
+active_officers_final <-
+    officer_assignments_final %>%
+    distinct(officer_id, .keep_all = T) %>%
+    select(officer_id, officer_race, officer_sex, spanish, birth_year,
+           appointed_month)
+
+write_csv(active_officers_final, here(write_path, "active_officers_risi.csv"))
+```
+

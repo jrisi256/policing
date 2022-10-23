@@ -1,0 +1,112 @@
+---
+title: "Estimate Regression Models"
+format: pdf
+---
+
+## Basic Information
+
+* Reference → Ba, Bocar A., Dean Knox, Jonathan Mummolo, and Roman Rivera. 2021. “The Role of Officer Race and Gender in Police-Civilian Interactions in Chicago.” Science.
+* Github (for my code) → https://github.com/jrisi256/policing
+* Data location → https://codeocean.com/capsule/8907164/tree/v1
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+outcomes_risi <- read_csv(here("create-outcomes",
+                               "output",
+                               "outcomes_final_risi_replicate_ba_max.csv"))
+
+stops_ba <- read_csv(here("create-outcomes",
+                          "output",
+                          "outcomes_final_ba_max_stops.csv"))
+
+arrests_ba <- read_csv(here("create-outcomes",
+                          "output",
+                          "outcomes_final_ba_max_arrests.csv"))
+
+force_ba <- read_csv(here("create-outcomes",
+                          "output",
+                          "outcomes_final_ba_max_force.csv"))
+```
+
+```{r}
+stops_race_risi <-
+    lm(stops_risi * 100 ~ officer_black_stop_risi + officer_hisp_stop_risi,
+       data = outcomes_risi)
+
+arrests_race_risi <-
+    lm(arrest_risi * 100 ~ officer_black_arrest_risi + officer_hisp_arrest_risi,
+       data = outcomes_risi)
+
+force_race_risi <-
+    lm(force_risi * 100 ~ officer_black_force_risi + officer_hisp_force_risi,
+       data = outcomes_risi)
+
+stops_race_ba <- lm(stops_n ~ officer_black + officer_hisp, data = stops_ba)
+arrests_race_ba <- lm(arrests_n ~ officer_black + officer_hisp, data = arrests_ba)
+force_race_ba <- lm(force_n ~ officer_black + officer_hisp, data = force_ba)
+```
+
+## Steps For Replication
+
+* The data provided by the authors is in its raw form so the end user (in order to successfully replicate) needs to replicate the data cleaning and transformation steps themselves.
+* **Step 1**: Merge officer demographic information with officer shift assignments. See **create-officer-assignments/src/merge-officer-assignments-ba.qmd**.
+* **Step 2**: Determine which of the outcomes occurred during a shift. I.e., merge stops, arrests, and uses of force to the merged officer demographic/shift assignment data file. See **merge-stops-shifts/merge-stopss-shifts-ba.qmd**, **merge-arrests-shifts/merge-arrests-shifts-ba.qmd**, **merge-force-shifts/merge-force-shifts-ba.qmd**.
+* **Step 3**: For each resulting merged file, count the number of outcomes which occurred during each shift and record these data as new columns. These represent our dependent variables. See **create-outcomes/src/create_outcomes_ba_max.R**.
+* **Step 4**: The authors for this paper, I believe, are technically employing a four-way fixed effects OLS model. The fixed effects being: **1)** the month-year (e.g., January 2013), **2)** the timing of the shift (i.e., morning, afternoon, or evening), **3)** location of the shift (i.e., each shift is assigned to a specific beat), and **4)** day of the week. First, any groupings which do not have at least 2 racial groups represented (or 2 sex groups when running analyses for men vs. women), are dropped. Second, the independent and dependent variables are demeaned within each grouping.
+* **Step 5**: Estimate the OLS regression models using the demeaned variables. The models themselves are quite simple. The outcome variables are the number of stops, arrests, or uses of force. The independent variable is only the race of the officer.
+* **Limitations**: The replication of results was much more involved than I thought so I have not been able to replicate their results for officer sex (yet). Similarly because of the four-way fixed effects, they use a Bootstrap method to calculate their standard errors. The Bootstrapping procedure is computationally demanding so I have not been able to replicate the standard errors yet, either. However, I have replicated their point estimates, and I compare them informally to the main figure in their paper. The point estimates (verified more carefully in my code) are equivalent to their point estimates. Assuming they are using a 95% confidence interval in their graph (because that is what I am using in my graph), our standard errors are not actually that different.
+
+```{r, fig.width = 14, fig.height = 5}
+coefs <-
+    tibble(coefs = c(coef(stops_race_risi)[["officer_black_stop_risi"]],
+                     coef(stops_race_risi)[["officer_hisp_stop_risi"]],
+                     coef(arrests_race_risi)[["officer_black_arrest_risi"]],
+                     coef(arrests_race_risi)[["officer_hisp_arrest_risi"]],
+                     coef(force_race_risi)[["officer_black_force_risi"]],
+                     coef(force_race_risi)[["officer_hisp_force_risi"]]),
+           stderrors = c(1.96 * summary(stops_race_risi)$coefficients[,2][["officer_black_stop_risi"]],
+                         1.96 * summary(stops_race_risi)$coefficients[,2][["officer_hisp_stop_risi"]],
+                         1.96 * summary(arrests_race_risi)$coefficients[,2][["officer_black_arrest_risi"]],
+                         1.96 * summary(arrests_race_risi)$coefficients[,2][["officer_hisp_arrest_risi"]],
+                         1.96 * summary(force_race_risi)$coefficients[,2][["officer_black_force_risi"]],
+                         1.96 * summary(force_race_risi)$coefficients[,2][["officer_hisp_force_risi"]]),
+           race = c('black', 'hisp', 'black', 'hisp', 'black', 'hisp'),
+           outcome = c("stops", "stops", "arrests", "arrests", "force", "force")) %>%
+    mutate(race = fct_relevel(race, "hisp", "black"),
+           outcome = fct_relevel(outcome, "stops", "arrests", "force"))
+
+ggplot(coefs, aes(x = coefs, y = race)) +
+    geom_point(aes(color = race, shape = race)) +
+    geom_errorbar(aes(xmin = coefs - stderrors,
+                      xmax = coefs + stderrors,
+                      color = race),
+                  width = 0.1) +
+    facet_wrap(~outcome, scales = "free") +
+    geom_vline(xintercept = 0) +
+    theme_bw()
+```
+
+![Results from Ba et al. 2021 paper]("../input/ba_et_al_2021_main_results.png"){height=40%}
+
+## Nodal attributes
+
+```{r, fig.height = 4, fig.width = 6}
+active_officers <-
+    my_read_csv(here("create-outcomes",
+                     "input",
+                     "active_officers_ba.csv")) %>%
+    mutate(age = 2015 - birth_year,
+           years_exp = (ymd("2015-12-01") - appointed_month) / dyears(1))
+
+ggplot(active_officers, aes(x = officer_race)) + geom_bar() + theme_bw()
+ggplot(active_officers, aes(x = officer_gender)) + geom_bar() + theme_bw()
+ggplot(active_officers, aes(x = spanish)) + geom_bar() + theme_bw()
+ggplot(active_officers, aes(x = age)) + geom_histogram(bins = 40) + theme_bw()
+ggplot(active_officers, aes(x = years_exp)) + geom_histogram(bins = 40) + theme_bw()
+```
+
