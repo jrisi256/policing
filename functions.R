@@ -229,68 +229,6 @@ GetSummary <- function(df) {
 }
 
 # df: the data frame
-# id_col: character, column for uniquely identifying each row in the data frame
-# dir_col: character, column for indicating the directionality of the tie
-# Its default is a string with one space to allow for easy matching.
-
-CreateEdgelist <- function(df, id_col, dir_col = " ") {
-    
-    # filter out entries which do not have the outcome of interest
-    # select the relevant columns
-    # join back to the original data frame which simulates a cartesian product
-    
-    # for un-directed graphs, order does not matter, hence why we need to remove
-    # equivalent pairs below e.g., officer_id.x = 1, officer_id.y = 2 is
-    # equivalent to officer_id.x = 2, officer_id.y = 1
-    
-    # for directed graphs, we can use the dir_col to determine which relations
-    # to keep
-    edgelist <-
-        df %>%
-        filter(!is.na(.data[[id_col]])) %>%
-        select(matches(c(id_col, dir_col)), officer_id) %>%
-        inner_join(select(df, all_of(id_col), officer_id), by = id_col)
-    
-    # not a directed graph
-    if(dir_col == " ") {
-        
-        # group by row
-        # create pair column which uniquely identifies rows with same officers
-        # keep all rows with only one officer or multiple different officers
-        # keep only unique entries involving multiple officers
-        # drop the pair column
-        edgelist <-
-            edgelist %>%
-            rowwise() %>%
-            mutate(pair = paste0(min(officer_id.x, officer_id.y),
-                                 ";",
-                                 max(officer_id.x, officer_id.y))) %>%
-            group_by(across(all_of(id_col))) %>%
-            filter((n() > 1 & officer_id.x != officer_id.y) | n() == 1) %>%
-            distinct(across(matches(c(id_col, "pair"))), .keep_all = T) %>%
-            select(-pair) %>%
-            ungroup() %>%
-            relocate(officer_id.x, officer_id.y, id_col)
-        
-    } else {
-        
-        # keep all rows with one officer or multiple different officers
-        # use the dir_col to determine which relationships to keep
-        # e.g., o_id.x = 1, o_id.y = 2, po_first = T, keep
-        # e.g., o_id.x = 2, o_id.y = 1, po_first = F, drop
-        edgelist <-
-            edgelist %>%
-            group_by(across(all_of(id_col))) %>%
-            filter((n() > 1 & officer_id.x != officer_id.y & .data[[dir_col]]) |
-                       n() == 1) %>%
-            ungroup() %>%
-            relocate(officer_id.x, officer_id.y, id_col, dir_col)
-    }
-    
-    return(edgelist)
-}
-
-# df: the data frame
 # .prefix: character, appended to beginning of each column to indicate outcome
 # .id_col: column used for identifying if an outcome happened during a shift
 # ...: column(s) to be used for creating outcomes, if left blank will simply

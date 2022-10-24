@@ -1,21 +1,14 @@
 ---
-title: "Create Independent and Dependent Variables"
+title: "Create Independent Variables"
 format: pdf
 ---
 
 ```{r}
-library(sna)
 library(knitr)
 opts_chunk$set(message = F, echo = F, warning = F)
 
 library(here)
 source(here("functions.R"))
-```
-
-```{r}
-unit_shift_net <- readRDS(here("create-networks", "output", "unit_shift_net_bp.rds"))
-stop_net <- readRDS(here("create-networks", "output", "stop_net_bp.rds"))
-arrest_net <- readRDS(here("create-networks", "output", "arrest_net_bp.rds"))
 
 officers <-
     my_read_csv(here("create-networks", "input", "active_officers_ba.csv")) %>%
@@ -24,120 +17,7 @@ officers <-
     select(-birth_year, -appointed_month)
 ```
 
-## Create dependent variables (i.e., shift matrix, stop matrix, arrest matrix)
-
-I have to create the adjacency matrices in this convoluted fashion in order for them to have the same ordering as the matrices for the independent variables.
-
-```{r}
-shift_matrix <-
-    as_data_frame(unit_shift_net, what = "edges") %>%
-    graph_from_data_frame(directed = F, vertices = officers) %>%
-    as_adjacency_matrix(sparse = F, attr = "weight")
-
-stop_matrix <-
-    as_data_frame(stop_net, what = "edges") %>%
-    graph_from_data_frame(directed = F, vertices = officers) %>%
-    as_adjacency_matrix(sparse = F, attr = "weight")
-
-arrest_matrix <-
-    as_data_frame(arrest_net, what = "edges") %>%
-    graph_from_data_frame(directed = F, vertices = officers) %>%
-    as_adjacency_matrix(sparse = F, attr = "weight")
-
-table(rownames(shift_matrix) == rownames(stop_matrix))
-table(rownames(shift_matrix) == rownames(arrest_matrix))
-table(colnames(shift_matrix) == colnames(stop_matrix))
-table(colnames(shift_matrix) == colnames(arrest_matrix))
-```
-
-## Verify results using normal OLS
-
-```{r}
-AddRace <- function(df) {
-    
-    df %>%
-        mutate(white_white = if_else(officer_race.x == "officer_white" & officer_race.y == "officer_white",
-                                 1, 0),
-           black_black = if_else(officer_race.x == "officer_black" & officer_race.y == "officer_black",
-                                 1, 0),
-           hisp_hisp = if_else(officer_race.x == "officer_hisp" & officer_race.y == "officer_hisp",
-                               1, 0),
-           white_black = if_else((officer_race.x == "officer_black" & officer_race.y == "officer_white") |
-                                     (officer_race.x == "officer_white" & officer_race.y == "officer_black"),
-                                 1, 0),
-           white_hisp = if_else((officer_race.x == "officer_white" & officer_race.y == "officer_hisp") |
-                                     (officer_race.x == "officer_hisp" & officer_race.y == "officer_white"),
-                                1, 0),
-           black_hisp = if_else((officer_race.x == "officer_black" & officer_race.y == "officer_hisp") |
-                                     (officer_race.x == "officer_hisp" & officer_race.y == "officer_black"),
-                                1, 0))
-}
-
-AddSex <- function(df) {
-    
-    df %>%
-        mutate(male_male = if_else(officer_gender.x == "MALE" & officer_gender.y == "MALE",
-                                   1, 0)) %>%
-        mutate(female_female = if_else(officer_gender.x == "FEMALE" & officer_gender.y == "FEMALE",
-                                       1, 0)) %>%
-        mutate(male_female = if_else((officer_gender.x == "MALE" & officer_gender.y == "FEMALE") |
-                                         (officer_gender.x == "FEMALE" & officer_gender.y == "MALE"),
-                                     1, 0))
-}
-```
-
-```{r}
-shifts_df <-
-    as_data_frame(unit_shift_net, what = "edges") %>%
-    left_join(officers, by = c("from" = "officer_id")) %>%
-    left_join(officers, by = c("to" = "officer_id")) %>%
-    AddRace() %>%
-    AddSex() %>%
-    mutate(exp_diff = abs(years_exp.x - years_exp.y)) %>%
-    rowwise() %>%
-    mutate(edge_id = paste0(max(from, to), "_", min(from, to)))
-
-ols_shifts <- lm(weight ~ white_black + white_hisp + black_black + black_hisp +
-                     hisp_hisp + male_female + female_female + years_exp.x +
-                     years_exp.y + exp_diff,
-                 data = shifts_df)
-
-stops_df <-
-    as_data_frame(stop_net, what = "edges") %>%
-    left_join(officers, by = c("from" = "officer_id")) %>%
-    left_join(officers, by = c("to" = "officer_id")) %>%
-    AddRace() %>%
-    AddSex() %>%
-    mutate(exp_diff = abs(years_exp.x - years_exp.y)) %>%
-    rowwise() %>%
-    mutate(edge_id = paste0(max(from, to), "_", min(from, to))) %>%
-    left_join(select(shifts_df, edge_id, weight), by = "edge_id") %>%
-    mutate(nr_shifts = if_else(is.na(weight.y), 0, weight.y))
-
-ols_stops <- lm(weight.x ~ white_black + white_hisp + black_black + black_hisp +
-                     hisp_hisp + male_female + female_female + years_exp.x +
-                     years_exp.y + exp_diff + nr_shifts,
-                 data = stops_df)
-
-arrests_df <-
-    as_data_frame(arrest_net, what = "edges") %>%
-    left_join(officers, by = c("from" = "officer_id")) %>%
-    left_join(officers, by = c("to" = "officer_id")) %>%
-    AddRace() %>%
-    AddSex() %>%
-    mutate(exp_diff = abs(years_exp.x - years_exp.y)) %>%
-    rowwise() %>%
-    mutate(edge_id = paste0(max(from, to), "_", min(from, to))) %>%
-    left_join(select(shifts_df, edge_id, weight), by = "edge_id") %>%
-    mutate(nr_shifts = if_else(is.na(weight.y), 0, weight.y))
-
-ols_arrests <- lm(weight.x ~ white_black + white_hisp + black_black + black_hisp +
-                     hisp_hisp + male_female + female_female + years_exp.x +
-                     years_exp.y + exp_diff + nr_shifts,
-                 data = arrests_df)
-```
-
-## Create independent variable matrices (race/ethnicity, sex, years of experience, shift matrix)
+## Create independent variable matrices (race/ethnicity, sex, years of experience)
 
 ```{r}
 Create_Race_Matrices <- function(df, officer_df) {
@@ -288,22 +168,35 @@ Create_Exp_Matrices <- function(df, officer_df) {
         -1
         }
 }
-
-arrest_race_matrices <- Create_Race_Matrices(arrests_df, officers)
-arrest_sex_matrices <- Create_Sex_Matrices(arrests_df, officers)
-arrest_exp_matrices <- Create_Exp_Matrices(arrests_df, officers)
-
-# Check to make sure all the matrices match
-table(rownames(arrest_race_matrices[[1]]) == rownames(arrest_sex_matrices[[1]]))
-table(rownames(arrest_race_matrices[[1]]) == rownames(arrest_exp_matrices[[1]]))
-table(rownames(arrest_race_matrices[[1]]) == rownames(arrest_matrix))
-
-table(colnames(arrest_race_matrices[[1]]) == colnames(arrest_sex_matrices[[1]]))
-table(colnames(arrest_race_matrices[[1]]) == colnames(arrest_exp_matrices[[1]]))
-table(colnames(arrest_race_matrices[[1]]) == colnames(arrest_matrix))
 ```
 
 ```{r}
-save(arrest_matrix, arrest_race_matrices, arrest_sex_matrices, arrest_exp_matrices,
-     shift_matrix, file = here("create-networks", "output", "arrest_matrices.Rda"))
+# Every officer crossed with every other officer
+cross_df <-
+    officers %>% full_join(officers, by = character()) %>%
+    filter(officer_id.x != officer_id.y) %>%
+    rename(from = officer_id.x, to = officer_id.y) %>%
+    mutate(exp_diff = abs(years_exp.x - years_exp.y))
+
+race_matrices <- Create_Race_Matrices(cross_df, officers)
+sex_matrices <- Create_Sex_Matrices(cross_df, officers)
+exp_matrices <- Create_Exp_Matrices(cross_df, officers)
+
+# Check to ensure race and sex add up to correct values
+race_sum <- sum(race_matrices[[1]] + race_matrices[[1]] + race_matrices[[1]] +
+  race_matrices[[1]] + race_matrices[[1]] + race_matrices) == nrow(cross_df)
+
+sex_sum <- sum(sex_matrices[[1]] + sex_matrices[[1]] + sex_matrices[[1]]) == nrow(cross_df)
+
+# Check to make sure all the matrices match
+table(rownames(race_matrices[[1]]) == rownames(sex_matrices[[1]]))
+table(rownames(race_matrices[[1]]) == rownames(exp_matrices[[1]]))
+
+table(colnames(race_matrices[[1]]) == colnames(sex_matrices[[1]]))
+table(colnames(race_matrices[[1]]) == colnames(exp_matrices[[1]]))
+```
+
+```{r}
+save(race_matrices, sex_matrices, exp_matrices,
+     file = here("create-networks", "output", "arrest_matrices.Rda"))
 ```
