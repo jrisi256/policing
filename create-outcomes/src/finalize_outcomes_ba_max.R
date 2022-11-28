@@ -31,15 +31,15 @@ groups_by_mdsb <-
            bw_comparisons = officer_white * officer_black,
            hw_comparisons = officer_white * officer_hisp)
 
-feasible_groups <-
+mult_race_groups <-
     groups_by_mdsb %>%
     filter(nr_races > 1) %>%
     select(beat_assigned, weekday, shift, month)
 
 # keep only shift assignments with more than one racial group
 # those with only one racial group will contribute 0 to the estimate
-shift_assignments_feasible <-
-    inner_join(shift_assignments, feasible_groups) %>%
+shift_assignments_mult_race <-
+    inner_join(shift_assignments, mult_race_groups) %>%
     inner_join(outcomes, by = "shift_id") %>%
     mutate(officer_race = fct_relevel(officer_race,
                                       "officer_white",
@@ -49,7 +49,8 @@ shift_assignments_feasible <-
     select(officer_id, month, beat_assigned, weekday, shift, officer_race,
            stops_n, arrests_n, force_n, months_from_start, months_from_start_sq,
            shift_id)
-setDT(shift_assignments_feasible)
+
+setDT(shift_assignments_mult_race)
 
 ############################################## Ba et al. function for demeaning
 demean.by.group <- function(data, id, fe, ds, ys){
@@ -122,7 +123,7 @@ ys <- c("stops_n", "arrests_n", "force_n")
 d <- "officer_race"
 
 ###################################################### Ba demeaning process
-stops_ba <- demean.by.group(shift_assignments_feasible,
+stops_ba <- demean.by.group(shift_assignments_mult_race,
                             id = 'officer_id',
                             fe = fe,
                             ds = d,
@@ -131,7 +132,7 @@ stops_ba <- demean.by.group(shift_assignments_feasible,
                                    'months_from_start_sq')) %>%
     select(stops_n, officer_black, officer_hisp)
 
-arrests_ba <- demean.by.group(shift_assignments_feasible,
+arrests_ba <- demean.by.group(shift_assignments_mult_race,
                                   id = 'officer_id',
                                   fe = fe,
                                   ds = d,
@@ -140,7 +141,7 @@ arrests_ba <- demean.by.group(shift_assignments_feasible,
                                          'months_from_start_sq')) %>%
     select(arrests_n, officer_black, officer_hisp)
 
-force_ba <- demean.by.group(shift_assignments_feasible,
+force_ba <- demean.by.group(shift_assignments_mult_race,
                                 id = 'officer_id',
                                 fe = fe,
                                 ds = d,
@@ -150,8 +151,9 @@ force_ba <- demean.by.group(shift_assignments_feasible,
     select(force_n, officer_black, officer_hisp)
 
 ############################################ Risi demeaning process
+############################################ Stops
 stops_risi <-
-    shift_assignments_feasible %>%
+    shift_assignments_mult_race %>%
     mutate(dummy = 1) %>%
     pivot_wider(names_from = officer_race,
                 values_from = dummy,
@@ -159,21 +161,26 @@ stops_risi <-
     filter(!is.na(stops_n)) %>%
     group_by(shift, weekday, beat_assigned, month) %>%
     mutate(across(c(stops_n, officer_white, officer_black,
-                    officer_hisp),
+                    officer_hisp, months_from_start, months_from_start_sq),
                   mean,
                   .names = "{.col}_mean")) %>%
     mutate(stops_n_demean = stops_n - stops_n_mean,
            officer_white_demean = officer_white - officer_white_mean,
            officer_black_demean = officer_black - officer_black_mean,
-           officer_hisp_demean = officer_hisp - officer_hisp_mean) %>%
+           officer_hisp_demean = officer_hisp - officer_hisp_mean,
+           officer_exp_demean = months_from_start - months_from_start_mean,
+           officer_exp_demean_sq = months_from_start_sq - months_from_start_sq_mean) %>%
     ungroup() %>%
-    select(stops_n_demean, officer_black_demean, officer_hisp_demean, shift_id) %>%
+    select(stops_n_demean, officer_black_demean, officer_hisp_demean,
+           officer_exp_demean, officer_exp_demean_sq, shift_id) %>%
     rename(stops_risi = stops_n_demean,
            officer_black_stop_risi = officer_black_demean,
-           officer_hisp_stop_risi = officer_hisp_demean)
+           officer_hisp_stop_risi = officer_hisp_demean,
+           officer_exp_risi = officer_exp_demean,
+           officer_exp_sq_risi = officer_exp_demean_sq)
 
 arrests_risi <-
-    shift_assignments_feasible %>%
+    shift_assignments_mult_race %>%
     mutate(dummy = 1) %>%
     pivot_wider(names_from = officer_race,
                 values_from = dummy,
@@ -195,7 +202,7 @@ arrests_risi <-
            officer_hisp_arrest_risi = officer_hisp_demean)
 
 force_risi <-
-    shift_assignments_feasible %>%
+    shift_assignments_mult_race %>%
     mutate(dummy = 1) %>%
     pivot_wider(names_from = officer_race,
                 values_from = dummy,
