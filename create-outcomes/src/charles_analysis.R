@@ -115,21 +115,21 @@ black_stops <- stops_demean %>% filter(officer_black == 1)
 white_stops_ols <-
     lm(stops_n_demean * 100 ~ officer_female_demean + officer_spanish_demean +
            officer_exp_demean + officer_exp_demean_sq +
-           prcnt_officer_black_demean +  prcnt_officer_hisp_demean +
+           prcnt_officer_black_demean + prcnt_officer_hisp_demean +
            n_officer_demean,
        data = white_stops)
 
 black_stops_ols <-
     lm(stops_n_demean * 100 ~ officer_female_demean + officer_spanish_demean +
            officer_exp_demean + officer_exp_demean_sq +
-           prcnt_officer_black_demean +  prcnt_officer_hisp_demean +
+           prcnt_officer_black_demean + prcnt_officer_hisp_demean +
            n_officer_demean,
        data = black_stops)
 
 hisp_stops_ols <-
     lm(stops_n_demean * 100 ~ officer_female_demean + officer_spanish_demean +
            officer_exp_demean + officer_exp_demean_sq +
-           prcnt_officer_black_demean +  prcnt_officer_hisp_demean +
+           prcnt_officer_black_demean + prcnt_officer_hisp_demean +
            n_officer_demean,
        data = hisp_stops)
 
