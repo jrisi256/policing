@@ -294,7 +294,7 @@ hist(E(unit_shift_net_bp)$weight)
 
 In an ideal world, the dependent variable would be **the number of shifts** two officers worked together. In my network, a tie is defined as an officer working together with another officer and the weight on that edge represents how many times they worked together.
 
-However, for this exercise, to facilitate modeling under the ERGM and LSM paradigms, I will threshold the values to dichotomize the tie values. 
+However, for this exercise, to facilitate modeling under the ERGM and LSM paradigms, I will threshold the values to dichotomize the tie values. Looking at the above distribution of edge weights, I have decided to introduce a cutoff at the value of 25 (the 1st quartile). Values below 25 will be set to 0
 
 ### Estimate QAP
 
