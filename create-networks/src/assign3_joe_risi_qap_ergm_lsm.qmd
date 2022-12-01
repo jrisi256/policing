@@ -1,0 +1,58 @@
+---
+title: "Assignment 3 - PLSC 508"
+author: "Joseph Risi"
+format: pdf
+---
+
+```{r}
+library(here)
+library(dplyr)
+library(readr)
+```
+
+```{r}
+# Read in officer shift assignments
+officer_assignments <-
+    read_csv(here("create-networks",
+                  "input",
+                  "officers_assignments_ba.csv")) %>%
+    select(unit, shift, month, officer_id, date)
+
+# Read in officer characteristics
+officers <-
+    read_csv(here('create-networks',
+                  'input',
+                  'active_officers_ba.csv'))
+```
+
+```{r}
+# Create a "unit shift event" id to link each officer to a unique unit shift
+unit_shifts <-
+    officer_assignments %>%
+    distinct(unit, shift, date) %>%
+    # add in a letter to differentiate shift vertices for officer vertices
+    mutate(unit_shift_id = paste0(row_number(), "a")) %>%
+    full_join(officer_assignments)
+
+unit_one_2012 <-
+    unit_shifts %>%
+    filter(year(month) == 2012, unit == 1) %>%
+    select(officer_id, unit_shift_id)
+```
+
+To keep things manageable for the models, we are only going to be observing one year's worth of shift assignments for one unit. Specifically we will be looking at the shift assignments for unit 1 in 2012. Even though it is only one year's worth of data for one unit, we are left with `r nrow(unit_one_2012)` shifts and `r length(unique(unit_one_2012$office_id)` officers which should be more than enough to make inferences.
+
+```{r}
+# Create an igraph object for the edge list data frame
+unit_shift_net <- graph_from_data_frame(unit_one_2012, directed = F)
+
+# Turn the igraph object into a bipartite graph
+V(unit_shift_net)$type <-
+    V(unit_shift_net)$name %in% unit_one_2012$unit_shift_id
+
+# Conduct bipartite projection
+unit_shift_net_bp <- bipartite.projection(unit_shift_net,
+                                          which = F,
+                                          multiplicity = T)
+```
+
