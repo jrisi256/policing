@@ -6,12 +6,15 @@ format: pdf
 
 ## Packages
 
-```{r}
+```{r, message = F}
+library(sna)
+library(ergm)
 library(here)
 library(dplyr)
 library(readr)
 library(igraph)
 library(lubridate)
+library(intergraph)
 ```
 
 ## Read in data and visualize the network
@@ -53,7 +56,7 @@ unit_one_2012_officers <-
     filter(officer_id %in% unit_one_2012$officer_id)
 ```
 
-To keep things manageable for the models, I am only going to be observing one year's worth of shift assignments for one unit. Specifically I will be looking at the shift assignments for unit 1 in 2012. Even though it is only one year's worth of data for one unit, I am left with `r nrow(unit_one_2012)` shifts and `r length(unique(unit_one_2012$office_id)` officers which is still a substantially sized network. In particular, I am interested in modeling which officers work with each other. From my understanding, shift assignments for officers are made about a year in advance, and there should not be any patterns in when officers work or whom they work with. So before we begin modeling, let's visualize the network.
+To keep things manageable for the models, I am only going to be observing one year's worth of shift assignments for one unit. Specifically I will be looking at the shift assignments for unit 1 in 2012. Even though it is only one year's worth of data for one unit, I am left with `r nrow(unit_one_2012)` shifts and `r length(unique(unit_one_2012$office_id))` officers which is still a substantially sized network. In particular, I am interested in modeling which officers work with each other. From my understanding, shift assignments for officers are made about a year in advance, and there should not be any patterns in when officers work or whom they work with. So before we begin modeling, let's visualize the network.
 
 ```{r, fig.width = 7, fig.height = 6}
 # Create an igraph object for the edge list data frame
@@ -73,11 +76,13 @@ plot(unit_shift_net_bp,
      edge.width = E(unit_shift_net_bp)$weight / 5,
      vertex.label = NA,
      main = "Bipartite Projection of Shift Assignment Network for Unit 1 in 2012")
+
+ggplot()
 ```
 
 Contrary to what I expected, there are clear clustering patterns of officers who work with each other.
 
-## Create independent variables in matrix form
+## Create independent variable and dependent variables in matrix form for QAP estimation
 
 ### Functions for creating variables
 
@@ -131,21 +136,19 @@ Create_Race_Matrices <- function(df, officer_df) {
     
     # Check to make sure all matrices have rows and columns in right order
     check1 <- all(as.logical(names(table(rownames(white_white) == rownames(white_black)))))
-    check2 <- all(as.logical(names(table(rownames(white_white) == rownames(white_black)))))
-    check3 <- all(as.logical(names(table(rownames(white_white) == rownames(white_hisp)))))
-    check4 <- all(as.logical(names(table(rownames(white_white) == rownames(black_black)))))
-    check5 <- all(as.logical(names(table(rownames(white_white) == rownames(black_hisp)))))
-    check6 <- all(as.logical(names(table(rownames(white_white) == rownames(hisp_hisp)))))
+    check2 <- all(as.logical(names(table(rownames(white_white) == rownames(white_hisp)))))
+    check3 <- all(as.logical(names(table(rownames(white_white) == rownames(black_black)))))
+    check4 <- all(as.logical(names(table(rownames(white_white) == rownames(black_hisp)))))
+    check5 <- all(as.logical(names(table(rownames(white_white) == rownames(hisp_hisp)))))
     
-    check7 <- all(as.logical(names(table(colnames(white_white) == colnames(white_black)))))
-    check8 <- all(as.logical(names(table(colnames(white_white) == colnames(white_black)))))
-    check9 <- all(as.logical(names(table(colnames(white_white) == colnames(white_hisp)))))
-    check10 <- all(as.logical(names(table(colnames(white_white) == colnames(black_black)))))
-    check11 <- all(as.logical(names(table(colnames(white_white) == colnames(black_hisp)))))
-    check12 <- all(as.logical(names(table(colnames(white_white) == colnames(hisp_hisp)))))
+    check6 <- all(as.logical(names(table(colnames(white_white) == colnames(white_black)))))
+    check7 <- all(as.logical(names(table(colnames(white_white) == colnames(white_hisp)))))
+    check8 <- all(as.logical(names(table(colnames(white_white) == colnames(black_black)))))
+    check9 <- all(as.logical(names(table(colnames(white_white) == colnames(black_hisp)))))
+    check10 <- all(as.logical(names(table(colnames(white_white) == colnames(hisp_hisp)))))
     
     if(all(check1, check2, check3, check4, check5, check6, check7, check8,
-           check9, check10, check11, check12)) {
+           check9, check10)) {
         
         return(list("ww" = white_white, "wb" = white_black, "wh" = white_hisp,
                 "bb" = black_black, "bh" = black_hisp, "hh" = hisp_hisp))
@@ -181,10 +184,10 @@ Create_Sex_Matrices <- function(df, officer_df) {
     
     # Check to make sure all matrices have rows and columns in right order
     check1 <- all(as.logical(names(table(rownames(male_male) == rownames(male_female)))))
-    check2 <- all(as.logical(names(table(rownames(male_male) == rownames(male_female)))))
+    check2 <- all(as.logical(names(table(rownames(male_male) == rownames(female_female)))))
     
     check3 <- all(as.logical(names(table(colnames(male_male) == colnames(male_female)))))
-    check4 <- all(as.logical(names(table(colnames(male_male) == colnames(male_female)))))
+    check4 <- all(as.logical(names(table(colnames(male_male) == colnames(female_female)))))
     
     if(all(check1, check2, check3, check4)) {
         return(list("mm" = male_male, "mf" = male_female, "ff" = female_female))
@@ -232,20 +235,92 @@ Create_Exp_Matrices <- function(df, officer_df) {
 }
 ```
 
-### Create the variables
+### Create the independent variables
+
+Independent variables are as follows:
+
+* **Race**: Does the race of officers influence whom they work with? This is represented by a series of dummy variables representing every possible racial combination (White-White, White-Black, White-Hispanic, Black-Black, Black-Hispanic, Hispanic-Hispanic).
+* **Sex**: Does the sex of officers influence whom they work with? This is represented by a series of dummy variables representing every possible sex combination (Male-Male, Male-Female, Female-Female).
+* **Years of Experience**: Do officers of similar experience levels work with each other? This is represented by a set of 3 variables. **First**, there is the sending node's years of experience. **Second** is the receiving node's years of experience. These first two variables are *nodal* attributes only. It should also be noted that *sending* and *receiving* are used only due to convention. This is an un-directed network so nodes are not really sending and receiving ties. More accurately, they are both sending and receiving a tie. **Finally**, there is the absolute difference in ages between officers. This is a dyad-level relationship in contrast to the two nodal attributes.
 
 ```{r}
 # Every officer crossed with every other officer
 cross_df <-
-    unit_one_2012_officers %>% 
+    unit_one_2012_officers %>%
+    # cross join
     full_join(unit_one_2012_officers, by = character()) %>%
+    # filter out officers when they match with themselves
     filter(officer_id.x != officer_id.y) %>%
     rename(from = officer_id.x, to = officer_id.y) %>%
+    # assume when 1 matches with 2 that it is the same as 2 matching with 1
+    rowwise() %>%
+    mutate(unique = paste0(min(from, to), "_", max(from, to))) %>%
+    distinct(unique, .keep_all = T) %>%
     mutate(exp_diff = abs(years_exp.x - years_exp.y))
 
 # Create the independent variables and represent them as matrices
 race_matrices <- Create_Race_Matrices(cross_df, unit_one_2012_officers)
 sex_matrices <- Create_Sex_Matrices(cross_df, unit_one_2012_officers)
 exp_matrices <- Create_Exp_Matrices(cross_df, unit_one_2012_officers)
+
+# Check to ensure race and sex add up to correct values
+race_sum <- sum(race_matrices[[1]] + race_matrices[[2]] + race_matrices[[3]] +
+  race_matrices[[4]] + race_matrices[[5]] + race_matrices[[6]]) ==
+    nrow(unit_one_2012_officers) * nrow(unit_one_2012_officers) - nrow(unit_one_2012_officers)
+
+sex_sum <- sum(sex_matrices[[1]] + sex_matrices[[2]] + sex_matrices[[3]]) == 
+    nrow(unit_one_2012_officers) * nrow(unit_one_2012_officers) - nrow(unit_one_2012_officers)
+
+# Check to make sure all the matrices match
+check1 <- all(table(rownames(race_matrices[[1]]) == rownames(sex_matrices[[1]])))
+check2 <- all(table(rownames(race_matrices[[1]]) == rownames(exp_matrices[[1]])))
+
+check3 <- all(table(colnames(race_matrices[[1]]) == colnames(sex_matrices[[1]])))
+check4 <- all(table(colnames(race_matrices[[1]]) == colnames(exp_matrices[[1]])))
+
+ivs_shift <- c(race_matrices[-1], sex_matrices[-1], exp_matrices)
+```
+
+### Create the dependent variable
+
+```{r}
+shift_matrix <-
+    as_data_frame(unit_shift_net_bp, what = "edges") %>%
+    graph_from_data_frame(directed = F, vertices = unit_one_2012_officers) %>%
+    as_adjacency_matrix(sparse = F, attr = "weight")
+
+hist(E(unit_shift_net_bp)$weight)
+```
+
+In an ideal world, the dependent variable would be **the number of shifts** two officers worked together. In my network, a tie is defined as an officer working together with another officer and the weight on that edge represents how many times they worked together.
+
+However, for this exercise, to facilitate modeling under the ERGM and LSM paradigms, I will threshold the values to dichotomize the tie values. 
+
+### Estimate QAP
+
+```{r}
+set.seed(5)
+qap_shifts <- netlm(shift_matrix, ivs_shift, nullhyp = "qap", reps = 100)
+qap_shifts$names <- c("(Intercept)", names(ivs_shift))
+```
+
+## Estimate ERGM model
+
+```{r}
+# First, we must convert our igraph object into a network object
+shift_network <-
+    as_data_frame(unit_shift_net_bp, what = "edges") %>%
+    graph_from_data_frame(directed = F, vertices = unit_one_2012_officers) %>%
+    asNetwork()
+
+# use the default method: maximum pseudolikelihood estimator
+m0 <- gergm(shift_network ~ edges, transformation_type = "Cauchy", verbose = T)
+summary(m0)
+
+m1 <- ergm(shift_network ~ edges, estimate = "MLE") # the MLE method returns the equivalent result
+summary(m1)
+
+### When no dependence terms are included in the model, MLE and MPLE are the same. 
+1 / (1 + exp(-coef(m0)[1]))
 ```
 
