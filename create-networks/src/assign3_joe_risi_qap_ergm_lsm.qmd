@@ -4,11 +4,17 @@ author: "Joseph Risi"
 format: pdf
 ---
 
+## Packages
+
 ```{r}
 library(here)
 library(dplyr)
 library(readr)
+library(igraph)
+library(lubridate)
 ```
+
+## Read in data and visualize the network
 
 ```{r}
 # Read in officer shift assignments
@@ -22,7 +28,10 @@ officer_assignments <-
 officers <-
     read_csv(here('create-networks',
                   'input',
-                  'active_officers_ba.csv'))
+                  'active_officers_ba.csv')) %>%
+    mutate(age = 2015 - birth_year,
+           years_exp = (ymd("2015-12-01") - appointed_month) / dyears(1)) %>%
+    select(-birth_year, -appointed_month)
 ```
 
 ```{r}
@@ -38,11 +47,15 @@ unit_one_2012 <-
     unit_shifts %>%
     filter(year(month) == 2012, unit == 1) %>%
     select(officer_id, unit_shift_id)
+
+unit_one_2012_officers <-
+    officers %>%
+    filter(officer_id %in% unit_one_2012$officer_id)
 ```
 
-To keep things manageable for the models, we are only going to be observing one year's worth of shift assignments for one unit. Specifically we will be looking at the shift assignments for unit 1 in 2012. Even though it is only one year's worth of data for one unit, we are left with `r nrow(unit_one_2012)` shifts and `r length(unique(unit_one_2012$office_id)` officers which should be more than enough to make inferences.
+To keep things manageable for the models, I am only going to be observing one year's worth of shift assignments for one unit. Specifically I will be looking at the shift assignments for unit 1 in 2012. Even though it is only one year's worth of data for one unit, I am left with `r nrow(unit_one_2012)` shifts and `r length(unique(unit_one_2012$office_id)` officers which is still a substantially sized network. In particular, I am interested in modeling which officers work with each other. From my understanding, shift assignments for officers are made about a year in advance, and there should not be any patterns in when officers work or whom they work with. So before we begin modeling, let's visualize the network.
 
-```{r}
+```{r, fig.width = 7, fig.height = 6}
 # Create an igraph object for the edge list data frame
 unit_shift_net <- graph_from_data_frame(unit_one_2012, directed = F)
 
@@ -54,5 +67,185 @@ V(unit_shift_net)$type <-
 unit_shift_net_bp <- bipartite.projection(unit_shift_net,
                                           which = F,
                                           multiplicity = T)
+
+plot(unit_shift_net_bp,
+     vertex.size = degree(unit_shift_net_bp) / 10,
+     edge.width = E(unit_shift_net_bp)$weight / 5,
+     vertex.label = NA,
+     main = "Bipartite Projection of Shift Assignment Network for Unit 1 in 2012")
+```
+
+Contrary to what I expected, there are clear clustering patterns of officers who work with each other.
+
+## Create independent variables in matrix form
+
+### Functions for creating variables
+
+```{r}
+Create_Race_Matrices <- function(df, officer_df) {
+    
+    white_white <- 
+        df %>%
+        filter(officer_race.x == "officer_white" & officer_race.y == "officer_white") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+
+    white_black <- 
+        df %>%
+        filter((officer_race.x == "officer_black" & officer_race.y == "officer_white") |
+                   officer_race.x == "officer_white" & officer_race.y == "officer_black") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+    
+    white_hisp <- 
+        df %>%
+        filter((officer_race.x == "officer_hisp" & officer_race.y == "officer_white") |
+                   officer_race.x == "officer_white" & officer_race.y == "officer_hisp") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+    
+    black_black <- 
+        df %>%
+        filter(officer_race.x == "officer_black" & officer_race.y == "officer_black") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+    
+    black_hisp <- 
+        df %>%
+        filter((officer_race.x == "officer_hisp" & officer_race.y == "officer_black") |
+                   officer_race.x == "officer_black" & officer_race.y == "officer_hisp") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+    
+    hisp_hisp <- 
+        df %>%
+        filter(officer_race.x == "officer_hisp" & officer_race.y == "officer_hisp") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+    
+    # Check to make sure all matrices have rows and columns in right order
+    check1 <- all(as.logical(names(table(rownames(white_white) == rownames(white_black)))))
+    check2 <- all(as.logical(names(table(rownames(white_white) == rownames(white_black)))))
+    check3 <- all(as.logical(names(table(rownames(white_white) == rownames(white_hisp)))))
+    check4 <- all(as.logical(names(table(rownames(white_white) == rownames(black_black)))))
+    check5 <- all(as.logical(names(table(rownames(white_white) == rownames(black_hisp)))))
+    check6 <- all(as.logical(names(table(rownames(white_white) == rownames(hisp_hisp)))))
+    
+    check7 <- all(as.logical(names(table(colnames(white_white) == colnames(white_black)))))
+    check8 <- all(as.logical(names(table(colnames(white_white) == colnames(white_black)))))
+    check9 <- all(as.logical(names(table(colnames(white_white) == colnames(white_hisp)))))
+    check10 <- all(as.logical(names(table(colnames(white_white) == colnames(black_black)))))
+    check11 <- all(as.logical(names(table(colnames(white_white) == colnames(black_hisp)))))
+    check12 <- all(as.logical(names(table(colnames(white_white) == colnames(hisp_hisp)))))
+    
+    if(all(check1, check2, check3, check4, check5, check6, check7, check8,
+           check9, check10, check11, check12)) {
+        
+        return(list("ww" = white_white, "wb" = white_black, "wh" = white_hisp,
+                "bb" = black_black, "bh" = black_hisp, "hh" = hisp_hisp))
+        }
+    else {
+        -1
+        }
+}
+
+Create_Sex_Matrices <- function(df, officer_df) {
+    
+    male_male <- 
+        df %>%
+        filter(officer_gender.x == "MALE" & officer_gender.y == "MALE") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+
+    male_female <- 
+        df %>%
+        filter((officer_gender.x == "MALE" & officer_gender.y == "FEMALE") |
+                   officer_gender.x == "FEMALE" & officer_gender.y == "MALE") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+    
+    female_female <- 
+        df %>%
+        filter(officer_gender.x == "FEMALE" & officer_gender.y == "FEMALE") %>%
+        select(from, to) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F)
+    
+    # Check to make sure all matrices have rows and columns in right order
+    check1 <- all(as.logical(names(table(rownames(male_male) == rownames(male_female)))))
+    check2 <- all(as.logical(names(table(rownames(male_male) == rownames(male_female)))))
+    
+    check3 <- all(as.logical(names(table(colnames(male_male) == colnames(male_female)))))
+    check4 <- all(as.logical(names(table(colnames(male_male) == colnames(male_female)))))
+    
+    if(all(check1, check2, check3, check4)) {
+        return(list("mm" = male_male, "mf" = male_female, "ff" = female_female))
+        }
+    else {
+        -1
+        }
+}
+
+Create_Exp_Matrices <- function(df, officer_df) {
+    
+    exp1 <- matrix(officer_df[["years_exp"]],
+                   nrow(officer_df),
+                   nrow(officer_df),
+                   byrow = F,
+                   dimnames = list(officer_df$officer_id,
+                                   officer_df$officer_id))
+    
+    exp2 <- matrix(officer_df[["years_exp"]],
+                   nrow(officer_df),
+                   nrow(officer_df),
+                   byrow = T,
+                   dimnames = list(officer_df$officer_id,
+                                   officer_df$officer_id))
+    
+    exp_diff <-
+        df %>%
+        select(from, to, exp_diff) %>%
+        graph_from_data_frame(directed = F, vertices = officer_df) %>%
+        as_adjacency_matrix(sparse = F, attr = "exp_diff")
+    
+    # Check to make sure all matrices have rows and columns in right order
+    check1 <- all(as.logical(names(table(rownames(exp1) == rownames(exp2)))))
+    check2 <- all(as.logical(names(table(rownames(exp1) == rownames(exp_diff)))))
+    
+    check3 <- all(as.logical(names(table(colnames(exp1) == colnames(exp2)))))
+    check4 <- all(as.logical(names(table(colnames(exp1) == colnames(exp_diff)))))
+    
+    if(all(check1, check2, check3, check4)) {
+        return(list("exp1" = exp1, "exp2" = exp2, "exp_diff" = exp_diff))
+        }
+    else {
+        -1
+        }
+}
+```
+
+### Create the variables
+
+```{r}
+# Every officer crossed with every other officer
+cross_df <-
+    unit_one_2012_officers %>% 
+    full_join(unit_one_2012_officers, by = character()) %>%
+    filter(officer_id.x != officer_id.y) %>%
+    rename(from = officer_id.x, to = officer_id.y) %>%
+    mutate(exp_diff = abs(years_exp.x - years_exp.y))
+
+# Create the independent variables and represent them as matrices
+race_matrices <- Create_Race_Matrices(cross_df, unit_one_2012_officers)
+sex_matrices <- Create_Sex_Matrices(cross_df, unit_one_2012_officers)
+exp_matrices <- Create_Exp_Matrices(cross_df, unit_one_2012_officers)
 ```
 
