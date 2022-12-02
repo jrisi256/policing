@@ -4,8 +4,6 @@ author: "Joseph Risi"
 format: pdf
 ---
 
-## Packages
-
 ```{r, message = F}
 library(sna)
 library(ergm)
@@ -17,15 +15,14 @@ library(lubridate)
 library(intergraph)
 ```
 
-## Read in data and visualize the network
-
-```{r}
+```{r, message = F}
 # Read in officer shift assignments
 officer_assignments <-
     read_csv(here("create-networks",
                   "input",
                   "officers_assignments_ba.csv")) %>%
-    select(unit, shift, month, officer_id, date)
+    select(unit, shift, month, officer_id, date, start_datetime, end_datetime,
+           shift_id)
 
 # Read in officer characteristics
 officers <-
@@ -38,49 +35,58 @@ officers <-
 ```
 
 ```{r}
-# Create a "unit shift event" id to link each officer to a unique unit shift
-unit_shifts <-
+# Create a "unit shift event" id to link each officer to a unique unit shift.
+#
+# Find all shift assignments for officers in unit 1 in 2012.
+unit1_shift2_assignments <-
     officer_assignments %>%
     distinct(unit, shift, date) %>%
     # add in a letter to differentiate shift vertices for officer vertices
     mutate(unit_shift_id = paste0(row_number(), "a")) %>%
-    full_join(officer_assignments)
+    full_join(officer_assignments) %>%
+    filter(unit == 1)
 
-unit_one_2012 <-
-    unit_shifts %>%
-    filter(year(month) == 2012, unit == 1) %>%
-    select(officer_id, unit_shift_id)
+# find those officers who primarily worked the morning shift in unit 1 in 2012.
+unit1_officers <-
+    unit1_assignments %>%
+    count(officer_id, shift) %>%
+    group_by(officer_id) %>%
+    # Filter out those officers who have not worked that many shifts
+    filter(n == max(n)) %>%
+    filter(shift == 2, n >= 92) %>%
+    select(officer_id) %>%
+    inner_join(officers)
 
-unit_one_2012_officers <-
-    officers %>%
-    filter(officer_id %in% unit_one_2012$officer_id)
+# Keep only those shifts involving those officers who worked the morning shift
+# AND only keep the shifts in which they worked in the morning.
+unit1_shift2_assignments <-
+    unit1_assignments %>%
+    filter(officer_id %in% unit1_officers$officer_id) %>%
+    filter(shift == 2)
 ```
 
-To keep things manageable for the models, I am only going to be observing one year's worth of shift assignments for one unit. Specifically I will be looking at the shift assignments for unit 1 in 2012. Even though it is only one year's worth of data for one unit, I am left with `r nrow(unit_one_2012)` shifts and `r length(unique(unit_one_2012$office_id))` officers which is still a substantially sized network. In particular, I am interested in modeling which officers work with each other. From my understanding, shift assignments for officers are made about a year in advance, and there should not be any patterns in when officers work or whom they work with. So before we begin modeling, let's visualize the network.
+```{r, fig.width = 8, fig.height = 6}
+# Create igraph objects from the edge list data frame
+assignment_net <-
+    graph_from_data_frame(select(unit1_shift2_assignments, officer_id, unit_shift_id),
+                          directed = F)
 
-```{r, fig.width = 7, fig.height = 6}
-# Create an igraph object for the edge list data frame
-unit_shift_net <- graph_from_data_frame(unit_one_2012, directed = F)
+# Turn the igraph objects into bipartite graphs
+V(assignment_net)$type <- V(assignment_net)$name %in% unit1_shift2_assignments$unit_shift_id
+    
+# Conduct bipartite projection and add in officers who had no arrests with other officers
+assignment_net_bp <- bipartite.projection(assignment_net, which = F, multiplicity = T)
+# no_stops <- unit1_shift2_officers %>% filter(!(officer_id %in% V(stop_net_bp)$name))
+# stop_net_bp <-
+#     stop_net_bp %>%
+#     add_vertices(nrow(no_stops), name = no_stops$officer_id)
 
-# Turn the igraph object into a bipartite graph
-V(unit_shift_net)$type <-
-    V(unit_shift_net)$name %in% unit_one_2012$unit_shift_id
-
-# Conduct bipartite projection
-unit_shift_net_bp <- bipartite.projection(unit_shift_net,
-                                          which = F,
-                                          multiplicity = T)
-
-plot(unit_shift_net_bp,
-     vertex.size = degree(unit_shift_net_bp) / 10,
-     edge.width = E(unit_shift_net_bp)$weight / 5,
+plot(assignment_net_bp,
+     vertex.size = degree(assignment_net_bp) / 5,
+     edge.width = E(assignment_net_bp)$weight / 20,
      vertex.label = NA,
-     main = "Bipartite Projection of Shift Assignment Network for Unit 1 in 2012")
-
-ggplot()
+     main = "Bipartite Projection of Co-Stopping Network for Unit 1 (Morning Shift) in 2012")
 ```
-
-Contrary to what I expected, there are clear clustering patterns of officers who work with each other.
 
 ## Create independent variable and dependent variables in matrix form for QAP estimation
 
@@ -199,56 +205,22 @@ Create_Sex_Matrices <- function(df, officer_df) {
 
 Create_Exp_Matrices <- function(df, officer_df) {
     
-    exp1 <- matrix(officer_df[["years_exp"]],
-                   nrow(officer_df),
-                   nrow(officer_df),
-                   byrow = F,
-                   dimnames = list(officer_df$officer_id,
-                                   officer_df$officer_id))
-    
-    exp2 <- matrix(officer_df[["years_exp"]],
-                   nrow(officer_df),
-                   nrow(officer_df),
-                   byrow = T,
-                   dimnames = list(officer_df$officer_id,
-                                   officer_df$officer_id))
-    
     exp_diff <-
         df %>%
         select(from, to, exp_diff) %>%
         graph_from_data_frame(directed = F, vertices = officer_df) %>%
         as_adjacency_matrix(sparse = F, attr = "exp_diff")
     
-    # Check to make sure all matrices have rows and columns in right order
-    check1 <- all(as.logical(names(table(rownames(exp1) == rownames(exp2)))))
-    check2 <- all(as.logical(names(table(rownames(exp1) == rownames(exp_diff)))))
-    
-    check3 <- all(as.logical(names(table(colnames(exp1) == colnames(exp2)))))
-    check4 <- all(as.logical(names(table(colnames(exp1) == colnames(exp_diff)))))
-    
-    if(all(check1, check2, check3, check4)) {
-        return(list("exp1" = exp1, "exp2" = exp2, "exp_diff" = exp_diff))
-        }
-    else {
-        -1
-        }
+    return(list("exp_diff" = exp_diff))
 }
 ```
-
-### Create the independent variables
-
-Independent variables are as follows:
-
-* **Race**: Does the race of officers influence whom they work with? This is represented by a series of dummy variables representing every possible racial combination (White-White, White-Black, White-Hispanic, Black-Black, Black-Hispanic, Hispanic-Hispanic).
-* **Sex**: Does the sex of officers influence whom they work with? This is represented by a series of dummy variables representing every possible sex combination (Male-Male, Male-Female, Female-Female).
-* **Years of Experience**: Do officers of similar experience levels work with each other? This is represented by a set of 3 variables. **First**, there is the sending node's years of experience. **Second** is the receiving node's years of experience. These first two variables are *nodal* attributes only. It should also be noted that *sending* and *receiving* are used only due to convention. This is an un-directed network so nodes are not really sending and receiving ties. More accurately, they are both sending and receiving a tie. **Finally**, there is the absolute difference in ages between officers. This is a dyad-level relationship in contrast to the two nodal attributes.
 
 ```{r}
 # Every officer crossed with every other officer
 cross_df <-
-    unit_one_2012_officers %>%
+    unit1_officers %>%
     # cross join
-    full_join(unit_one_2012_officers, by = character()) %>%
+    full_join(unit1_officers, by = character()) %>%
     # filter out officers when they match with themselves
     filter(officer_id.x != officer_id.y) %>%
     rename(from = officer_id.x, to = officer_id.y) %>%
@@ -259,17 +231,17 @@ cross_df <-
     mutate(exp_diff = abs(years_exp.x - years_exp.y))
 
 # Create the independent variables and represent them as matrices
-race_matrices <- Create_Race_Matrices(cross_df, unit_one_2012_officers)
-sex_matrices <- Create_Sex_Matrices(cross_df, unit_one_2012_officers)
-exp_matrices <- Create_Exp_Matrices(cross_df, unit_one_2012_officers)
+race_matrices <- Create_Race_Matrices(cross_df, unit1_officers)
+sex_matrices <- Create_Sex_Matrices(cross_df, unit1_officers)
+exp_matrices <- Create_Exp_Matrices(cross_df, unit1_officers)
 
 # Check to ensure race and sex add up to correct values
 race_sum <- sum(race_matrices[[1]] + race_matrices[[2]] + race_matrices[[3]] +
   race_matrices[[4]] + race_matrices[[5]] + race_matrices[[6]]) ==
-    nrow(unit_one_2012_officers) * nrow(unit_one_2012_officers) - nrow(unit_one_2012_officers)
+    nrow(unit1_officers) * nrow(unit1_officers) - nrow(unit1_officers)
 
 sex_sum <- sum(sex_matrices[[1]] + sex_matrices[[2]] + sex_matrices[[3]]) == 
-    nrow(unit_one_2012_officers) * nrow(unit_one_2012_officers) - nrow(unit_one_2012_officers)
+    nrow(unit1_officers) * nrow(unit1_officers) - nrow(unit1_officers)
 
 # Check to make sure all the matrices match
 check1 <- all(table(rownames(race_matrices[[1]]) == rownames(sex_matrices[[1]])))
@@ -281,20 +253,218 @@ check4 <- all(table(colnames(race_matrices[[1]]) == colnames(exp_matrices[[1]]))
 ivs_shift <- c(race_matrices[-1], sex_matrices[-1], exp_matrices)
 ```
 
-### Create the dependent variable
-
 ```{r}
 shift_matrix <-
-    as_data_frame(unit_shift_net_bp, what = "edges") %>%
-    graph_from_data_frame(directed = F, vertices = unit_one_2012_officers) %>%
+    as_data_frame(assignment_net_bp, what = "edges") %>%
+    graph_from_data_frame(directed = F, vertices = unit1_officers) %>%
     as_adjacency_matrix(sparse = F, attr = "weight")
 
-hist(E(unit_shift_net_bp)$weight)
+# Dichotomize
+shift_matrix_binary <- shift_matrix
+shift_matrix_binary[shift_matrix_binary < 1] <- 0
+shift_matrix_binary[shift_matrix >= 1] <- 1
 ```
 
-In an ideal world, the dependent variable would be **the number of shifts** two officers worked together. In my network, a tie is defined as an officer working together with another officer and the weight on that edge represents how many times they worked together.
+```{r}
+set.seed(5)
+qap <- netlogit(shift_matrix_binary, ivs_shift, nullhyp = "qap", reps = 100)
+qap$names <- c("(Intercept)", names(ivs_shift))
+```
 
-However, for this exercise, to facilitate modeling under the ERGM and LSM paradigms, I will threshold the values to dichotomize the tie values. Looking at the above distribution of edge weights, I have decided to introduce a cutoff at the value of 25 (the 1st quartile). Values below 25 will be set to 0
+## Estimate ERGM model
+
+```{r, message = F}
+assignment_net_bp_binary <- assignment_net_bp
+E(assignment_net_bp_binary)$weight[E(assignment_net_bp_binary)$weight < 1] <- 0
+E(assignment_net_bp_binary)$weight[E(assignment_net_bp_binary)$weight >= 1] <- 1
+
+# First, we must convert our igraph object into a network object
+assignment_network <-
+    as_data_frame(assignment_net_bp_binary, what = "edges") %>%
+    filter(weight != 0) %>%
+    select(-weight) %>%
+    graph_from_data_frame(directed = F, vertices = unit1_officers) %>%
+    asNetwork()
+
+# Estimate an ERGM model with no covariates
+ergm_base <- ergm(assignment_network ~ edges)
+summary(ergm_base)
+base_pr <- 1 / (1 + exp(-coef(ergm_base)[1]))
+
+# Estimate an ERGM model using the covariates from above that we used in our
+# QAP model
+ergm_exog <- ergm(assignment_network ~ edges + nodemix("officer_race") +
+                      nodemix("officer_gender") + absdiff("years_exp"))
+
+# Interpretation
+1 / (1 + exp(-coefficients(ergm_exog)[["edges"]]))
+1 / (1 + exp(-coefficients(ergm_exog)[["edges"]] - coefficients(ergm_exog)[["mix.officer_race.officer_hisp.officer_white"]]))
+1 / (1 + exp(-coefficients(ergm_exog)[["edges"]] - coefficients(ergm_exog)[["mix.officer_race.officer_black.officer_white"]]))
+1 / (1 + exp(-coefficients(ergm_exog)[["edges"]] - coefficients(ergm_exog)[["mix.officer_race.officer_white.officer_white"]]))
+1 / (1 + exp(-coefficients(ergm_exog)[["edges"]] - coefficients(ergm_exog)[["mix.officer_race.officer_hisp.officer_hisp"]]))
+1 / (1 + exp(-coefficients(ergm_exog)[["edges"]] - coefficients(ergm_exog)[["absdiff.years_exp"]]))
+
+gof_ergm_exog <- ergm::gof(ergm_exog)
+plot(gof_ergm_exog)
+
+set.seed(5)
+ergm_exog_endog_25 <-
+    ergm(assignment_network ~ edges + gwesp(0.5, fixed = T) + gwdegree(0.5, fixed = T) +
+             nodematch("officer_race") +  nodematch("officer_gender") +
+             absdiff("years_exp"),
+             control = control.ergm(MCMC.samplesize = 5000,
+                                    MCMC.burnin = 10000,
+                                    MCMLE.maxit = 10),
+             verbose = T)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+To keep things manageable for the models, I am only going to be observing one year's worth of shift assignments for one unit. Specifically I will be looking at the shift assignments for unit 1 in 2012. Even though it is only one year's worth of data for one unit, I am left with `r nrow(unit_one_2012)` shifts and `r length(unique(unit_one_2012$office_id))` officers which is still a substantially sized network. In particular, I am interested in modeling which officers work with each other. From my understanding, shift assignments for officers are made about a year in advance, and there should not be any patterns in when officers work or whom they work with. So before we begin modeling, let's visualize the network.
+
+```{r, fig.width = 8, fig.height = 6}
+# Create an igraph object for the edge list data frame
+unit_shift_net <- graph_from_data_frame(edgelist_unit_one_2012,
+                                        directed = F)
+
+# Turn the igraph object into a bipartite graph
+V(unit_shift_net)$type <-
+    V(unit_shift_net)$name %in% unit_one_2012_assignments$unit_shift_id
+
+# Conduct bipartite projection
+unit_shift_net_bp <-
+    bipartite.projection(unit_shift_net, which = F, multiplicity = T) %>%
+    as_data_frame(what = "edges") %>%
+    graph_from_data_frame(directed = F, vertices = unit_one_2012_officers)
+
+colrs <- c("gray50", "tomato", "gold")
+
+plot(unit_shift_net_bp,
+     vertex.size = degree(unit_shift_net_bp) / 10,
+     edge.width = E(unit_shift_net_bp)$weight / 5,
+     vertex.label = NA,
+     vertex.color = colrs[V(unit_shift_net_bp)$shift],
+     main = "Bipartite Projection of Shift Assignment Network for Unit 1 in January 2012")
+
+legend(x=-1.5, y=-1.1, c("Evening","Morning", "Afternoon"),
+       pt.bg = colrs, pch = 21)
+```
+
+Contrary to what I expected, there are clear clustering patterns of officers who work with each other. In fact, there seems to be a pretty clear and consistent trend of officers being assigned to work during the same time of day. It is an interesting question in of itself as to which officers are assigned to which time of day. However, I will now turn my focus on to determining who works with whom most often within these time of day clusters.
+
+For simplicity's sake, I will not be counting edges when officers work outside of their usual time of day. This is also an interesting research question as to understanding why certain officers work outside of their usual time of day. However, it is a very rare occurrence. The number of edges dropped because of this is `r nrow(unit_one_2012_assignments) - nrow(unit_one_2012_assignments_major_shift)`.
+
+```{r}
+
+
+edgelist_unit_one_2012_major_shift <-
+    unit_one_2012_assignments_major_shift %>%
+    select(officer_id, unit_shift_id)
+
+# Create an igraph object for the edge list data frame
+unit_shift_net <- graph_from_data_frame(edgelist_unit_one_2012_major_shift,
+                                        directed = F)
+
+# Turn the igraph object into a bipartite graph
+V(unit_shift_net)$type <-
+    V(unit_shift_net)$name %in% unit_one_2012_assignments_major_shift$unit_shift_id
+
+# Conduct bipartite projection
+unit_shift_net_bp <-
+    bipartite.projection(unit_shift_net, which = F, multiplicity = T) %>%
+    as_data_frame(what = "edges") %>%
+    graph_from_data_frame(directed = F, vertices = unit_one_2012_officers)
+
+colrs <- c("gray50", "tomato", "gold")
+
+plot(unit_shift_net_bp,
+     vertex.size = degree(unit_shift_net_bp) / 10,
+     edge.width = E(unit_shift_net_bp)$weight / 20,
+     vertex.label = NA,
+     vertex.color = colrs[V(unit_shift_net_bp)$shift],
+     main = "Bipartite Projection of Shift Assignment Network for Unit 1 in January 2012")
+
+legend(x=-1.5, y=-1.1, c("Evening","Morning", "Afternoon"),
+       pt.bg = colrs, pch = 21)
+```
+
+Notice how once these 42 edges are deleted, the clusters become completely isolated.
+
+```{r, fig.width = 7}
+# shift 1
+shift1_edgelist <-
+    unit_one_2012_assignments_major_shift %>%
+    filter(shift.x == 3) %>%
+    select(officer_id, unit_shift_id)
+
+
+
+# Create an igraph object for the edge list data frame
+unit_shift_net <- graph_from_data_frame(shift1_edgelist,
+                                        directed = F)
+
+# Turn the igraph object into a bipartite graph
+V(unit_shift_net)$type <-
+    V(unit_shift_net)$name %in% shift1_edgelist$unit_shift_id
+
+# Conduct bipartite projection
+unit_shift_net_bp <-
+    bipartite.projection(unit_shift_net, which = F, multiplicity = T) %>%
+    as_data_frame(what = "edges") %>%
+    graph_from_data_frame(directed = F, vertices = officers_shift1)
+
+plot(unit_shift_net_bp,
+     vertex.size = degree(unit_shift_net_bp) / 4,
+     edge.width = E(unit_shift_net_bp)$weight / 20,
+     vertex.label = NA,
+     main = "Bipartite Projection of Shift Assignment Network for Unit 1 in January 2012")
+```
+
+### Create the independent variables
+
+Independent variables are as follows:
+
+* **Race**: Does the race of officers influence whom they work with? This is represented by a series of dummy variables representing every possible racial combination (White-White, White-Black, White-Hispanic, Black-Black, Black-Hispanic, Hispanic-Hispanic).
+* **Sex**: Does the sex of officers influence whom they work with? This is represented by a series of dummy variables representing every possible sex combination (Male-Male, Male-Female, Female-Female).
+* **Years of Experience**: Do officers of similar experience levels work with each other? This is represented by a set of 3 variables. **First**, there is the sending node's years of experience. **Second** is the receiving node's years of experience. These first two variables are *nodal* attributes only. It should also be noted that *sending* and *receiving* are used only due to convention. This is an un-directed network so nodes are not really sending and receiving ties. More accurately, they are both sending and receiving a tie. **Finally**, there is the absolute difference in ages between officers. This is a dyad-level relationship in contrast to the two nodal attributes.
+
+### Create the dependent variable
+
+
+
+The dependent variable is the **the number of shifts** two officers worked together. In my network, a tie is defined as an officer working together with another officer, and the weight on that edge represents how many times they worked together.
+
+However, for this exercise, to facilitate modeling under the ERGM and LSM paradigms, I will threshold the values to dichotomize the tie values. Looking at the above distribution of edge weights, I have decided to introduce a cutoff at the value of 3 (the 1st quartile). Values below 3 will be set to 0, and values 3 and above will be set to 1.
 
 ### Estimate QAP
 
@@ -302,25 +472,10 @@ However, for this exercise, to facilitate modeling under the ERGM and LSM paradi
 set.seed(5)
 qap_shifts <- netlm(shift_matrix, ivs_shift, nullhyp = "qap", reps = 100)
 qap_shifts$names <- c("(Intercept)", names(ivs_shift))
+
+qap_shifts25 <- netlogit(shift_matrix_25, ivs_shift, nullhyp = "qap", reps = 100)
+qap_shifts25$names <- c("(Intercept)", names(ivs_shift))
 ```
 
-## Estimate ERGM model
 
-```{r}
-# First, we must convert our igraph object into a network object
-shift_network <-
-    as_data_frame(unit_shift_net_bp, what = "edges") %>%
-    graph_from_data_frame(directed = F, vertices = unit_one_2012_officers) %>%
-    asNetwork()
-
-# use the default method: maximum pseudolikelihood estimator
-m0 <- gergm(shift_network ~ edges, transformation_type = "Cauchy", verbose = T)
-summary(m0)
-
-m1 <- ergm(shift_network ~ edges, estimate = "MLE") # the MLE method returns the equivalent result
-summary(m1)
-
-### When no dependence terms are included in the model, MLE and MPLE are the same. 
-1 / (1 + exp(-coef(m0)[1]))
-```
 

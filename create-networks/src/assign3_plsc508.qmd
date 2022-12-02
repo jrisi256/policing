@@ -1,0 +1,278 @@
+---
+title: "Assignment 3 - PLSC 508"
+author: "Joseph Risi"
+format: pdf
+---
+
+Data comes from the Add Health in-school questionnaire for the years 1994-1995. Students were asked about whom there friends were, and how many activities they completed together. For the purposes of this assignment, I only consider whether or not a student listed someone as their friend (1/0) and not the strength of friendship as indicated by how many activities the students participated in together.
+
+Data and code documenation can be found here: https://github.com/zalmquist/networkdata/blob/master/man/addhealth.Rd.
+
+```{r, message = F}
+library(sna)
+library(ergm)
+library(here)
+library(dplyr)
+library(igraph)
+library(latentnet)
+library(intergraph)
+```
+
+```{r, fig.width = 8, fig.height = 6}
+# load in the data
+load(here("create-networks", "src", "addhealth.rda"))
+
+# Select one of the Add Health networks and represent it as a network object
+# and an igraph object.
+add_health1_network <- addhealth[[1]]
+add_health1_igraph <- asIgraph(add_health1_network)
+
+# Visualize network
+plot(add_health1_igraph,
+     vertex.size = degree(add_health1_igraph) / 2,
+     edge.width = E(add_health1_igraph)$edgevalue,
+     vertex.label = NA,
+     edge.arrow.size = 0.5,
+     main = "Friendship Network Using Add Health Data")
+```
+
+## QAP Estimation
+
+### Creating the Independent and Dependent Variables
+
+```{r}
+# Check for grade sender, receiver, and distance effects
+grade_send <- matrix(V(add_health1_igraph)$grade,
+                     length(V(add_health1_igraph)),
+                     length(V(add_health1_igraph)),
+                     byrow = F)
+
+grade_receive <- matrix(V(add_health1_igraph)$grade,
+                        length(V(add_health1_igraph)),
+                        length(V(add_health1_igraph)),
+                        byrow = T)
+
+grade_dist <- as.matrix(dist(V(add_health1_igraph)$grade))
+
+# Check for gender effects
+sex_matrix1 <- matrix(V(add_health1_igraph)$sex,
+                      length(V(add_health1_igraph)),
+                      length(V(add_health1_igraph)),
+                      byrow = T)
+
+sex_matrix2 <- matrix(V(add_health1_igraph)$sex,
+                      length(V(add_health1_igraph)),
+                      length(V(add_health1_igraph)),
+                      byrow = F)
+
+# Are the pair of students the same sex or a different sex?
+sex_same <- matrix(as.numeric(sex_matrix1 == sex_matrix2),
+                   ncol = ncol(sex_matrix1))
+diag(sex_same) <- 0
+
+sex_diff <- matrix(as.numeric(sex_matrix1 != sex_matrix2),
+                    ncol = ncol(sex_matrix1))
+
+sex_check <- sum(sex_same + sex_diff) == ncol(sex_diff) * ncol(sex_diff) - ncol(sex_diff)
+
+# Are the pair of students the same race or a different race?
+race_matrix1 <- matrix(V(add_health1_igraph)$race,
+                       length(V(add_health1_igraph)),
+                       length(V(add_health1_igraph)),
+                       byrow = T)
+
+race_matrix2 <- matrix(V(add_health1_igraph)$race,
+                       length(V(add_health1_igraph)),
+                       length(V(add_health1_igraph)),
+                       byrow = F)
+
+race_same <- matrix(as.numeric(race_matrix1 == race_matrix2),
+                    ncol = ncol(race_matrix1))
+diag(race_same) <- 0
+
+race_diff <- matrix(as.numeric(race_matrix1 != race_matrix2),
+                    ncol = ncol(race_matrix1))
+race_check <- sum(race_same + race_diff) == ncol(race_diff) * ncol(race_diff) - ncol(race_diff)
+
+# Combine all the independent variables together
+covariates <- list("grade_send" = grade_send, "grade_receive" = grade_receive,
+                   "grade_dist" = grade_dist, "sex_same" = sex_same,
+                   "race_same" = race_same)
+
+# Dependent variable matrix
+friendship_matrix <- add_health1_igraph %>% as_adjacency_matrix(sparse = F)
+```
+
+### Estimate the QAP model
+
+```{r}
+set.seed(5)
+qap <- netlogit(friendship_matrix, covariates, nullhyp = "qap", reps = 1000)
+qap$names <- c("(Intercept)", names(covariates))
+summary(qap)
+```
+Results from the QAP model indicate model fit could be an issue considering it did very poorly on its predictive tasks. In terms of variable importance, it seems as if students being the same sex increased the probability of a tie forming and being further apart in grade decreased the probability of a tie forming. There were no significant effects for race, and there does not appear to any sender/receiver effects for grade.
+
+## Estimate ERGM model
+
+### Base model with variables
+
+```{r}
+# Estimate an ERGM model with no covariates
+ergm_base <- ergm(add_health1_network ~ edges)
+summary(ergm_base)
+base_pr <- 1 / (1 + exp(-coef(ergm_base)[1]))
+```
+
+The base ERGM model indicates there is a `r base_pr * 100`% chance of a tie or friendship being mentioned on the survey. This indicates that ties are very rare. This may help explain why the QAP model performed so poorly because it could not find any combination of node-level and/or dyad-level variables in which the chance of a tie forming was more likely than not.
+
+### Estimate a ERGM model using only exogeneous variables
+
+```{r}
+# Estimate an ERGM model using the covariates from above that we used in our
+# QAP model
+ergm_exog <- ergm(add_health1_network ~ edges + nodematch("race") + nodematch("sex") +
+                      nodeicov("grade") + nodeocov("grade") + absdiff("grade"))
+
+summary(ergm_exog)
+
+# Interpretation
+base_pr <- 1 / (1 + exp(-coefficients(ergm_exog)[["edges"]]))
+same_race <- 1 / (1 + exp(-coefficients(ergm_exog)[["edges"]] - coefficients(ergm_exog)[["nodematch.race"]]))
+same_sex <- 1 / (1 + exp(-coefficients(ergm_exog)[["edges"]] - coefficients(ergm_exog)[["nodematch.sex"]]))
+diff_grade <- 1 / (1 + exp(-coefficients(ergm_exog)[["edges"]] - coefficients(ergm_exog)[["absdiff.grade"]]))
+```
+
+Results are similar but not exactly the same as the results we obtained from the QAP model. Two students being the same sex increases the probability of a tie forming (just like in the QAP model). Similar, as students become further apart grade-wise, the less of a chance there is for a tie to form (just like in the QAP model). The only big difference is that race is found to be statistically significant meaning students of the same race are more likely to report a friendship (unlike in QAP where it did not achieve statistical significance).
+
+Similarly to QAP, there are no receiver or sender effects found for grade.
+
+Below you can see how changes in the above mentioned variables corresponds to changes in the probability of a tie forming.
+
+* Base probability: `r base_pr * 100`%
+* Being the same race: `r same_race * 100`%
+* Being the same sex: `r same_sex * 100`%
+* Being one grade apart: `r diff_grade * 100`%
+
+```{r, fig.width = 8, fig.height = 6}
+# Goodness of Fit
+gof_ergm_exog <- ergm::gof(ergm_exog)
+plot(gof_ergm_exog)
+```
+
+We can see from the goodness of fit diagnostic plots that our model is not a particularly good fit. For many of the values, the true observed value from the data falls far outside the simulated values from our model. We can turn to using endogenous variables now to try and improve model fit.
+
+### Estimate a ERGM model using exogeneous variables and endogeneous variables
+
+```{r, message = F}
+# Estimate an ERGM model with endogeneous and exogeneous variables
+set.seed(5)
+ergm_exog_endog <-
+    ergm(add_health1_network ~ edges + gwidegree(1, fixed = TRUE) + 
+             gwodegree(1, fixed = TRUE) + mutual +
+             nodematch("race") + nodematch("sex") + nodeicov("grade") +
+             nodeocov("grade") + absdiff("grade"),
+             control = control.ergm(MCMC.samplesize = 5000,
+                                    MCMC.burnin = 10000,
+                                    MCMLE.maxit = 10,
+                                    parallel = 5),
+             verbose = T)
+```
+
+```{r}
+summary(ergm_exog_endog)
+```
+
+When we include some endogeneous terms, we find that the magnitude of the effect for grade and sex decreases, but they still remain significant. Race is no longer significant. We then find there is a large effect for mutuality meaning that when A lists B as a friend, the chance for B to list A as a friend increases. We then also find a significant effect for the geometrically weighted out-degree indicating there are some very social students who are more likely to list others as friends than to be listed as friends themselves.
+
+Encouragingly, the AIC and BIC scores are lower when include these endogeneous variables indicating better relative model fit.
+
+```{r, fig.width = 8, fig.height = 6}
+gof_ergm_exog_endog <- ergm::gof(ergm_exog_endog)
+plot(gof_ergm_exog_endog)
+```
+
+Visual inspections of the graphs indicate the model fit is still not great, but it is better when we include the endogeneous variables.
+
+### Checking ERGM model for convergence
+
+```{r, fig.width = 8, fig.height = 6}
+mcmc.diagnostics(ergm_exog_endog)
+```
+
+The trace plots do not exhibit any trend, and the density plots approximate normal distributions indicating degeneracy is not really a problem. My apologies because this output takes up a lot of pages.
+
+## Estimate LSM models
+
+```{r, message = F}
+set.seed(42)
+
+lsm <-
+    ergmm(add_health1_network ~ nodematch("race") + nodematch("sex") +
+              nodeicov("grade") + nodeocov("grade") + absdiff("grade") +
+              euclidean(d = 2),
+          control = control.ergmm(burnin = 25000),
+          verbose = TRUE)
+
+lsm_bi <-
+    ergmm(add_health1_network ~ nodematch("race") + nodematch("sex") +
+              nodeicov("grade") + nodeocov("grade") + absdiff("grade") +
+              bilinear(d = 2),
+          control = control.ergmm(burnin = 25000),
+          verbose = TRUE)
+```
+
+```{r}
+summary(lsm)
+summary(lsm_bi)
+```
+
+Using a Euclidean distance function actually produces a worse-fitting model as indicated by BIC. Similarly to the ERGM models (and QAP model before that), the LSM models find grade difference significant and same sex significant (although for the Euclidean LSM model, it is only marginally significant).
+
+### Checking LSM models for convergence
+
+```{r, fig.width = 8, fig.height = 6}
+mcmc.diagnostics(lsm)
+```
+
+```{r, fig.width = 8, fig.height = 6}
+mcmc.diagnostics(lsm_bi)
+```
+
+The convergence diagnostics look good for both LSM models. There is no indication of a trend in the trace plots, and the plots all look approximately normal.
+
+### Checking LSM models for goodness of fit
+
+```{r, fig.width = 8, fig.height = 6}
+lsm_density <- sapply(simulate(lsm, 500)[[2]], network.density)
+
+hist(lsm_density, main = "Distribution of Network Densities Simulated from the Euclidean Model", 
+     xlab = "Network Density")
+abline(v = network.density(add_health1_network), col = "hot pink", lty = 1, lwd = 3)
+abline(v = quantile(lsm_density, probs = c(.025, .5, .975)), lty = 2, lwd = 3)
+```
+
+```{r, fig.width = 8, fig.height = 6}
+lsm_density_bi <- sapply(simulate(lsm_bi, 500)[[2]], network.density)
+
+hist(lsm_density_bi, main = "Distribution of Network Densities Simulated from the Bilinear Model", 
+     xlab = "Network Density")
+abline(v = network.density(add_health1_network), col = "hot pink", lty = 1, lwd = 3)
+abline(v = quantile(lsm_density, probs = c(.025, .5, .975)), lty = 2, lwd = 3)
+```
+
+Both models produce network densities in line with the simulations which is good.
+
+```{r, fig.width = 8, fig.height = 6}
+plot(gof(lsm, GOF = ~ idegree + odegree + dist, nsim = 500))
+```
+
+```{r, fig.width = 8, fig.height = 6}
+plot(gof(lsm_bi, GOF = ~ idegree + odegree + dist, nsim = 500))
+```
+
+Other visual inspections of model fit indicate, though, these models still are not great at fitting the data.
+
+## Conclusion
+
+The models all generally agreed upon which exogeneous variables were most important (being the same sex and being in the same grade). The ERGM and LSM models also indicates there are some endogeneous variables at play, too. In particular, using the ERGM model I was able to find that mutuality and geometrically weighted out degree (sociality) were important.
