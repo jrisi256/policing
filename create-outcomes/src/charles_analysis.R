@@ -5,14 +5,34 @@ source(here("functions.R"))
 shift_assignments <-
     my_read_csv(here("create-outcomes",
                      "input",
-                     "officer_assignments_ba.csv")) %>%
+                     "officers_assignments_ba.csv")) %>%
     select(officer_id, month, unit, date, shift, weekday, months_from_start,
            months_from_start_sq, shift_id, officer_race, officer_gender,
-           spanish)
+           spanish, beat_assigned)
+
+count <- shift_assignments %>% count(date, shift, unit, beat_assigned)
+mult_shift <-
+    shift_assignments %>%
+    group_by(date, shift, unit, beat_assigned) %>%
+    filter(n() >= 2) %>%
+    ungroup() %>%
+    count(date, shift, unit, beat_assigned, officer_race) %>%
+    pivot_wider(names_from = officer_race, values_from = n, values_fill = 0) %>%
+    mutate(nr_races =
+               as.numeric(officer_white > 0) +
+               as.numeric(officer_black > 0) +
+               as.numeric(officer_hisp > 0)) %>%
+    mutate(type = case_when(nr_races == 3 ~ "all",
+                            officer_white > 0 & officer_black > 0 ~ "Black + White",
+                            officer_white > 0 & officer_hisp > 0 ~ "Hisp + White",
+                            officer_black > 0 & officer_hisp > 0 ~ "Black + Hisp",
+                            officer_white > 0 & officer_black == 0 & officer_hisp == 0 ~ "White only",
+                            officer_black > 0 & officer_white == 0 & officer_hisp == 0 ~ "Black only",
+                            officer_hisp > 0 & officer_black == 0 & officer_white == 0 ~ "Hisp only"))
 
 ######################################## Read in outcomes (dependent variables)
 outcomes <-
-    my_read_csv(here("create-outcomes", "output", "outcomes_raw_ba_max.csv"),
+    my_read_csv(here("create-outcomes", "output", "outcomes_ba_max.csv"),
                 injured = T) %>%
     select(shift_id, stops_n, arrests_n, force_n)
 
