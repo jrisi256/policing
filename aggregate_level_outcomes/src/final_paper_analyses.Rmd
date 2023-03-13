@@ -1,0 +1,312 @@
+---
+title: "Paper Submission"
+header-includes: \usepackage{booktabs} \usepackage{siunitx} \newcolumntype{d}{S[input-symbols = ()]}
+output: pdf_document
+---
+
+```{r, echo = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, out.width='\\textwidth')
+```
+
+```{r}
+library(plm)
+library(pglm)
+library(lme4)
+library(MASS)
+library(lme4)
+library(vtable)
+library(fixest)
+library(lmtest)
+library(GGally)
+library(sandwich)
+library(parameters)
+library(modelsummary)
+library(marginaleffects)
+
+library(here)
+source(here("functions.R"))
+
+final_vars <-
+    read_csv(here("paper-analyses", "input", "final_data.csv")) %>%
+    mutate(across(c("unit", "year", "unit"), ~as.factor(.x))) %>%
+    mutate(log_total_officers = log(nr_officer),
+           log_black_officers = log(nr_officer_black),
+           white_stop_rate = round(white_stops / white * 10000),
+           hispanic_stop_rate = round(hispanic_stops / black * 10000),
+           log_black = log(black),
+           property_cr_capita = property_cr * 10000 / total_pop,
+           violent_cr_capita = violent_cr * 10000 /  total_pop,
+           mean_years_exp = mean_days_exp / 365,
+           mean_years_worked_unit = mean_months_worked_unit / 12,
+           percentage_officer_black = prcnt_officer_black * 100,
+           black_diff_prcnt = black_diff * 100,
+           black_ratio_prcnt = black_ratio * 100)
+```
+
+## Regression Models
+
+```{r}
+prcnt_basic <-
+    femlm(black_stops ~ percentage_officer_black + violent_cr_capita +
+              property_cr_capita + log_total_officers + year +
+              offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+prcnt_full <-
+    femlm(black_stops ~ percentage_officer_black + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+cong_basic <-
+    femlm(black_stops ~ black_ratio + violent_cr_capita + property_cr_capita +
+              log_total_officers + year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+cong_full <-
+    femlm(black_stops ~ black_ratio + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+offset_row <- tibble(term = c("", "Offset - Black Pop."),
+                     `Model 1` = c("Model 1", "Yes"),
+                     `Model 2` = c("Model 2", "Yes"),
+                     `Model 3` = c("Model 3", "Yes"),
+                     `Model 4` = c("Model 4", "Yes"))
+
+attr(offset_row, "position") <- c(1, 10)
+
+rename = c(black_ratio = "Black Racial Congruence",
+           percentage_officer_black = "Percentage of Officers Who Are Black",
+           mean_years_worked_unit = "Years Worked In Unit (Mean)",
+           violent_cr_capita = "Violent Crime Per 10,000",
+           property_cr_capita = "Property Crime Per 10,000",
+           log_total_officers = "Log of the Total Number of Officers")
+
+modelsummary(list(cong_basic,
+                  prcnt_basic,
+                  "Stops of Black Civilians" = cong_full,
+                  prcnt_full),
+             coef_omit = "(Intercept)|theta",
+             coef_map = rename,
+             estimate = "{estimate} ({std.error}){stars}",
+             statistic = NULL,
+             stars = T,
+             gof_omit = "R2$|R2 Adj|R2 Within",
+             exponentiate = T,
+             output = "latex",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001")) %>%
+    kable_styling(full_width = F, latex_options = "scale_down")
+```
+
+## Standardize variables
+
+```{r}
+final_vars_std <-
+    final_vars %>%
+    select(black_stops, prcnt_officer_black, violent_cr_capita, unit, year,
+           property_cr_capita, log_total_officers, black, black_ratio,
+           mean_years_worked_unit) %>%
+    group_by(unit, year) %>%
+    mutate(across(-all_of(c("black_stops", "black")),
+                  ~ (.x - (mean(.x))) / sd(.x))) %>%
+    ungroup()
+
+prcnt_basic_std <-
+    femlm(black_stops ~ prcnt_officer_black + violent_cr_capita +
+              property_cr_capita + log_total_officers + year +
+              offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars_std)
+
+prcnt_full_std <-
+    femlm(black_stops ~ prcnt_officer_black + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars_std)
+
+cong_basic_std <-
+    femlm(black_stops ~ black_ratio + violent_cr_capita + property_cr_capita +
+              log_total_officers + year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars_std)
+
+cong_full_std <-
+    femlm(black_stops ~ black_ratio + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars_std)
+
+offset_row <- tibble(term = c("", "Offset - Black Pop."),
+                     `Model 1` = c("Model 1", "Yes"),
+                     `Model 2` = c("Model 2", "Yes"),
+                     `Model 3` = c("Model 3", "Yes"),
+                     `Model 4` = c("Model 4", "Yes"))
+attr(offset_row, "position") <- c(1, 10)
+rename = c(black_ratio = "Black Racial Congruence",
+           prcnt_officer_black = "Percentage of Officers Who Are Black",
+           mean_years_worked_unit = "Years Worked In Unit (Mean)",
+           violent_cr_capita = "Violent Crime Per 10,000",
+           property_cr_capita = "Property Crime Per 10,000",
+           log_total_officers = "Log of the Total Number of Officers")
+
+modelsummary(list("Stops of Black Civilians" = cong_basic_std,
+                  "Stops of Black Civilians" = prcnt_basic_std,
+                  "Stops of Black Civilians" = cong_full_std,
+                  "Stops of Black Civilians" = prcnt_full_std),
+             coef_omit = "(Intercept)|theta",
+             coef_map = rename,
+             estimate = "{estimate} ({std.error}){stars}",
+             statistic = NULL,
+             stars = T,
+             gof_omit = "R2$|R2 Adj|R2 Within",
+             exponentiate = T,
+             output = "latex",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001")) %>%
+    kable_styling(full_width = F, latex_options = "scale_down")
+```
+
+## Have them actually be percentage values
+
+```{r}
+# prcnt_basic <-
+#     femlm(black_stops ~ percentage_officer_black + violent_cr_capita +
+#               property_cr_capita + log_total_officers + year +
+#               offset(log(black)) | unit,
+#           family = "negbin",
+#           data = final_vars)
+# 
+# prcnt_full <-
+#     femlm(black_stops ~ percentage_officer_black + mean_years_worked_unit +
+#               violent_cr_capita + property_cr_capita + log_total_officers +
+#               year + offset(log(black)) | unit,
+#           family = "negbin",
+#           data = final_vars)
+# 
+# cong_basic <-
+#     femlm(black_stops ~ black_ratio_prcnt + violent_cr_capita + property_cr_capita +
+#               log_total_officers + year + offset(log(black)) | unit,
+#           family = "negbin",
+#           data = final_vars)
+# 
+# cong_full <-
+#     femlm(black_stops ~ black_ratio_prcnt + mean_years_worked_unit +
+#               violent_cr_capita + property_cr_capita + log_total_officers +
+#               year + offset(log(black)) | unit,
+#           family = "negbin",
+#           data = final_vars)
+# 
+# diff_basic <-
+#     femlm(black_stops ~ black_diff_prcnt + violent_cr_capita + property_cr_capita +
+#               log_total_officers + year + offset(log(black)) | unit,
+#           family = "negbin",
+#           data = final_vars)
+# 
+# diff_full <-
+#     femlm(black_stops ~ black_diff_prcnt + mean_years_worked_unit +
+#               violent_cr_capita + property_cr_capita + log_total_officers +
+#               year + offset(log(black)) | unit,
+#           family = "negbin",
+#           data = final_vars)
+# 
+# offset_row <- tibble(term = c("", "Offset - Black Pop."),
+#                      `Model 1` = c("Model 1", "Yes"),
+#                      `Model 2` = c("Model 2", "Yes"),
+#                      `Model 3` = c("Model 3", "Yes"),
+#                      `Model 4` = c("Model 4", "Yes"),
+#                      `Model 5` = c("Model 5", "Yes"),
+#                      `Model 6` = c("Model 6", "Yes"))
+# 
+# attr(offset_row, "position") <- c(1, 10)
+# 
+# rename = c(black_ratio_prcnt = "Black Racial Congruence (Ratio)",
+#            black_diff_prcnt = "Black Racial Congruence (Diff)",
+#            percentage_officer_black = "Percentage of Officers Who Are Black",
+#            mean_years_worked_unit = "Years Worked In Unit (Mean)",
+#            violent_cr_capita = "Violent Crime Per 10,000",
+#            property_cr_capita = "Property Crime Per 10,000",
+#            log_total_officers = "Log of the Total Number of Officers")
+# 
+# modelsummary(
+#     list(
+#         cong_basic,
+#         cong_full,
+#         "Stops of Black Civilians" = prcnt_basic,
+#         prcnt_full,
+#         diff_basic,
+#         diff_full
+#     ),
+#     coef_omit = "(Intercept)|theta",
+#     coef_map = rename,
+#     estimate = "{estimate} ({std.error}){stars}",
+#     statistic = NULL,
+#     stars = T,
+#     gof_omit = "R2$|R2 Adj|R2 Within",
+#     exponentiate = T,
+#     output = "latex",
+#     add_rows = offset_row,
+#     notes = c(
+#         "Standard Errors in parentheses. Coefficients are incident rate ratios.",
+#         "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001")) %>%
+#     kable_styling(full_width = F, latex_options = "scale_down")
+```
+
+```{r}
+new_data <-
+    final_vars %>%
+    group_by(unit, year) %>%
+    summarise(property_cr_capita = mean(property_cr_capita),
+              violent_cr_capita = mean(violent_cr_capita),
+              mean_years_worked_unit = mean(mean_years_worked_unit),
+              log_total_officers = mean(log_total_officers),
+              black = mean(black),
+              min = min(black_ratio),
+              max = max(black_ratio),
+              med = median(black_ratio),
+              p25 = quantile(black_ratio)[["25%"]],
+              p75 = quantile(black_ratio)[["75%"]]) %>%
+    ungroup() %>%
+    pivot_longer(c("min", "max", "med", "p25", "p75"),
+                 names_to = "type",
+                 values_to = "black_ratio")
+
+predict_results <-
+    new_data %>%
+    mutate(predicted_black_stops = predict(cong_full, newdata = new_data) * black,
+           type = factor(type, levels = c("min", "p25", "med", "p75", "max")),
+           variable = "Black Racial Congruence")
+
+predict_results %>%
+    ggplot(aes(x = type, y = predicted_black_stops)) +
+    geom_point(aes(color = year)) +
+    geom_line(aes(color = year, group = year)) +
+    facet_wrap(~unit, scales = "free") +
+    theme_bw() +
+    labs(x = "Different Values of Racial Congruence", 
+         y = "Predicted Number of Stops of Black Civilians") +
+    theme(text = element_text(size = 17))
+
+predict_results_avg <-
+    predict_results %>%
+    group_by(type) %>%
+    summarise(average_prediction = mean(predicted_black_stops)) %>%
+    ungroup()
+
+ggplot(predict_results_avg, aes(x = type, y = average_prediction)) +
+    geom_line(aes(group = 1)) +
+    geom_point() +
+    theme_bw()
+```
+

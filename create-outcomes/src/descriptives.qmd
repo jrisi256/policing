@@ -1,0 +1,65 @@
+---
+title: "Descriptives"
+format: pdf
+---
+
+```{r, message = F}
+library(here)
+library(dplyr)
+library(readr)
+library(stargazer)
+library(modelsummary)
+
+shift_assignments <-
+    read_csv(here("create-outcomes",
+                     "input",
+                     "officers_assignments_ba.csv")) %>%
+    select(officer_id, month, unit, date, shift, weekday, months_from_start,
+           months_from_start_sq, shift_id, officer_race, officer_gender,
+           spanish, beat_assigned)
+
+unique_officers <-
+    distinct(shift_assignments, officer_id, officer_race, officer_gender,
+             months_from_start) %>%
+    group_by(officer_id) %>%
+    filter(months_from_start == max(months_from_start)) %>%
+    mutate(years_exp = months_from_start / 12) %>%
+    select(-months_from_start) %>%
+    ungroup()
+```
+
+```{r, results = "asis"}
+stargazer(data.frame(select(unique_officers, -officer_id)),
+          digits = 3,
+          median = T,
+          iqr = T,
+          covariate.labels = "Years of Experience")
+
+unique_officers <-
+    unique_officers %>%
+    mutate(officer_race = case_when(officer_race == "officer_black" ~ "Black",
+                                     officer_race == "officer_hisp" ~ "Hispanic",
+                                     officer_race == "officer_white" ~ "White"),
+           officer_gender = case_when(officer_gender == "FEMALE" ~ "Female",
+                                      officer_gender == "MALE" ~ "Male"),
+           `Officer Race` = officer_race,
+           `Officer Sex` = officer_gender)
+
+datasummary_balance(~ 1,
+                    select(unique_officers, `Officer Race`, `Officer Sex`),
+                    output = "latex")
+```
+
+```{r}
+a <-
+    full_data %>%
+    distinct(date, unit, shift, .keep_all = T) %>%
+    select(prcnt_officer_black, prcnt_officer_hisp, prcnt_officer_white, n_officer)
+
+a2 <-
+    full_data %>%
+    distinct(month, weekday, unit, shift, .keep_all = T) %>%
+    select(prcnt_officer_black, prcnt_officer_hisp, prcnt_officer_white, n_officer, date, unit, shift, weekday, month)
+
+```
+

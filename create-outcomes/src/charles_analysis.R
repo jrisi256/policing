@@ -34,7 +34,7 @@ mult_shift <-
 outcomes <-
     my_read_csv(here("create-outcomes", "output", "outcomes_ba_max.csv"),
                 injured = T) %>%
-    select(shift_id, stops_n, arrests_n, force_n)
+    select(shift_id, stops_n, arrests_n, force_n, stops_black)
 
 #### Create shift-level independent variables capturing the racial diversity of
 ########################################### officers working a particular shift
@@ -50,11 +50,111 @@ shift_counts <-
     ungroup() %>%
     mutate(n_officer = n_officer_black + n_officer_white + n_officer_hisp)
 
+shift_counts_beats <-
+    shift_assignments %>%
+    count(unit, beat_assigned, date, shift, officer_race) %>%
+    group_by(unit, beat_assigned, date, shift) %>%
+    mutate(prcnt = n / sum(n)) %>%
+    pivot_wider(id_cols = c("unit", "beat_assigned", "shift", "date"),
+                names_from = "officer_race",
+                values_from = c("n", "prcnt"),
+                values_fill = 0) %>%
+    ungroup() %>%
+    mutate(n_officer = n_officer_black + n_officer_white + n_officer_hisp)
+
+mult_officer_beat <- shift_counts_beats %>% filter(n_officer > 1)
+mult_racial_officer_beat <-
+    mult_officer_beat %>%
+    filter(prcnt_officer_black != 1 & prcnt_officer_white != 1 & prcnt_officer_hisp != 1)
+
 full_data <-
     shift_counts %>%
     select(-n_officer_black, -n_officer_white, -n_officer_hisp) %>%
     full_join(shift_assignments) %>%
     full_join(outcomes)
+
+full_data_beats <-
+    shift_counts_beats %>%
+    full_join(shift_assignments) %>%
+    full_join(outcomes)
+
+library(fixest)
+stops_demean_beat <-
+    full_data_beats %>%
+    mutate(dummy = 1,
+           officer_gender = case_when(officer_gender == "MALE" ~ "officer_male",
+                                      officer_gender == "FEMALE" ~ "officer_female"),
+           spanish = case_when(spanish == T ~ "officer_spanish",
+                               spanish == F ~ "officer_english")) %>%
+    pivot_longer(cols = c("officer_race", "officer_gender", "spanish"),
+                 names_to = "column",
+                 values_to = "value") %>%
+    select(-column) %>%
+    pivot_wider(names_from = "value",
+                values_from = dummy,
+                values_fill = 0) %>%
+    filter(!is.na(stops_n),
+           !is.na(months_from_start)) %>%
+    mutate(mult_officer = if_else(n_officer > 1, 1, 0),
+           n_officer_black = if_else(officer_black == 1, n_officer_black - 1, n_officer_black),
+           n_officer_hisp = if_else(officer_hisp == 1, n_officer_hisp - 1, n_officer_hisp),
+           n_officer_white = if_else(officer_white == 1, n_officer_white - 1, n_officer_white))
+
+offset_row <- tibble(term = c("", "FE - Day of the Week", "FE - Month-Year", "FE - Shift Timing", "FE - Beat"),
+                     `Model 1` = c("Negative Binomial Regression", "X", "X", "X", "X"))
+attr(offset_row, "position") <- c(1, 13, 14, 15, 15)
+
+stops_demean_beat <-
+    stops_demean_beat %>%
+    rename(`Police Unit` = unit,
+           `Month-Year` = month,
+           `Individual Officer` = officer_id) %>%
+    mutate(years_exp = months_from_start / 12,
+           years_exp_sq = years_exp ^ 2)
+
+negbin <-
+    fenegbin(stops_black ~ officer_black + officer_hisp + officer_female + mult_officer +
+                 years_exp + years_exp_sq + n_officer_black + n_officer_white + n_officer_hisp
+             | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+             cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+             data = stops_demean_beat)
+
+modelsummary(list("Dependent Variable - Black Stops" = negbin),
+             coef_rename = c(officer_black = "Officer Race/Ethnicity - Black",
+                             officer_hisp = "Officer Race/Ethniciy - Hispanic",
+                             officer_female = "Officer Sex - Female",
+                             years_exp = "Officer Experience (Years)",
+                             years_exp_sq = "Officer Experience Squared (Years)",
+                             mult_officer = "Multipe officers assigned to the shift?",
+                             n_officer_black = "Number of other Black officers on shift",
+                             n_officer_white = "Number of other White officers on shift",
+                             n_officer_hisp = "Number of other Hispanic officers on shift"),
+             estimate = "{estimate} ({std.error}){stars}",
+             exponentiate = T,
+             statistic = NULL,
+             stars = T,
+             output = "stops_negbin.html",
+             add_rows = offset_row,
+             coef_omit = ".theta",
+             gof_omit = "FE:|RMSE|AIC|R2 Within$",
+             notes = c("Standard Errors in parentheses.",
+                       "P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001"))
+
+negbin <-
+    fenegbin(stops_n ~ officer_black + officer_hisp + officer_female + mult_officer +
+                 months_from_start + months_from_start_sq + n_officer_black +
+                 n_officer_white + n_officer_hisp
+             | beat_assigned ^ month ^ weekday ^ shift + officer_id,
+             cluster = ~ unit + month,
+             data = stops_demean_beat)
+
+negbin <-
+    fenegbin(stops_n ~ mult_officer +
+                 months_from_start + months_from_start_sq + n_officer_black +
+                 n_officer_white + n_officer_hisp
+             | beat_assigned ^ month ^ weekday ^ shift + officer_id,
+             cluster = ~ unit + month,
+             data = stops_demean_beat)
 
 ########### Get counts for mdsu (month, day, shift, unit), shifts, and officers
 observations_per_mdsu <-
@@ -62,9 +162,9 @@ observations_per_mdsu <-
     distinct(unit, month, shift, weekday, date) %>%
     count(unit, month, shift, weekday)
 
-officers_per_mdsu <-
-    full_data %>%
-    count(unit, month, shift, weekday)
+# officers_per_mdsu <-
+#     full_data %>%
+#     count(unit, month, shift, weekday)
 
 officers_per_shift <-
     full_data %>%
@@ -96,7 +196,8 @@ stops_demean <-
     pivot_wider(names_from = "value",
                 values_from = dummy,
                 values_fill = 0) %>%
-    filter(!is.na(stops_n)) %>%
+    filter(!is.na(stops_n),
+           !is.na(months_from_start)) %>%
     group_by(shift, weekday, unit, month) %>%
     mutate(across(c(stops_n, officer_white, officer_black, officer_hisp,
                     officer_male, officer_female, officer_spanish,
@@ -121,19 +222,163 @@ stops_demean <-
            n_officer_demean = n_officer - n_officer_mean) %>%
     ungroup()
 
+library(fixest)
+negbin <-
+    fenegbin(stops_n ~ officer_black + officer_hisp + officer_female +
+                 months_from_start + months_from_start_sq + prcnt_officer_black +
+                 prcnt_officer_hisp + n_officer| unit ^ month ^ weekday ^ shift,
+             cluster = ~ unit + month,
+             data = stops_demean)
+
+white_nb <-
+    fenegbin(stops_n ~ officer_female + months_from_start +
+                 months_from_start_sq + prcnt_officer_black +
+                 prcnt_officer_hisp + n_officer| unit ^ month ^ weekday ^ shift,
+             cluster = ~ unit + month,
+             data = white_stops)
+
+black_nb <-
+    fenegbin(stops_n ~ officer_female + months_from_start +
+                 months_from_start_sq + prcnt_officer_black +
+                 prcnt_officer_hisp + n_officer| unit ^ month ^ weekday ^ shift,
+             cluster = ~ unit + month,
+             data = black_stops)
+
+hisp_nb <-
+    fenegbin(stops_n ~ officer_female + months_from_start +
+                 months_from_start_sq + prcnt_officer_black +
+                 prcnt_officer_hisp + n_officer| unit ^ month ^ weekday ^ shift,
+             cluster = ~ unit + month,
+             data = hisp_stops)
+
+stops_demean <- stops_demean %>% mutate(stops_bin = if_else(stops_n == 0, 0, 1))
+
+logit <-
+    feglm(stops_bin ~ officer_black + officer_hisp + officer_female +
+                 months_from_start + months_from_start_sq + prcnt_officer_black +
+                 prcnt_officer_hisp + n_officer| unit,
+             cluster = ~ unit,
+          family = "logit",
+             data = stops_demean)
+
+white_logit <-
+    feglm(stops_bin ~ officer_female + months_from_start +
+                 months_from_start_sq + prcnt_officer_black +
+                 prcnt_officer_hisp + n_officer| unit ^ month ^ weekday ^ shift,
+             cluster = ~ unit + month,
+          family = "logit",
+             data = white_stops)
+
+black_logit <-
+    feglm(stops_bin ~ officer_female + months_from_start +
+                 months_from_start_sq + prcnt_officer_black +
+                 prcnt_officer_hisp + n_officer| unit ^ month ^ weekday ^ shift,
+             cluster = ~ unit + month,
+          family = "logit",
+             data = black_stops)
+
+hisp_logit_2 <-
+    feglm(stops_bin ~ officer_female + months_from_start +
+                 months_from_start_sq + prcnt_officer_black +
+                 prcnt_officer_hisp + n_officer| unit ^ month ^ weekday ^ shift,
+             cluster = ~ unit + month,
+          family = "logit",
+             data = hisp_stops)
+
+offset_row <- tibble(term = c("", "FE - Day of the Week", "FE - Month/Year", "FE - Shift Timing", "FE - Police District"),
+                     `Model 1` = c("All Officers", "X", "X", "X", "X"),
+                     `Model 2` = c("White Officers Only", "X", "X", "X", "X"),
+                     `Model 3` = c("Black Officers Only", "X", "X", "X", "X"),
+                     `Model 4` = c("Hispanic Officers Only", "X", "X", "X", "X"))
+attr(offset_row, "position") <- c(1, 13, 14, 15, 15)
+
+modelsummary(list(" " = logit, "Dependent Variable - Stops" = white_logit, " " = black_logit, " " = hisp_logit),
+             coef_rename = c(officer_black = "Officer Race/Ethnicity - Black",
+                             officer_hisp = "Officer Race/Ethniciy - Hispanic",
+                             officer_female = "Officer Sex - Female",
+                             months_from_start = "Officer Experience (Months)",
+                             months_from_start_sq = "Officer Experience Squared (Months)",
+                             prcnt_officer_black = "Percent of shift that is Black",
+                             prcnt_officer_hisp_demean = "Percent of shift that is Hispanic",
+                             n_officer_demean = "Number of other officers on shift"),
+             estimate = "{estimate} ({std.error}){stars}{p.value}",
+             exponentiate = T,
+             statistic = NULL,
+             stars = T,
+             output = "stops_logit.html",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses.",
+                       "P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001"))
+
+
+modelsummary(list(" " = negbin, "Dependent Variable - Stops" = white_nb, " " = black_nb, " " = hisp_nb),
+             coef_rename = c(officer_black_demean = "Officer Race/Ethnicity - Black",
+                             officer_hisp_demean = "Officer Race/Ethniciy - Hispanic",
+                             officer_female_demean = "Officer Sex - Female",
+                             officer_spanish_demean = "Officer Speaks Spanish",
+                             officer_exp_demean = "Officer Experience (Years)",
+                             officer_exp_demean_sq = "Officer Experience Squared (Years)",
+                             prcnt_officer_black_demean = "Percent of shift that is Black",
+                             prcnt_officer_hisp_demean = "Percent of shift that is Hispanic",
+                             n_officer_demean = "Number of other officers on shift"),
+             estimate = "{estimate} ({std.error}){stars}{p.value}",
+             exponentiate = T,
+             statistic = NULL,
+             stars = T,
+             output = "stops_negbin.html",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses.",
+                       "P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001"))
+
+model_feols_clustered <-
+    fenegbin(stops_n ~ officer_black + officer_hisp + officer_female +
+              months_from_start + months_from_start_sq + prcnt_officer_black +
+              prcnt_officer_hisp + n_officer + officer_black * prcnt_officer_black +
+              officer_black * prcnt_officer_hisp + officer_hisp * prcnt_officer_black +
+              officer_hisp * prcnt_officer_hisp | unit ^ month ^ weekday ^ shift,
+          cluster = ~ unit + month,
+          data = stops_demean)
+
+library(car)
+model_feols <-
+    feols(stops_n_demean * 100 ~ officer_black_demean + officer_hisp_demean +
+              officer_female_demean + officer_exp_demean + officer_exp_demean_sq +
+              prcnt_officer_black_demean + prcnt_officer_hisp_demean + n_officer_demean,
+             data = stops_demean)
+
+
 stops_ols <-
     lm(stops_n_demean * 100 ~ officer_black_demean + officer_hisp_demean +
-           officer_female_demean + officer_spanish_demean + officer_exp_demean +
-           officer_exp_demean_sq + prcnt_officer_black_demean + 
-           prcnt_officer_hisp_demean + n_officer_demean,
+           officer_female_demean + officer_exp_demean + officer_exp_demean_sq +
+           prcnt_officer_black_demean + prcnt_officer_hisp_demean + n_officer_demean,
        data = stops_demean)
+library(parallel)
+a <- Boot(stops_ols, R = 20)
 
 white_stops <- stops_demean %>% filter(officer_white == 1)
 hisp_stops <- stops_demean %>% filter(officer_hisp == 1)
 black_stops <- stops_demean %>% filter(officer_black == 1)
 
+temp <- feols(stops_n_demean * 100 ~ officer_female_demean +
+                  officer_exp_demean + officer_exp_demean_sq +
+                  prcnt_officer_black_demean + prcnt_officer_hisp_demean +
+                  n_officer_demean,
+              data = white_stops)
+
+temp <- feols(stops_n * 100 ~ officer_female + months_from_start +
+                  months_from_start_sq + prcnt_officer_black +
+                  prcnt_officer_hisp + n_officer | unit ^ month ^ weekday ^ shift,
+              cluster = ~ unit + month,
+              data = hisp_stops)
+
+temp <- feols(stops_n * 100 ~ officer_female + months_from_start +
+                  months_from_start_sq + prcnt_officer_black +
+                  prcnt_officer_hisp + n_officer | unit ^ month ^ weekday ^ shift,
+              cluster = ~ unit + month,
+              data = black_stops)
+
 white_stops_ols <-
-    lm(stops_n_demean * 100 ~ officer_female_demean + officer_spanish_demean +
+    lm(stops_n_demean * 100 ~ officer_female_demean +
            officer_exp_demean + officer_exp_demean_sq +
            prcnt_officer_black_demean + prcnt_officer_hisp_demean +
            n_officer_demean,

@@ -1,0 +1,392 @@
+---
+title: "jq_submission"
+header-includes: \usepackage{booktabs} \usepackage{siunitx} \newcolumntype{d}{S[input-symbols = ()]}
+format: html
+---
+
+```{r}
+library(here)
+library(readr)
+library(dplyr)
+library(fixest)
+library(kableExtra)
+library(modelsummary)
+
+# Read in data------------------------------------------------------------------
+final_vars <-
+    read_csv(here("aggregate_level_outcomes", "input", "final_data.csv")) %>%
+    mutate(across(c("unit", "year", "unit"), ~as.factor(.x))) %>%
+    mutate(log_total_officers = log(nr_officer),
+           log_black_officers = log(nr_officer_black),
+           white_stop_rate = round(white_stops / white * 10000),
+           hispanic_stop_rate = round(hispanic_stops / black * 10000),
+           log_black = log(black),
+           property_cr_capita = property_cr * 10000 / total_pop,
+           violent_cr_capita = violent_cr * 10000 /  total_pop,
+           mean_years_exp = mean_days_exp / 365,
+           mean_years_worked_unit = mean_months_worked_unit / 12,
+           prcnt_officer_black = prcnt_officer_black * 100)
+
+final_vars  <-
+    final_vars %>%
+    group_by(unit) %>%
+    mutate(between_black_ratio = mean(black_ratio),
+           within_black_ratio = black_ratio - between_black_ratio) %>%
+    ungroup()
+
+# Estimate the between vs. the within effects of racial congruence--------------
+between_within_rate <-
+    femlm(black_stops ~ between_black_ratio + within_black_ratio + year +
+              offset(log(black)),
+          family = "negbin",
+          data = final_vars,
+          cluster = "unit")
+
+# Estimate percent black--------------------------------------------------------
+nb_prcnt <-
+    femlm(black_stops ~ prcnt_officer_black + violent_cr_capita +
+              property_cr_capita + log_total_officers + year +
+              offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+nb_prcnt_exp <-
+    femlm(black_stops ~ prcnt_officer_black + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+# Estimate racial congruence----------------------------------------------------
+nb_ratio <-
+    femlm(black_stops ~ black_ratio + violent_cr_capita + property_cr_capita +
+              log_total_officers + year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+nb_ratio_exp <-
+    femlm(black_stops ~ black_ratio + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+# Estimate arrests--------------------------------------------------------------
+nb_prcnt_arrest <-
+    femlm(black_arrests ~ prcnt_officer_black + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+nb_ratio_arrest <-
+    femlm(black_arrests ~ black_ratio + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+nb_prcnt_arrest_stopsiv <-
+    femlm(black_arrests ~ prcnt_officer_black + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              black_stops + year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+nb_ratio_arrest_stopsiv <-
+    femlm(black_arrests ~ black_ratio + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              black_stops + year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+offset_row <- tibble(term = c("", "Offset - Black Pop."),
+                     `Model 1` = c("Model 1", "Yes"),
+                     `Model 2` = c("Model 2", "Yes"),
+                     `Model 3` = c("Model 3", "Yes"),
+                     `Model 4` = c("Model 4", "Yes"))
+attr(offset_row, "position") <- c(1, 10)
+rename = c(black_ratio = "Black Racial Congruence",
+           prcnt_officer_black = "Percentage of Officers Who Are Black",
+           mean_years_worked_unit = "Years Worked In Unit (Mean)",
+           violent_cr_capita = "Violent Crime Per 10,000",
+           property_cr_capita = "Property Crime Per 10,000",
+           log_total_officers = "Log of the Total Number of Officers",
+           black_stops = "Number of stops of Black civilians")
+
+f <- function(x) format(x, digits = 4, nsmall = 1, scientific = F)
+modelsummary(list(nb_prcnt_arrest,
+                  "Arrests of Black Civilians" = nb_ratio_arrest,
+                  nb_prcnt_arrest_stopsiv,
+                  nb_ratio_arrest_stopsiv),
+             fmt = f,
+             coef_omit = "(Intercept)|theta",
+             coef_map = rename,
+             estimate = "{estimate} ({std.error}){stars}",
+             statistic = NULL,
+             stars = T,
+             gof_omit = "R2$|R2 Adj|R2 Within",
+             exponentiate = T,
+             output = "arrests_aggregate.html",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
+
+# Estimate force----------------------------------------------------------------
+nb_prcnt_force <-
+    femlm(black_force ~ prcnt_officer_black + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+nb_ratio_force <-
+    femlm(black_force ~ black_ratio + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+nb_prcnt_force_stopsiv <-
+    femlm(black_force ~ prcnt_officer_black + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              black_stops + year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+nb_ratio_force_stopsiv <-
+    femlm(black_force ~ black_ratio + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              black_stops + year + offset(log(black)) | unit,
+          family = "negbin",
+          data = final_vars)
+
+modelsummary(list(nb_prcnt_force,
+                  "Uses of force against Black civilians" = nb_ratio_force,
+                  nb_prcnt_force_stopsiv,
+                  nb_ratio_force_stopsiv),
+             fmt = f,
+             coef_omit = "(Intercept)|theta",
+             coef_map = rename,
+             estimate = "{estimate} ({std.error}){stars}",
+             statistic = NULL,
+             stars = T,
+             gof_omit = "R2$|R2 Adj|R2 Within",
+             exponentiate = T,
+             output = "force_aggregate.html",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
+
+# %>% kable_styling(full_width = F, latex_options = "scale_down")
+```
+
+```{r}
+# Estimate regression models across different levels of White citizens
+final_vars_list <-
+    final_vars %>%
+    mutate(white_percentile = as.numeric(ntile(prcnt_civ_white, 3)),
+           white_percentile = case_when(unit == 17 ~ 2,
+                                       unit == 4 ~ 1,
+                                       T ~ white_percentile)) %>%
+    group_split(white_percentile)
+
+offset_row <- tibble(term = c("", "Offset - Black Pop."),
+                     `Model 1` = c("Low White Pop.", "Yes"),
+                     `Model 2` = c("Medium White Pop.", "Yes"),
+                     `Model 3` = c("High White Pop.", "Yes"))
+attr(offset_row, "position") <- c(1, 10)
+
+# Estimate regression models across different levels of poverty
+final_vars_list <-
+    final_vars %>%
+    mutate(poverty_percentile = as.numeric(ntile(prcnt_civ_white, 3)),
+           poverty_percentile = case_when(unit == 6 ~ 2,
+                                       unit == 20 ~ 2,
+                                       T ~ poverty_percentile)) %>%
+    group_split(poverty_percentile)
+
+offset_row <- tibble(term = c("", "Offset - Black Pop."),
+                     `Model 1` = c("Low Poverty.", "Yes"),
+                     `Model 2` = c("Medium Poverty.", "Yes"),
+                     `Model 3` = c("High Poverty.", "Yes"))
+attr(offset_row, "position") <- c(1, 10)
+
+library(purrr)
+
+# Graph what these observations look like---------------------------------------
+map(final_vars_list, function(df) {
+    
+    ggplot(df, aes(y = black_stop_rate, x = prcnt_officer_black)) +
+    geom_point(aes(color = unit)) +
+    geom_smooth(method = MASS::glm.nb,
+                formula = y ~ x,
+                se = F,
+                aes(group = unit, color = unit)) +
+    geom_smooth(method = MASS::glm.nb,
+                formula = y ~ x,
+                se = F,
+                aes(group = 1)) +
+    theme_bw() +
+    labs(x = "Black Racial Congruence",
+         y = "Stops of Black Civilians Per 10,000") +
+    theme(text = element_text(size = 14))
+})
+```
+
+```{r}
+# Estimate the regression models from above across different groups-------------
+regression_groups <-
+    map(final_vars_list, function(df) {
+        
+        fixest_cluster_nb_full <-
+            femlm(black_stops ~ black_ratio + mean_years_worked_unit +
+              violent_cr_capita + property_cr_capita + log_total_officers +
+              year + offset(log(black)) | unit,
+          family = "negbin",
+          data = df)
+})
+
+names(regression_groups) <- c("", "Stops of Black Civilians", "")
+
+modelsummary(regression_groups,
+             coef_omit = "(Intercept)|theta",
+             coef_rename = c(black_ratio = "Black Racial Congruence",
+                             mean_years_worked_unit = "Years Worked In Unit (Mean)",
+                             prcnt_officer_black = "Percentage of Officers Who Are Black",
+                             violent_cr_capita = "Violent Crime Per 10,000",
+                             property_cr_capita = "Property Crime Per 10,000",
+                             log_total_officers = "Log of the Total Number of Officers"),
+             estimate = "{estimate} ({std.error}){stars}",
+             statistic = NULL,
+             stars = T,
+             gof_omit = "R2$|R2 Adj|R2 Within",
+             exponentiate = T,
+             output = "poverty_stops.html",
+             add_rows = offset_row,
+             notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
+                       "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"))
+```
+
+```{r}
+library(here)
+source(here("functions.R"))
+
+# Read in individual-level data-------------------------------------------------
+# Read in shift assignments (independent variables)-----------------------------
+shift_assignments <-
+    my_read_csv(here("create-outcomes",
+                     "input",
+                     "officers_assignments_ba.csv")) %>%
+    select(officer_id, month, unit, date, shift, weekday, months_from_start,
+           months_from_start_sq, shift_id, officer_race, officer_gender,
+           spanish, beat_assigned)
+
+# Read in outcomes (dependent variables)----------------------------------------
+outcomes <-
+    my_read_csv(here("create-outcomes", "output", "outcomes_ba_max.csv"),
+                injured = T) %>%
+    select(shift_id, stops_n, arrests_n, force_n, stops_black, arrests_black,
+           force_)
+
+# Create shift-level independent variables capturing the racial diversity of----
+# officers working a particular shift-------------------------------------------
+shift_counts_beats <-
+    shift_assignments %>%
+    count(unit, beat_assigned, date, shift, officer_race) %>%
+    group_by(unit, beat_assigned, date, shift) %>%
+    mutate(prcnt = n / sum(n)) %>%
+    pivot_wider(id_cols = c("unit", "beat_assigned", "shift", "date"),
+                names_from = "officer_race",
+                values_from = c("n", "prcnt"),
+                values_fill = 0) %>%
+    ungroup() %>%
+    mutate(n_officer = n_officer_black + n_officer_white + n_officer_hisp)
+
+full_data_beats <-
+    shift_counts_beats %>%
+    full_join(shift_assignments) %>%
+    full_join(outcomes) %>%
+    mutate(dummy = 1,
+           officer_gender = case_when(officer_gender == "MALE" ~ "officer_male",
+                                      officer_gender == "FEMALE" ~ "officer_female"),
+           spanish = case_when(spanish == T ~ "officer_spanish",
+                               spanish == F ~ "officer_english")) %>%
+    pivot_longer(cols = c("officer_race", "officer_gender", "spanish"),
+                 names_to = "column",
+                 values_to = "value") %>%
+    select(-column) %>%
+    pivot_wider(names_from = "value",
+                values_from = dummy,
+                values_fill = 0) %>%
+    filter(!is.na(months_from_start)) %>%
+    mutate(mult_officer = if_else(n_officer > 1, 1, 0),
+           n_officer_black = if_else(officer_black == 1, n_officer_black - 1, n_officer_black),
+           n_officer_hisp = if_else(officer_hisp == 1, n_officer_hisp - 1, n_officer_hisp),
+           n_officer_white = if_else(officer_white == 1, n_officer_white - 1, n_officer_white)) %>%
+    rename(`Police Unit` = unit,
+           `Month-Year` = month,
+           `Individual Officer` = officer_id) %>%
+    mutate(years_exp = months_from_start / 12,
+           years_exp_sq = years_exp ^ 2)
+```
+
+```{r}
+# Estimate individual-level regression models-----------------------------------
+library(fixest)
+
+stops_df <- full_data_beats %>% filter(!is.na(stops_n))
+arrests_df <- full_data_beats %>% filter(!is.na(arrests_n))
+force_df <- full_data_beats %>% filter(!is.na(force_n))
+
+offset_row <- tibble(term = c("", "FE - Day of the Week", "FE - Month-Year", "FE - Shift Timing", "FE - Beat"),
+                     `Model 1` = c("Negative Binomial Regression", "X", "X", "X", "X"),
+                     `Model 2` = c("Poisson Regression", "X", "X", "X", "X"),
+                     `Model 3` = c("Poisson Regression", "X", "X", "X",))
+attr(offset_row, "position") <- c(1, 13, 14, 15, 15)
+
+individual_stops <-
+    fenegbin(stops_black ~ officer_black + officer_hisp + officer_female + years_exp +
+                 years_exp_sq + mult_officer + n_officer_black + n_officer_white +
+                 n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+             cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+             data = stops_df)
+
+individual_arrests <-
+    fepois(arrests_n ~ officer_black + officer_hisp + officer_female + years_exp +
+               years_exp_sq + mult_officer + n_officer_black + n_officer_white +
+               n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+          cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+          data = arrests_df)
+
+individual_force <-
+    fepois(force_black ~ officer_black + officer_hisp + officer_female + years_exp +
+               years_exp_sq + mult_officer + n_officer_black + n_officer_white +
+               n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+           cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+           data = force_df)
+
+modelsummary(list("Stops of Black civilians" = individual_stops,
+                  "Arrests of Black civilians" = individual_arrests,
+                  "Uses of force against Black civilians" = individual_force),
+             coef_rename = c(officer_black = "Officer Race/Ethnicity - Black",
+                             officer_hisp = "Officer Race/Ethniciy - Hispanic",
+                             officer_female = "Officer Sex - Female",
+                             years_exp = "Officer Experience (Years)",
+                             years_exp_sq = "Officer Experience Squared (Years)",
+                             mult_officer = "Multipe officers assigned to the shift?",
+                             n_officer_black = "Number of other Black officers on shift",
+                             n_officer_white = "Number of other White officers on shift",
+                             n_officer_hisp = "Number of other Hispanic officers on shift"),
+             estimate = "{estimate} ({std.error}){stars}",
+             exponentiate = T,
+             statistic = NULL,
+             stars = T,
+             output = "individual_outcomes.html",
+             add_rows = offset_row,
+             coef_omit = ".theta",
+             gof_omit = "FE:|RMSE|AIC|R2 Within$",
+             notes = c("Standard Errors in parentheses.",
+                       "P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001"))
+```
+
