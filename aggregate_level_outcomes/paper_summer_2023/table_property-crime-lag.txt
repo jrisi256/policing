@@ -7,6 +7,8 @@
 |BIC                                     |        177564.3         |         73563.6         |          23554.9          |          10499.1          |             4696.3              |             3971.1              |
 |Std.Errors                              |           IID           |        by: unit         |            IID            |         by: unit          |               IID               |            by: unit             |
 |Offset - Black Pop.                     |           Yes           |           Yes           |            Yes            |            Yes            |               Yes               |               Yes               |
+|NA                                      |           NA            |           NA            |            NA             |            NA             |               NA                |               NA                |
+|NA                                      |           NA            |           NA            |            NA             |            NA             |               NA                |               NA                |
 |FE: unit                                |                         |            X            |                           |             X             |                                 |                X                |
 
 __Note:__

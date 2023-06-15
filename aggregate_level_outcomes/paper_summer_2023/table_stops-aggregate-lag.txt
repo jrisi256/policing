@@ -1,3 +1,4 @@
+new table -> Lagged crime variables
 |                                        |                 |Stops of Black Civilians |                 |                 |
 |:---------------------------------------|:----------------|:------------------------|:----------------|:----------------|
 |                                        |Model A          |Model B                  |Model C          |Model D          |
@@ -14,6 +15,24 @@
 |Std.Errors                              |by: unit         |by: unit                 |by: unit         |by: unit         |
 |FE: unit                                |X                |X                        |X                |X                |
 |FE: year                                |X                |X                        |X                |X                |
+
+Table 2 -> Original Paper
+|                                     |                |Stops of Black Civilians |                 |               |
+|:------------------------------------|:---------------|:------------------------|:----------------|:--------------|
+|                                     |Model 1         |Model 2                  |Model 3          |Model 4        |
+|Black Racial Congruence              |0.499 (0.131)** |                         |0.455 (0.116)**  |               |
+|Percentage of Officers Who Are Black |                |0.963 (0.012)**          |                 |0.970 (0.016)+ |
+|Years Worked In Unit (Mean)          |                |                         |0.763 (0.047)*** |0.836 (0.081)+ |
+|Violent Crime Per 10,000             |0.995 (0.009)   |0.992 (0.008)            |0.992 (0.008)    |0.991 (0.008)  |
+|Property Crime Per 10,000            |0.994 (0.002)** |0.995 (0.002)*           |0.995 (0.002)*   |0.995 (0.002)+ |
+|Log of the Total Number of Officers  |3.413 (2.685)   |2.693 (2.059)            |0.414 (0.386)    |0.745 (0.782)  |
+|Num.Obs.                             |792             |792                      |792              |792            |
+|Offset - Black Pop.                  |Yes             |Yes                      |Yes              |Yes            |
+|AIC                                  |10516.3         |10518.6                  |10492.8          |10510.2        |
+|BIC                                  |10647.2         |10649.5                  |10628.3          |10645.8        |
+|Std.Errors                           |by: unit        |by: unit                 |by: unit         |by: unit       |
+|FE: unit                             |X               |X                        |X                |X              |
+|FE: year                             |X               |X                        |X                |X              |
 
 __Note:__
 ^^ Standard Errors in parentheses. Coefficients are incident rate ratios.

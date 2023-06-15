@@ -1,12 +1,13 @@
+New table -> Lagged crime variables
 |                                        |                              |Arrests of Black Civilians      |                                   |                                   |
 |:---------------------------------------|:-----------------------------|:-------------------------------|:----------------------------------|:----------------------------------|
 |                                        |Model E                       |Model F                         |Model G                            |Model H                            |
-|Black Racial Congruence                 |                              |0.576 (             0.07215)*** |                                   |0.621 (              0.0788487)*** |
-|Percentage of Officers Who Are Black    |0.981 (             0.01470)  |                                |0.983 (              0.0142983)    |                                   |
-|Years Worked In Unit (Mean)             |0.964 (             0.06661)  |0.914 (             0.06608)    |0.998 (              0.0687856)    |0.951 (              0.0691994)    |
-|Violent Crime Per 10,000 (1 month lag)  |1.007 (             0.00334)* |1.007 (             0.00359)*   |1.009 (              0.0035335)**  |1.010 (              0.0037809)**  |
-|Property Crime Per 10,000 (1 month lag) |1.002 (             0.00144)  |1.002 (             0.00153)    |1.003 (              0.0013924)+   |1.003 (              0.0014742)+   |
-|Log of the Total Number of Officers     |4.087 (             2.80120)* |2.858 (             1.93486)    |4.844 (              3.3059662)*   |3.539 (              2.4089471)+   |
+|Black Racial Congruence                 |                              |0.576 (             0.07210)*** |                                   |0.621 (              0.0788026)*** |
+|Percentage of Officers Who Are Black    |0.981 (             0.01469)  |                                |0.983 (              0.0142903)    |                                   |
+|Years Worked In Unit (Mean)             |0.964 (             0.06657)  |0.914 (             0.06604)    |0.998 (              0.0687392)    |0.951 (              0.0691574)    |
+|Violent Crime Per 10,000 (1 month lag)  |1.007 (             0.00334)* |1.007 (             0.00359)*   |1.009 (              0.0035310)**  |1.010 (              0.0037782)**  |
+|Property Crime Per 10,000 (1 month lag) |1.002 (             0.00144)  |1.002 (             0.00153)    |1.003 (              0.0013914)+   |1.003 (              0.0014731)+   |
+|Log of the Total Number of Officers     |4.087 (             2.79935)* |2.858 (             1.93352)    |4.844 (              3.3033715)*   |3.539 (              2.4069322)+   |
 |Number of stops of Black civilians      |                              |                                |1.000 (              0.0000156)*** |1.000 (              0.0000167)*** |
 |Offset - Black Pop.                     |Yes                           |Yes                             |Yes                                |Yes                                |
 |Num.Obs.                                |770                           |770                             |770                                |770                                |
@@ -14,6 +15,26 @@
 |BIC                                     |7286.4                        |7275.9                          |7253.4                             |7245.6                             |
 |Std.Errors                              |by: unit                      |by: unit                        |by: unit                           |by: unit                           |
 |FE: unit                                |X                             |X                               |X                                  |X                                  |
+|FE: year                                |X                             |X                               |X                                  |X                                  |
+
+Table A2 -> Original paper
+|                                     |                                 |Arrests of Black Civilians       |                                     |                                     |
+|:------------------------------------|:--------------------------------|:--------------------------------|:------------------------------------|:------------------------------------|
+|                                     |Model 1A                         |Model 2A                         |Model 3A                             |Model 4A                             |
+|Black Racial Congruence              |                                 |0.541 (              0.07273)*** |                                     |0.588 (                0.0821343)*** |
+|Percentage of Officers Who Are Black |0.978 (              0.01520)    |                                 |0.981 (                0.0147453)    |                                     |
+|Years Worked In Unit (Mean)          |0.966 (              0.06640)    |0.910 (              0.06462)    |1.004 (                0.0691710)    |0.953 (                0.0684367)    |
+|Violent Crime Per 10,000             |1.009 (              0.00362)*   |1.010 (              0.00391)*   |1.011 (                0.0041671)*   |1.011 (                0.0044639)*   |
+|Property Crime Per 10,000            |1.008 (              0.00213)*** |1.008 (              0.00210)*** |1.009 (                0.0021913)*** |1.008 (                0.0021931)*** |
+|Log of the Total Number of Officers  |4.027 (              2.66316)*   |2.710 (              1.75865)    |4.997 (                3.3636690)*   |3.526 (                2.3478116)+   |
+|Number of stops of Black civilians   |                                 |                                 |1.000 (                0.0000157)*** |1.000 (                0.0000162)*** |
+|Num.Obs.                             |792                              |792                              |792                                  |792                                  |
+|Offset - Black Pop.                  |Yes                              |Yes                              |Yes                                  |Yes                                  |
+|AIC                                  |7304.3                           |7291.2                           |7259.0                               |7248.9                               |
+|BIC                                  |7439.9                           |7426.7                           |7399.2                               |7389.2                               |
+|Std.Errors                           |by: unit                         |by: unit                         |by: unit                             |by: unit                             |
+|FE: unit                             |X                                |X                                |X                                    |X                                    |
+|FE: year                             |X                                |X                                |X                                    |X                                    |
 
 __Note:__
 ^^ Standard Errors in parentheses. Coefficients are incident rate ratios.
