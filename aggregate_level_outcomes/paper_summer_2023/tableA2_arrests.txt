@@ -1,0 +1,23 @@
+|                                     |                                 |Arrests of Black Civilians       |                                     |                                     |
+|:------------------------------------|:--------------------------------|:--------------------------------|:------------------------------------|:------------------------------------|
+|                                     |Model 1A                         |Model 2A                         |Model 3A                             |Model 4A                             |
+|Black Racial Congruence              |                                 |0.541 (              0.07273)*** |                                     |0.588 (                0.0821343)*** |
+|Percentage of Officers Who Are Black |0.978 (              0.01520)    |                                 |0.981 (                0.0147453)    |                                     |
+|Years Worked In Unit (Mean)          |0.966 (              0.06640)    |0.910 (              0.06462)    |1.004 (                0.0691710)    |0.953 (                0.0684367)    |
+|Violent Crime Per 10,000             |1.009 (              0.00362)*   |1.010 (              0.00391)*   |1.011 (                0.0041671)*   |1.011 (                0.0044639)*   |
+|Property Crime Per 10,000            |1.008 (              0.00213)*** |1.008 (              0.00210)*** |1.009 (                0.0021913)*** |1.008 (                0.0021931)*** |
+|Log of the Total Number of Officers  |4.027 (              2.66316)*   |2.710 (              1.75865)    |4.997 (                3.3636690)*   |3.526 (                2.3478116)+   |
+|Number of stops of Black civilians   |                                 |                                 |1.000 (                0.0000157)*** |1.000 (                0.0000162)*** |
+|Num.Obs.                             |792                              |792                              |792                                  |792                                  |
+|Offset - Black Pop.                  |Yes                              |Yes                              |Yes                                  |Yes                                  |
+|AIC                                  |7304.3                           |7291.2                           |7259.0                               |7248.9                               |
+|BIC                                  |7439.9                           |7426.7                           |7399.2                               |7389.2                               |
+|Std.Errors                           |by: unit                         |by: unit                         |by: unit                             |by: unit                             |
+|FE: unit                             |X                                |X                                |X                                    |X                                    |
+|FE: year                             |X                                |X                                |X                                    |X                                    |
+
+__Note:__
+^^ Standard Errors in parentheses. Coefficients are incident rate ratios.
+
+__Note:__
+^^ P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001

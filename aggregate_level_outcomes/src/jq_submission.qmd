@@ -66,7 +66,7 @@ nb_ratio <-
 
 nb_ratio_exp <-
     femlm(black_stops ~ black_ratio + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+                property_cr_capita + log_total_officers +
               year + offset(log(black)) | unit,
           family = "negbin",
           data = final_vars)
