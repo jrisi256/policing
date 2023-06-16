@@ -33,7 +33,8 @@ unit_level_model_vars <-
     group_by(unit) %>%
     arrange(unit, year, month) %>%
     mutate(property_cr_capita_lag_1m = lag(property_cr_capita),
-           violent_cr_capita_lag_1m = lag(violent_cr_capita))
+           violent_cr_capita_lag_1m = lag(violent_cr_capita)) %>%
+    ungroup()
 
 ################################################################################
 nb_prcnt <-
@@ -330,7 +331,7 @@ offset_row <-
         `Model 5` = c("Uses of Force - Black civilians", "Yes"),
         `Model 6` = c("Uses of Force - Black civilians", "Yes")
     )
-attr(offset_row, "position") <- c(1, 9)
+attr(offset_row, "position") <- c(1, 6)
 
 modelsummary(
     list(stops_property_cr,
@@ -344,7 +345,7 @@ modelsummary(
     estimate = "{estimate} ({std.error}){stars}",
     statistic = NULL,
     stars = T,
-    gof_omit = "R2|RMSE",
+    gof_omit = "R2|RMSE|NA",
     exponentiate = T,
     output = file.path(dir, "table_property-crime.txt"),
     add_rows = offset_row,

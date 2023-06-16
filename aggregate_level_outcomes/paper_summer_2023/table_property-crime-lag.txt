@@ -5,10 +5,8 @@
 |Num.Obs.                                |           770           |           770           |            770            |            770            |               770               |               770               |
 |AIC                                     |        177555.0         |         73456.7         |          23545.6          |          10392.3          |             4687.0              |             3864.2              |
 |BIC                                     |        177564.3         |         73563.6         |          23554.9          |          10499.1          |             4696.3              |             3971.1              |
-|Std.Errors                              |           IID           |        by: unit         |            IID            |         by: unit          |               IID               |            by: unit             |
 |Offset - Black Pop.                     |           Yes           |           Yes           |            Yes            |            Yes            |               Yes               |               Yes               |
-|NA                                      |           NA            |           NA            |            NA             |            NA             |               NA                |               NA                |
-|NA                                      |           NA            |           NA            |            NA             |            NA             |               NA                |               NA                |
+|Std.Errors                              |           IID           |        by: unit         |            IID            |         by: unit          |               IID               |            by: unit             |
 |FE: unit                                |                         |            X            |                           |             X             |                                 |                X                |
 
 __Note:__
