@@ -1,0 +1,28 @@
+|                                    |                 |Stops of Black Civilians |                 |
+|:-----------------------------------|:----------------|:------------------------|:----------------|
+|                                    |Threshold 10%    |Threshold 20%            |Threshold 30%    |
+|black_ratio                         |0.468 (0.129)**  |0.449 (0.139)**          |0.443 (0.120)**  |
+|Years Worked In Unit (Mean)         |0.757 (0.051)*** |0.783 (0.060)**          |0.760 (0.048)*** |
+|10% Threshold                       |0.900 (0.122)    |                         |                 |
+|Violent Crime Per 10,000            |0.992 (0.008)    |0.989 (0.007)            |0.992 (0.008)    |
+|Property Crime Per 10,000           |0.995 (0.003)*   |0.996 (0.003)            |0.995 (0.002)*   |
+|Log of the Total Number of Officers |0.391 (0.364)    |0.395 (0.333)            |0.430 (0.401)    |
+|black_ratio:10% Threshold           |1.017 (0.120)    |                         |                 |
+|20% Threshold                       |                 |0.720 (0.168)            |                 |
+|black_ratio:20% Threshold           |                 |1.276 (0.511)            |                 |
+|30% Threshold                       |                 |                         |1.072 (0.268)    |
+|Offset - Black Pop.                 |Yes              |Yes                      |Yes              |
+|black_ratio:30% Threshold           |                 |                         |1.075 (0.634)    |
+|Num.Obs.                            |792              |792                      |792              |
+|AIC                                 |10495.8          |10485.7                  |10494.9          |
+|BIC                                 |10640.7          |10630.6                  |10639.8          |
+|RMSE                                |338.97           |333.13                   |335.85           |
+|Std.Errors                          |by: unit         |by: unit                 |by: unit         |
+|FE: unit                            |X                |X                        |X                |
+|FE: year                            |X                |X                        |X                |
+
+__Note:__
+^^ Standard Errors in parentheses. Coefficients are incident rate ratios.
+
+__Note:__
+^^ P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001

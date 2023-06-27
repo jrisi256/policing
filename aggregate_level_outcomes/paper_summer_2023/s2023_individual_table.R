@@ -15,6 +15,9 @@ shift_assignments <- read_csv(file.path(dir, "officers_assignments_ba.csv"))
 # Read in outcomes (dependent variables)
 outcomes <- read_csv(file.path(dir, "outcomes_ba_max.csv"))
 
+################################################################################
+# Clean data
+
 # Create shift-level variable: racial diversity of officers working the shift
 racial_diversity_shift_beat <-
     shift_assignments %>%
@@ -62,11 +65,23 @@ full_data_beats <-
            `Month-Year` = month,
            `Individual Officer` = officer_id) %>%
     mutate(years_exp = months_from_start / 12,
-           years_exp_sq = years_exp ^ 2)
+           years_exp_sq = years_exp ^ 2,
+           month = month(date),
+           year = year(date))
 
 stops_df <- full_data_beats %>% filter(!is.na(stops_n))
 arrests_df <- full_data_beats %>% filter(!is.na(arrests_n))
 force_df <- full_data_beats %>% filter(!is.na(force_n))
+
+################################################################################
+# Add in level 2 variables
+full_data_beats_lvl2 <-
+    full_data_beats %>%
+    inner_join(unit_level, by = c("Police Unit" = "unit", "month", "year"))
+
+stops_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(stops_n))
+arrests_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(arrests_n))
+force_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(force_n))
 
 ################################################################################
 # estimate number of stops, arrests, and force at the individual-shift level

@@ -15,13 +15,10 @@ dir <- here("aggregate_level_outcomes", "paper_summer_2023")
 shift_assignments <- read_csv(file.path(dir, "officers_assignments_ba.csv"))
 
 # Read in outcomes (dependent variables)
-outcomes <-
-    read_csv(file.path(dir, "outcomes_ba_max.csv")) %>%
-    mutate(stops_sus_tr = stops_suspicious + stops_traffic,
-           stops_sus_tr_lo = stops_suspicious + stops_traffic + stops_loitering)
+outcomes <- read_csv(file.path(dir, "outcomes_ba_max.csv"))
 
 # join outcomes with independent variables and aggregate to the unit-month
-types_of_stops <-
+types_of_arrests <-
     shift_assignments %>%
     full_join(outcomes) %>%
     mutate(month = month(date),
@@ -29,19 +26,17 @@ types_of_stops <-
     filter(year != 2012 & year != 2016) %>%
     filter(unit != 13 & unit != 21 & unit != 23) %>%
     group_by(unit, year, month) %>%
-    summarise(nr_stops_suspicious = sum(stops_suspicious, na.rm = T),
-              nr_stops_other = sum(stops_other, na.rm = T),
-              nr_stops_traffic = sum(stops_traffic, na.rm = T),
-              nr_stops_drug = sum(stops_drug, na.rm = T),
-              nr_stops_loitering = sum(stops_loitering, na.rm = T),
-              nr_stops_sus_tr = sum(stops_sus_tr, na.rm = T),
-              nr_stops_sus_tr_lo = sum(stops_sus_tr_lo, na.rm = T)) %>%
+    summarise(nr_arrests_other = sum(arrests_other, na.rm = T),
+              nr_arrests_property = sum(arrests_property, na.rm = T),
+              nr_arrests_trf = sum(arrests_trf, na.rm = T),
+              nr_arrests_drug = sum(arrests_drug, na.rm = T),
+              nr_arrests_violent = sum(arrests_violent, na.rm = T)) %>%
     ungroup()
 
 # Read in unit level variables and join with new outcome variables
 unit_level <-
     read_csv(file.path(dir, "unit_level.csv")) %>%
-    full_join(types_of_stops) %>%
+    full_join(types_of_arrests) %>%
     mutate(prcnt_officer_black = prcnt_officer_black * 100,
            property_cr_capita = property_cr * 10000 / total_pop,
            violent_cr_capita = violent_cr * 10000 /  total_pop,
@@ -56,7 +51,7 @@ unit_level <-
 unit_level_list <-
     unit_level %>%
     pivot_longer(
-        cols = matches("^stops$|black_stops|nr_stops"),
+        cols = matches("^arrests$|black_arrests|nr_arrests"),
         names_to = "group",
         values_to = "dep_var"
     ) %>%
@@ -68,15 +63,15 @@ names(unit_level_list) <- names
 unit_level_list <-
     pmap(list(unit_level_list, names(unit_level_list)),
          function(df, dep_var_name) {
-
+             
              df %>%
                  mutate(dep_var_name = dep_var_name,
                         offset_var =
-                            if_else(dep_var_name == "black_stops",
+                            if_else(dep_var_name == "black_arrests",
                                     black,
                                     total_pop
-                                    )
-                        )
+                            )
+                 )
          })
 
 regression_groups <-
@@ -95,16 +90,15 @@ regression_groups <-
     )
 
 offset_row <- tibble(term = c("", "Offset"),
-                     `Model 1` = c(names(regression_groups)[1], "Black Pop."),
-                     `Model 2` = c(names(regression_groups)[2], "Total Pop."),
+                     `Model 1` = c(names(regression_groups)[1], "Total Pop."),
+                     `Model 2` = c(names(regression_groups)[2], "Black Pop."),
                      `Model 3` = c(names(regression_groups)[3], "Total Pop."),
                      `Model 4` = c(names(regression_groups)[4], "Total Pop."),
                      `Model 5` = c(names(regression_groups)[5], "Total Pop."),
                      `Model 6` = c(names(regression_groups)[6], "Total Pop."),
-                     `Model 7` = c(names(regression_groups)[7], "Total Pop."),
-                     `Model 8` = c(names(regression_groups)[7], "Total Pop."),
-                     `Model 9` = c(names(regression_groups)[7], "Total Pop."))
+                     `Model 7` = c(names(regression_groups)[6], "Total Pop."))
 attr(offset_row, "position") <- c(1, 10)
+f <- function(x) format(x, digits = 3, nsmall = 1, scientific = F, trim = T)
 
 modelsummary(regression_groups,
              coef_omit = "(Intercept)|theta",
@@ -118,14 +112,14 @@ modelsummary(regression_groups,
                  ),
              estimate = "{estimate} ({std.error}){stars}",
              statistic = NULL,
-             fmt = 2,
              stars = T,
+             fmt = f,
              gof_omit = "R2|RMSE",
              exponentiate = T,
-             output = file.path(dir, "table_different-stop-types-aggregate.txt"),
+             output = file.path(dir, "table_different-arrest-types-aggregate.txt"),
              add_rows = offset_row,
              notes =
                  c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
                    "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"
                  )
-             )
+)
