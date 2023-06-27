@@ -1,0 +1,21 @@
+|                                    | Lower Half Disadvantage | Upper Half Disadvantage |
+|:-----------------------------------|:-----------------------:|:-----------------------:|
+|Black Stops                         |                         |                         |
+|Black Racial Congruence             |       0.70 (0.23)       |       1.20 (1.46)       |
+|Years Worked In Unit (Mean)         |       0.96 (0.08)       |      0.67 (0.09)**      |
+|Violent Crime Per 10,000            |       1.01 (0.01)       |       0.99 (0.01)       |
+|Property Crime Per 10,000           |      0.99 (0.00)*       |       1.00 (0.00)       |
+|Log of the Total Number of Officers |       1.80 (1.94)       |       0.12 (0.18)       |
+|Num.Obs.                            |           396           |           396           |
+|AIC                                 |         4677.1          |         5758.0          |
+|BIC                                 |         4748.7          |         5829.7          |
+|Offset - Black Pop.                 |           Yes           |           Yes           |
+|Std.Errors                          |        by: unit         |        by: unit         |
+|FE: unit                            |            X            |            X            |
+|FE: year                            |            X            |            X            |
+
+__Note:__
+^^ Standard Errors in parentheses. Coefficients are incident rate ratios.
+
+__Note:__
+^^ P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001

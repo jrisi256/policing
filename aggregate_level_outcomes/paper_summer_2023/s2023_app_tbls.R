@@ -24,20 +24,26 @@ unit_level <-
            unit = as.character(unit))
 
 ################################################################################
-# Estimate regression models across different levels of White citizens
-unit_level_list <-
+# Estimate regression models across different levels of White residents
+unit_level_list_white <-
     unit_level %>%
-    mutate(white_percentile = as.numeric(ntile(prcnt_civ_white, 3)),
-           white_percentile =
-               case_when(
-                   unit == 17 ~ 2,
-                   unit == 4 ~ 1,
-                   T ~ white_percentile)
-          ) %>%
+    distinct(unit, prcnt_civ_white) %>%
+    mutate(white_percentile = as.numeric(ntile(prcnt_civ_white, 3))) %>%
+    select(-prcnt_civ_white) %>%
+    full_join(unit_level, by = "unit", multiple = "all") %>%
     group_split(white_percentile)
 
-regression_groups <-
-    map(unit_level_list,
+names_white <-
+    unlist(map(unit_level_list_white,
+               function(df) {df %>% pull(white_percentile) %>% unique()}))
+
+names_white[names_white == 1] <- "Low White Pop."
+names_white[names_white == 2] <- "Medium White Pop."
+names_white[names_white == 3] <- "High White Pop."
+names(unit_level_list_white) <- names_white
+
+regression_groups_white_ratio <-
+    map(unit_level_list_white,
         function(df) {
             fixest_cluster_nb_full <-
                 femlm(black_stops ~
@@ -53,14 +59,13 @@ regression_groups <-
 
 ################################################################################
 # Table A1
-offset_row <- tibble(term = c("", "Offset - Black Pop."),
-                     `Model 1` = c("Low White Pop.", "Yes"),
-                     `Model 2` = c("Medium White Pop.", "Yes"),
-                     `Model 3` = c("High White Pop.", "Yes"))
+offset_row <- tibble(term = c("Black Stops", "Offset - Black Pop."),
+                     `Model 1` = c("", "Yes"),
+                     `Model 2` = c("", "Yes"),
+                     `Model 3` = c("", "Yes"))
 attr(offset_row, "position") <- c(1, 10)
-names(regression_groups) <- c("", "Stops of Black Civilians", "")
 
-modelsummary(regression_groups,
+modelsummary(regression_groups_white_ratio,
              coef_omit = "(Intercept)|theta",
              coef_rename =
                  c(black_ratio = "Black Racial Congruence",
@@ -69,7 +74,7 @@ modelsummary(regression_groups,
                    violent_cr_capita = "Violent Crime Per 10,000",
                    property_cr_capita = "Property Crime Per 10,000",
                    log_total_officers = "Log of the Total Number of Officers"
-                  ),
+                 ),
              estimate = "{estimate} ({std.error}){stars}",
              statistic = NULL,
              fmt = 2,
@@ -81,8 +86,8 @@ modelsummary(regression_groups,
              notes =
                  c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
                    "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"
-                  )
-             )
+                 )
+)
 
 ################################################################################
 # Estimate regression models where dependent variable is arrests

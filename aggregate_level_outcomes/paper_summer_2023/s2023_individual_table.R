@@ -66,22 +66,13 @@ full_data_beats <-
            `Individual Officer` = officer_id) %>%
     mutate(years_exp = months_from_start / 12,
            years_exp_sq = years_exp ^ 2,
-           month = month(date),
-           year = year(date))
+           stops_black_bin = if_else(stops_black == 0, 0, 1),
+           arrests_black_bin = if_else(arrests_black == 0, 0, 1),
+           force_black_bin = if_else(force_black == 0, 0, 1))
 
 stops_df <- full_data_beats %>% filter(!is.na(stops_n))
 arrests_df <- full_data_beats %>% filter(!is.na(arrests_n))
 force_df <- full_data_beats %>% filter(!is.na(force_n))
-
-################################################################################
-# Add in level 2 variables
-full_data_beats_lvl2 <-
-    full_data_beats %>%
-    inner_join(unit_level, by = c("Police Unit" = "unit", "month", "year"))
-
-stops_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(stops_n))
-arrests_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(arrests_n))
-force_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(force_n))
 
 ################################################################################
 # estimate number of stops, arrests, and force at the individual-shift level
@@ -101,7 +92,7 @@ individual_stops <-
         data = stops_df)
 
 individual_arrests <-
-    fepois(arrests_n ~
+    fepois(arrests_black ~
                officer_black +
                officer_hisp +
                officer_female +
@@ -154,6 +145,86 @@ modelsummary(list("Stops of Black civilians" = individual_stops,
              statistic = NULL,
              stars = T,
              output = file.path(dir, "tableA4_individual-results.txt"),
+             add_rows = offset_row,
+             coef_omit = ".theta",
+             gof_omit = "FE:|RMSE|AIC|R2 Within$",
+             notes = c("Standard Errors in parentheses.",
+                       "P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001"))
+
+################################################################################
+# stops, arrests, and force at the individual-shift level (binary outcome)
+individual_stops_bin <-
+    feglm(
+        stops_black_bin ~
+            officer_black +
+            officer_hisp +
+            officer_female +
+            years_exp +
+            years_exp_sq +
+            mult_officer +
+            n_officer_black +
+            n_officer_white +
+            n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+        family = "logit",
+        cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+        data = stops_df)
+
+individual_arrests_bin <-
+    feglm(arrests_black_bin ~
+              officer_black +
+              officer_hisp +
+              officer_female +
+              years_exp +
+              years_exp_sq +
+              mult_officer +
+              n_officer_black +
+              n_officer_white +
+              n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+          family = "logit",
+          cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+          data = arrests_df)
+
+individual_force_bin <-
+    feglm(force_black_bin ~
+              officer_black +
+              officer_hisp +
+              officer_female +
+              years_exp +
+              years_exp_sq +
+              mult_officer +
+              n_officer_black +
+              n_officer_white +
+              n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+          family = "logit",
+          cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+          data = force_df)
+
+################################################################################
+# Recreate Table A4 using logistic regression instead of count-based models
+offset_row <-
+    tibble(term = c("", "FE - Day of the Week", "FE - Month-Year", "FE - Shift Timing", "FE - Beat"),
+           `Model 1` = c("", "X", "X", "X", "X"),
+           `Model 2` = c("Logistic Regression", "X", "X", "X", "X"),
+           `Model 3` = c("", "X", "X", "X", "X"))
+attr(offset_row, "position") <- c(1, 13, 14, 15, 15)
+
+modelsummary(list("Stops of Black civilians (1/0)" = individual_stops_bin,
+                  "Arrests of Black civilians (1/0)" = individual_arrests_bin,
+                  "Uses of force against Black civilians (1/0)" = individual_force_bin),
+             coef_rename = c(officer_black = "Officer Race/Ethnicity - Black",
+                             officer_hisp = "Officer Race/Ethniciy - Hispanic",
+                             officer_female = "Officer Sex - Female",
+                             years_exp = "Officer Experience (Years)",
+                             years_exp_sq = "Officer Experience Squared (Years)",
+                             mult_officer = "Multipe officers assigned to the shift?",
+                             n_officer_black = "Number of other Black officers on shift",
+                             n_officer_white = "Number of other White officers on shift",
+                             n_officer_hisp = "Number of other Hispanic officers on shift"),
+             estimate = "{estimate} ({std.error}){stars}",
+             exponentiate = T,
+             statistic = NULL,
+             stars = T,
+             output = file.path(dir, "tableA4_individual-results-logit.txt"),
              add_rows = offset_row,
              coef_omit = ".theta",
              gof_omit = "FE:|RMSE|AIC|R2 Within$",

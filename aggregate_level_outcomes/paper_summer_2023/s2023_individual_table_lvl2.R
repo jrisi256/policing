@@ -175,7 +175,7 @@ individual_arrests_lvl2_ratio <-
 
 individual_arrests_lvl2_prcnt <-
     fepois(
-        stops_black ~
+        arrests_black ~
             officer_black +
             officer_hisp +
             officer_female +
@@ -191,7 +191,7 @@ individual_arrests_lvl2_prcnt <-
 
 individual_arrests_lvl2_ratio_interaction <-
     fepois(
-        stops_black ~
+        arrests_black ~
             officer_black +
             officer_hisp +
             officer_female +
@@ -209,7 +209,7 @@ individual_arrests_lvl2_ratio_interaction <-
 
 individual_arrests_lvl2_prcnt_interaction <-
     fepois(
-        stops_black ~
+        arrests_black ~
             officer_black +
             officer_hisp +
             officer_female +
