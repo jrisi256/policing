@@ -9,7 +9,12 @@ stops_assignments <-
 arrests_assignments <-
     my_read_csv(here("create-outcomes",
                      "input",
-                     "arrests_officers_assignments_ba_max.csv"))
+                     "arrests_officers_assignments_ba_max.csv")) %>%
+    mutate(domestic =
+               case_when(
+                   str_detect(statute_description, "DOMESTIC") & crime_code == "violent" ~ "domestic",
+                   !str_detect(statute_description, "DOMESTIC") & crime_code == "violent" ~ "non_domestic",
+                   T ~ "non_violent"))
 
 force_assignments <-
     my_read_csv(here("create-outcomes",
@@ -25,9 +30,10 @@ stop_outcomes <-
 
 arrest_count <- Create_Outcomes(arrests_assignments, "arrests", arrest_id)
 arrest_type <- Create_Outcomes(arrests_assignments, "arrests", arrest_id, crime_code)
+arrest_type_domestic <- Create_Outcomes(arrests_assignments, "arrests", arrest_id, domestic)
 arrest_race <- Create_Outcomes(arrests_assignments, "arrests", arrest_id, civ.race)
 arrest_outcomes <-
-    reduce(list(arrest_count, arrest_type, arrest_race), full_join, by = "shift_id") %>%
+    reduce(list(arrest_count, arrest_type, arrest_race, arrest_type_domestic), full_join, by = "shift_id") %>%
     mutate(across(-shift_id, ~if_else(is.na(.x), 0, .x)))
 
 force_count <- Create_Outcomes(force_assignments, "force", force_id)

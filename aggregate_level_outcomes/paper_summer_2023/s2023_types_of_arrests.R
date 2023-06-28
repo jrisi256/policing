@@ -30,7 +30,9 @@ types_of_arrests <-
               nr_arrests_property = sum(arrests_property, na.rm = T),
               nr_arrests_trf = sum(arrests_trf, na.rm = T),
               nr_arrests_drug = sum(arrests_drug, na.rm = T),
-              nr_arrests_violent = sum(arrests_violent, na.rm = T)) %>%
+              nr_arrests_violent = sum(arrests_violent, na.rm = T),
+              nr_arrests_domestic = sum(arrests_domestic, na.rm = T),
+              nr_arrests_non_domestic = sum(arrests_non_domestic, na.rm = T)) %>%
     ungroup()
 
 # Read in unit level variables and join with new outcome variables
@@ -96,7 +98,9 @@ offset_row <- tibble(term = c("", "Offset"),
                      `Model 4` = c(names(regression_groups)[4], "Total Pop."),
                      `Model 5` = c(names(regression_groups)[5], "Total Pop."),
                      `Model 6` = c(names(regression_groups)[6], "Total Pop."),
-                     `Model 7` = c(names(regression_groups)[6], "Total Pop."))
+                     `Model 7` = c(names(regression_groups)[7], "Total Pop."),
+                     `Model 8` = c(names(regression_groups)[8], "Total Pop."),
+                     `Model 9` = c(names(regression_groups)[9], "Total Pop."))
 attr(offset_row, "position") <- c(1, 10)
 f <- function(x) format(x, digits = 3, nsmall = 1, scientific = F, trim = T)
 

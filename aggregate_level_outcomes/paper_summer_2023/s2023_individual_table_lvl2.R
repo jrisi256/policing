@@ -5,6 +5,7 @@ library(readr)
 library(fixest)
 library(lubridate)
 library(modelsummary)
+library(ggplot2)
 
 ################################################################################
 # Read in individual-level data
@@ -19,7 +20,22 @@ outcomes <- read_csv(file.path(dir, "outcomes_ba_max.csv"))
 # Read in level 2 variables (police unit)
 unit_level <-
     read_csv(file.path(dir, "unit_level.csv")) %>%
-    select(unit, month, year, black_ratio, prcnt_officer_black) %>%
+    mutate(prcnt_officer_black = prcnt_officer_black * 100,
+           property_cr_capita = property_cr * 10000 / total_pop,
+           violent_cr_capita = violent_cr * 10000 /  total_pop,
+           white_stop_rate = round(white_stops / white * 10000),
+           hispanic_stop_rate = round(hispanic_stops / black * 10000),
+           mean_years_worked_unit = mean_months_worked_unit / 12,
+           year = as.character(year),
+           unit = as.character(unit)) %>%
+    mutate(prcnt_poverty_scale = scale(prcnt_poverty)[, 1],
+           prcnt_notlf_scale = scale(prcnt_notlf)[, 1],
+           prcnt_single_scale = scale(prcnt_single)[, 1],
+           prcnt_civ_black_scale = scale(prcnt_civ_black)[, 1],
+           disadvantage_new = (prcnt_poverty_scale + prcnt_notlf_scale + prcnt_single_scale) / 3,
+           disadvantage_black_new = (prcnt_poverty_scale + prcnt_notlf_scale + prcnt_single_scale + prcnt_civ_black_scale) / 4) %>%
+    select(unit, month, year, black_ratio, prcnt_officer_black, disadvantage,
+           prcnt_civ_black, disadvantage_new, disadvantage_black_new, black) %>%
     rename(prcnt_officer_black_unit = prcnt_officer_black)
 
 ################################################################################
@@ -68,13 +84,14 @@ full_data_beats <-
            n_officer_black = if_else(officer_black == 1, n_officer_black - 1, n_officer_black),
            n_officer_hisp = if_else(officer_hisp == 1, n_officer_hisp - 1, n_officer_hisp),
            n_officer_white = if_else(officer_white == 1, n_officer_white - 1, n_officer_white)) %>%
+    mutate(unit = as.character(unit)) %>%
     rename(`Police Unit` = unit,
            `Month-Year` = month,
            `Individual Officer` = officer_id) %>%
     mutate(years_exp = months_from_start / 12,
            years_exp_sq = years_exp ^ 2,
            month = month(date),
-           year = year(date))
+           year = as.character(year(date)))
 
 ################################################################################
 # Add in level 2 variables
@@ -86,6 +103,26 @@ stops_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(stops_n))
 arrests_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(arrests_n))
 force_df_lvl2 <- full_data_beats_lvl2 %>% filter(!is.na(force_n))
 
+# There are only 68 mdsbs with different values at level 2.
+# Within them, there are only a few shifts being compared compared.
+nr_mdsb_comparisons <-
+    stops_df_lvl2 %>%
+    group_by(beat_assigned, `Month-Year`, weekday, shift) %>%
+    filter(n_distinct(prcnt_officer_black_unit) > 1) %>%
+    filter(!(all(stops_black == 0))) %>%
+    mutate(id =  cur_group_id()) %>%
+    ungroup() %>%
+    select(stops_black, prcnt_officer_black_unit, beat_assigned, `Month-Year`,
+           shift, weekday, `Police Unit`, id) %>%
+    arrange(`Month-Year`, shift, beat_assigned, weekday)
+
+ggplot(nr_mdsb_comparisons,
+       aes(x = prcnt_officer_black_unit, y = stops_black)) +
+    geom_point() +
+    facet_wrap(~id) +
+    geom_smooth(method = "lm")
+
+# All of these regression models are trash.
 ################################################################################
 # estimate number of stops at the individual-shift level
 individual_stops_lvl2_ratio <-

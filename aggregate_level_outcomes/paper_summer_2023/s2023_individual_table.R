@@ -68,7 +68,8 @@ full_data_beats <-
            years_exp_sq = years_exp ^ 2,
            stops_black_bin = if_else(stops_black == 0, 0, 1),
            arrests_black_bin = if_else(arrests_black == 0, 0, 1),
-           force_black_bin = if_else(force_black == 0, 0, 1))
+           force_black_bin = if_else(force_black == 0, 0, 1),
+           `Police Unit` = as.character(`Police Unit`))
 
 stops_df <- full_data_beats %>% filter(!is.na(stops_n))
 arrests_df <- full_data_beats %>% filter(!is.na(arrests_n))
