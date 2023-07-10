@@ -7,7 +7,6 @@ library(modelsummary)
 
 ################################################################################
 # Read in data
-
 dir <- here("aggregate_level_outcomes", "paper_summer_2023")
 
 unit_level <- read_csv(file.path(dir, "unit_level.csv"))
@@ -91,25 +90,25 @@ modelsummary(regression_groups_white_prcnt_tercile,
 
 ################################################################################
 # Estimate regression models across 3 different levels of disadvantage
-unit_level_list_dis_tercile <-
+unit_level_list_pvrty_tercile <-
     unit_level %>%
-    distinct(unit, disadvantage) %>%
-    mutate(disadvantage_percentile = as.numeric(ntile(disadvantage, 3))) %>%
-    select(-disadvantage) %>%
+    distinct(unit, prcnt_poverty) %>%
+    mutate(poverty_percentile = as.numeric(ntile(prcnt_poverty, 3))) %>%
+    select(-prcnt_poverty) %>%
     full_join(unit_level, by = "unit", multiple = "all") %>%
-    group_split(disadvantage_percentile)
+    group_split(poverty_percentile)
 
-names_dis_tercile <-
-    unlist(map(unit_level_list_dis_tercile,
-               function(d) {d %>% pull(disadvantage_percentile) %>% unique()}))
+names_pvrty_tercile <-
+    unlist(map(unit_level_list_pvrty_tercile,
+               function(d) {d %>% pull(poverty_percentile) %>% unique()}))
 
-names_dis_tercile[names_dis_tercile == 1] <- "Low Disadvantage"
-names_dis_tercile[names_dis_tercile == 2] <- "Medium Disadvantage"
-names_dis_tercile[names_dis_tercile == 3] <- "High Disadvantage"
-names(unit_level_list_dis_tercile) <- names_dis_tercile
+names_pvrty_tercile[names_pvrty_tercile == 1] <- "Low Poverty"
+names_pvrty_tercile[names_pvrty_tercile == 2] <- "Medium Poverty"
+names_pvrty_tercile[names_pvrty_tercile == 3] <- "High Poverty"
+names(unit_level_list_pvrty_tercile) <- names_pvrty_tercile
 
-regression_groups_dis_ratio_tercile <-
-    map(unit_level_list_dis_tercile,
+regression_groups_pvrty_ratio_tercile <-
+    map(unit_level_list_pvrty_tercile,
         function(df) {
             fixest_cluster_nb_full <-
                 femlm(black_stops ~
@@ -123,8 +122,8 @@ regression_groups_dis_ratio_tercile <-
                       data = df)
         })
 
-regression_groups_dis_prcnt_tercile <-
-    map(unit_level_list_dis_tercile,
+regression_groups_pvrty_prcnt_tercile <-
+    map(unit_level_list_pvrty_tercile,
         function(df) {
             fixest_cluster_nb_full <-
                 femlm(black_stops ~
@@ -140,7 +139,7 @@ regression_groups_dis_prcnt_tercile <-
 
 ################################################################################
 # Disadvantage by tercile for racial congruence
-modelsummary(regression_groups_dis_ratio_tercile,
+modelsummary(regression_groups_pvrty_ratio_tercile,
              coef_omit = "(Intercept)|theta",
              coef_rename =
                  c(black_ratio = "Black Racial Congruence",
@@ -156,7 +155,7 @@ modelsummary(regression_groups_dis_ratio_tercile,
              stars = T,
              gof_omit = "R2|RMSE",
              exponentiate = T,
-             output = file.path(dir, "table_disadvantage-terciles-ratio.txt"),
+             output = file.path(dir, "table_poverty-terciles-ratio.txt"),
              add_rows = offset_row_tercile,
              notes =
                  c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
@@ -165,7 +164,7 @@ modelsummary(regression_groups_dis_ratio_tercile,
 )
 
 # Disadvantage by tercile for percentage of Black officers
-modelsummary(regression_groups_dis_prcnt_tercile,
+modelsummary(regression_groups_pvrty_prcnt_tercile,
              coef_omit = "(Intercept)|theta",
              coef_rename =
                  c(black_ratio = "Black Racial Congruence",
@@ -181,7 +180,7 @@ modelsummary(regression_groups_dis_prcnt_tercile,
              stars = T,
              gof_omit = "R2|RMSE",
              exponentiate = T,
-             output = file.path(dir, "table_disadvantage-terciles-prcnt.txt"),
+             output = file.path(dir, "table_poverty-terciles-prcnt.txt"),
              add_rows = offset_row_tercile,
              notes =
                  c("Standard Errors in parentheses. Coefficients are incident rate ratios.",

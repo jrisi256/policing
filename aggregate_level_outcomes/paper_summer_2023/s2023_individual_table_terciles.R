@@ -34,12 +34,13 @@ unit_level <-
            disadvantage_new = (prcnt_poverty_scale + prcnt_notlf_scale + prcnt_single_scale) / 3,
            disadvantage_black_new = (prcnt_poverty_scale + prcnt_notlf_scale + prcnt_single_scale + prcnt_civ_black_scale) / 4) %>%
     select(unit, month, year, black_ratio, prcnt_officer_black, disadvantage,
-           prcnt_civ_black, disadvantage_new, disadvantage_black_new, black) %>%
+           prcnt_civ_black, disadvantage_new, disadvantage_black_new, black,
+           prcnt_poverty) %>%
     rename(prcnt_officer_black_unit = prcnt_officer_black) %>%
     distinct(unit, .keep_all = T) %>%
     mutate(officer_black_ntile = ntile(prcnt_officer_black_unit, 3),
-           disadvantage_ntile = ntile(disadvantage_new, 3)) %>%
-    select(officer_black_ntile, disadvantage_ntile, unit) %>%
+           poverty_ntile = ntile(prcnt_poverty, 3)) %>%
+    select(officer_black_ntile, poverty_ntile, unit) %>%
     pivot_longer(
         cols = matches("ntile"), names_to = "variable", values_to = "values") %>%
     unite("variable", c("variable", "values"))
@@ -105,7 +106,7 @@ full_data_beats <-
            `Police Unit`, arrests_black, force_black, `Individual Officer`)
 
 ################################################################################
-# Split by percent of unit that is black and disadvantage
+# Split by percent of unit that is black and poverty
 full_data_beats_tercile <-
     full_data_beats %>%
     inner_join(unit_level, by = c("Police Unit" = "unit"), multiple = "all") %>%
@@ -114,9 +115,9 @@ full_data_beats_tercile <-
 names <- unlist(map(full_data_beats_tercile,
                     function(df) {df %>% pull(variable) %>% unique()}))
 
-names[names == "disadvantage_ntile_1"] <- "Low disadvantage"
-names[names == "disadvantage_ntile_2"] <- "Medium disadvantage"
-names[names == "disadvantage_ntile_3"] <- "High disadvantage"
+names[names == "poverty_ntile_1"] <- "Low poverty"
+names[names == "poverty_ntile_2"] <- "Medium poverty"
+names[names == "poverty_ntile_3"] <- "High poverty"
 names[names == "officer_black_ntile_1"] <- "Low % of Black Officers"
 names[names == "officer_black_ntile_2"] <- "Medium % of Black Officers"
 names[names == "officer_black_ntile_3"] <- "High % of Black Officers"

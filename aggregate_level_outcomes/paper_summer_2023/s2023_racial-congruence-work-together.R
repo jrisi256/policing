@@ -63,9 +63,11 @@ unit_level_new <-
     mutate(unit = as.character(unit))
 
 prcnt_diverse <-
-    ggplot(unit_level_new, aes(x = black_ratio, y = prcnt_diverse)) +
+    ggplot(unit_level_new, aes(x = prcnt_officer_black, y = prcnt_diverse)) +
     geom_point(aes(color = unit)) +
-    theme_bw()
+    theme_bw() +
+    xlab("Proportion of unit that is Black") +
+    ylab("Proportion of shifts featuring at least one Black officer and one White officer")
 
 prcnt_white_only <-
     ggplot(unit_level_new, aes(x = black_ratio, y = prcnt_white_only)) +
