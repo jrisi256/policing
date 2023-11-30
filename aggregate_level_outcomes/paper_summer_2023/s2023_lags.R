@@ -28,12 +28,14 @@ unit_level_model_vars <-
     unit_level %>%
     select(year, month, unit, black_stops, prcnt_officer_black, black_ratio,
            violent_cr_capita, property_cr_capita, log_total_officers, black,
-           mean_years_worked_unit, black_arrests, black_force,
+           mean_years_worked_unit, black_arrests, black_force, nr_officer,
            black_stop_rate) %>%
     group_by(unit) %>%
     arrange(unit, year, month) %>%
     mutate(property_cr_capita_lag_1m = lag(property_cr_capita),
-           violent_cr_capita_lag_1m = lag(violent_cr_capita)) %>%
+           violent_cr_capita_lag_1m = lag(violent_cr_capita),
+           black_ratio_lag_1m = lag(black_ratio),
+           prcnt_officer_black_lag_1m = lag(prcnt_officer_black)) %>%
     ungroup()
 
 ################################################################################
@@ -62,6 +64,19 @@ nb_prcnt_exp <-
         data = unit_level_model_vars
     )
 
+nb_prcnt_exp_full_lag <-
+    femlm(
+        black_stops ~
+            prcnt_officer_black_lag_1m +
+            mean_years_worked_unit +
+            violent_cr_capita_lag_1m +
+            property_cr_capita_lag_1m +
+            nr_officers +
+            offset(log(black)) | unit + year + month,
+        family = "negbin",
+        data = unit_level_model_vars
+    )
+
 ################################################################################
 # Models for black congruence and black stops with/without experience
 nb_ratio <-
@@ -85,6 +100,19 @@ nb_ratio_exp <-
             property_cr_capita_lag_1m +
             log_total_officers +
             offset(log(black)) | unit + year,
+        family = "negbin",
+        data = unit_level_model_vars
+    )
+
+nb_ratio_exp_full_lag <-
+    femlm(
+        black_stops ~
+            black_ratio_lag_1m +
+            mean_years_worked_unit +
+            violent_cr_capita_lag_1m +
+            property_cr_capita_lag_1m +
+            log_total_officers +
+            offset(log(black)) | unit + year + month,
         family = "negbin",
         data = unit_level_model_vars
     )
