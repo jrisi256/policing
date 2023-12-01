@@ -58,7 +58,7 @@ unit_level_model_vars <-
     unit_level %>%
     select(year, unit, black_stops, prcnt_officer_black, black_ratio,
            violent_cr_capita, property_cr_capita, log_total_officers, black,
-           mean_years_worked_unit)
+           mean_years_worked_unit, nr_officer)
 
 nb_prcnt <-
     femlm(
@@ -66,7 +66,7 @@ nb_prcnt <-
             prcnt_officer_black +
             violent_cr_capita +
             property_cr_capita +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars
@@ -85,6 +85,19 @@ nb_prcnt_exp <-
         data = unit_level_model_vars
     )
 
+nb_prcnt_exp_no_log <-
+    femlm(
+        black_stops ~
+            prcnt_officer_black +
+            mean_years_worked_unit +
+            violent_cr_capita +
+            property_cr_capita +
+            nr_officer +
+            offset(log(black)) | unit + year,
+        family = "negbin",
+        data = unit_level_model_vars
+    )
+
 ################################################################################
 # Models for black congruence and black stops with/without experience
 nb_ratio <-
@@ -93,7 +106,7 @@ nb_ratio <-
             black_ratio +
             violent_cr_capita +
             property_cr_capita +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars
@@ -107,6 +120,19 @@ nb_ratio_exp <-
             violent_cr_capita +
             property_cr_capita +
             log_total_officers +
+            offset(log(black)) | unit + year,
+        family = "negbin",
+        data = unit_level_model_vars
+    )
+
+nb_ratio_exp_no_log <-
+    femlm(
+        black_stops ~
+            black_ratio +
+            mean_years_worked_unit +
+            violent_cr_capita +
+            property_cr_capita +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars

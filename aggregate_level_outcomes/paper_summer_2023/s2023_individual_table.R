@@ -92,6 +92,34 @@ individual_stops <-
         cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
         data = stops_df)
 
+individual_stops_no_mult <-
+    fenegbin(
+        stops_black ~
+            officer_black +
+            officer_hisp +
+            officer_female +
+            years_exp +
+            years_exp_sq +
+            n_officer_black +
+            n_officer_white +
+            n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+        cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+        data = stops_df)
+
+individual_stops_no_exp_sq <-
+    fenegbin(
+        stops_black ~
+            officer_black +
+            officer_hisp +
+            officer_female +
+            years_exp +
+            mult_officer +
+            n_officer_black +
+            n_officer_white +
+            n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+        cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+        data = stops_df)
+
 individual_arrests <-
     fepois(arrests_black ~
                officer_black +
