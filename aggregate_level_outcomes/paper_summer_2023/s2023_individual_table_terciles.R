@@ -179,6 +179,76 @@ modelsummary(regression_group_stops,
                        "P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001"))
 
 ################################################################################
+# From the R&R, estimate if the difference between coefficients is statistically
+# significant across models
+
+low_black_model <- regression_group_stops[["Low % of Black Officers"]]
+low_black_officer_black_coef <- low_black_model$coefficients[["officer_black"]]
+low_black_officer_black_se <- low_black_model$se[["officer_black"]]
+low_black_nr_black_officer_coef <- low_black_model$coefficients[["n_officer_black"]]
+low_black_nr_black_officer_se <- low_black_model$se[["n_officer_black"]]
+
+med_black_model <- regression_group_stops[["Medium % of Black Officers"]]
+med_black_officer_black_coef <- med_black_model$coefficients[["officer_black"]]
+med_black_officer_black_se <- med_black_model$se[["officer_black"]]
+med_black_nr_black_officer_coef <- med_black_model$coefficients[["n_officer_black"]]
+med_black_nr_black_officer_se <- med_black_model$se[["n_officer_black"]]
+
+high_black_model <- regression_group_stops[["High % of Black Officers"]]
+high_black_officer_black_coef <- high_black_model$coefficients[["officer_black"]]
+high_black_officer_black_se <- high_black_model$se[["officer_black"]]
+high_black_nr_black_officer_coef <- high_black_model$coefficients[["n_officer_black"]]
+high_black_nr_black_officer_se <- high_black_model$se[["n_officer_black"]]
+
+compare_coefficients <- function(c1, c2, se1, se2) {
+    z_statistic <- (c1 - c2) / sqrt(se1 ^ 2 + se2 ^ 2)
+    p_value <- 2 * pnorm(abs(z_statistic), lower = F)
+    return(list(z_statistic = z_statistic, p_value = p_value))
+}
+
+coefficient_comparison_test <-
+    pmap(
+        list(
+            c1 = 
+                list(
+                    low_black_nr_black_officer_coef,
+                    low_black_nr_black_officer_coef,
+                    med_black_nr_black_officer_coef,
+                    low_black_officer_black_coef,
+                    low_black_officer_black_coef,
+                    med_black_officer_black_coef
+                ),
+            c2 =
+                list(
+                    med_black_nr_black_officer_coef,
+                    high_black_nr_black_officer_coef,
+                    high_black_nr_black_officer_coef,
+                    med_black_officer_black_coef,
+                    high_black_officer_black_coef,
+                    high_black_officer_black_coef
+                ),
+            se1 = 
+                list(
+                    low_black_nr_black_officer_se,
+                    low_black_nr_black_officer_se,
+                    med_black_nr_black_officer_se,
+                    low_black_officer_black_se,
+                    low_black_officer_black_se,
+                    med_black_officer_black_se
+                ),
+            se2 = list(
+                med_black_nr_black_officer_se,
+                high_black_nr_black_officer_se,
+                high_black_nr_black_officer_se,
+                med_black_officer_black_se,
+                high_black_officer_black_se,
+                high_black_officer_black_se
+            )
+        ),
+        compare_coefficients
+    )
+
+################################################################################
 # Estimate model for arrests
 regression_group_arrests <-
     map(full_data_beats_tercile,
