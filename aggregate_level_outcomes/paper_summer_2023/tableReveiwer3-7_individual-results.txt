@@ -1,0 +1,28 @@
+|                                           |Stops of Black civilians                                |                                                        |
+|:------------------------------------------|:-------------------------------------------------------|:-------------------------------------------------------|
+|                                           |Model from Table 4                                      |Model from Table 4 (no multiple officers variable)      |
+|Officer Race/Ethnicity - Black             |0.732 (0.026)***                                        |0.732 (0.026)***                                        |
+|Officer Race/Ethniciy - Hispanic           |0.901 (0.018)***                                        |0.901 (0.018)***                                        |
+|Officer Sex - Female                       |1.003 (0.025)                                           |1.003 (0.025)                                           |
+|Officer Experience (Years)                 |0.942 (0.004)***                                        |0.942 (0.004)***                                        |
+|Officer Experience Squared (Years)         |1.001 (0.000)***                                        |1.001 (0.000)***                                        |
+|Multipe officers assigned to the shift?    |0.928 (0.022)**                                         |                                                        |
+|Number of other Black officers on shift    |0.872 (0.020)***                                        |0.821 (0.022)***                                        |
+|Number of other White officers on shift    |1.044 (0.017)**                                         |0.982 (0.018)                                           |
+|Number of other Hispanic officers on shift |0.984 (0.023)                                           |0.925 (0.019)***                                        |
+|Num.Obs.                                   |1119893                                                 |1119893                                                 |
+|R2                                         |0.128                                                   |0.127                                                   |
+|FE - Day of the Week                       |X                                                       |X                                                       |
+|FE - Month-Year                            |X                                                       |X                                                       |
+|FE - Beat                                  |X                                                       |X                                                       |
+|FE - Shift Timing                          |X                                                       |X                                                       |
+|R2 Adj.                                    |-0.029                                                  |-0.029                                                  |
+|R2 Within Adj.                             |0.037                                                   |0.037                                                   |
+|BIC                                        |5308043.5                                               |5308065.4                                               |
+|Std.Errors                                 |by: `Police Unit` & `Individual Officer` & `Month-Year` |by: `Police Unit` & `Individual Officer` & `Month-Year` |
+
+__Note:__
+^^ Standard Errors in parentheses.
+
+__Note:__
+^^ P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001

@@ -155,7 +155,8 @@ rename =
       mean_years_worked_unit = "Years Worked In Unit (Mean)",
       violent_cr_capita = "Violent Crime Per 10,000",
       property_cr_capita = "Property Crime Per 10,000",
-      log_total_officers = "Log of the Total Number of Officers"
+      log_total_officers = "Log of the Total Number of Officers",
+      nr_officer = "Total number of officers"
      )
 
 modelsummary(
@@ -177,6 +178,26 @@ modelsummary(
               "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"
              )
     )
+
+modelsummary(
+    list(nb_ratio_exp,
+         "Stops of Black Civilians" = nb_ratio_exp_no_log,
+         nb_prcnt_exp,
+         nb_prcnt_exp_no_log
+    ),
+    coef_omit = "(Intercept)|theta",
+    coef_map = rename,
+    estimate = "{estimate} ({std.error}){stars}",
+    statistic = NULL,
+    stars = T,
+    gof_omit = "R2|RMSE",
+    exponentiate = T,
+    output = file.path(dir, "tableReviewer36_stops-aggregate.txt"),
+    add_rows = offset_row,
+    notes = c("Standard Errors in parentheses. Coefficients are incident rate ratios.",
+              "P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001"
+    )
+)
 
 ################################################################################
 # Make predictions using model 3 (racial congruence with experience)

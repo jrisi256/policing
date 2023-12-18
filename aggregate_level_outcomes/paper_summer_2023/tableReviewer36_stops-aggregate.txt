@@ -1,0 +1,23 @@
+|                                     |                 |Stops of Black Civilians |               |               |
+|:------------------------------------|:----------------|:------------------------|:--------------|:--------------|
+|                                     |Model 1          |Model 2                  |Model 3        |Model 4        |
+|Black Racial Congruence              |0.455 (0.116)**  |0.452 (0.113)**          |               |               |
+|Percentage of Officers Who Are Black |                 |                         |0.970 (0.016)+ |0.969 (0.016)+ |
+|Years Worked In Unit (Mean)          |0.763 (0.047)*** |0.758 (0.055)***         |0.836 (0.081)+ |0.830 (0.084)+ |
+|Violent Crime Per 10,000             |0.992 (0.008)    |0.992 (0.008)            |0.991 (0.008)  |0.991 (0.008)  |
+|Property Crime Per 10,000            |0.995 (0.002)*   |0.995 (0.002)*           |0.995 (0.002)+ |0.995 (0.002)+ |
+|Log of the Total Number of Officers  |0.414 (0.386)    |                         |0.745 (0.782)  |               |
+|Total number of officers             |                 |0.998 (0.002)            |               |0.999 (0.003)  |
+|Offset - Black Pop.                  |Yes              |Yes                      |Yes            |Yes            |
+|Num.Obs.                             |792              |792                      |792            |792            |
+|AIC                                  |10492.8          |10492.3                  |10510.2        |10510.0        |
+|BIC                                  |10628.3          |10627.9                  |10645.8        |10645.6        |
+|Std.Errors                           |by: unit         |by: unit                 |by: unit       |by: unit       |
+|FE: unit                             |X                |X                        |X              |X              |
+|FE: year                             |X                |X                        |X              |X              |
+
+__Note:__
+^^ Standard Errors in parentheses. Coefficients are incident rate ratios.
+
+__Note:__
+^^ P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001
