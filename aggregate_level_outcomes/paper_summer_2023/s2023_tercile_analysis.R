@@ -56,7 +56,7 @@ regression_groups_white_prcnt_tercile <-
                           mean_years_worked_unit +
                           violent_cr_capita +
                           property_cr_capita +
-                          log_total_officers +
+                          nr_officer +
                           offset(log(black)) | unit + year,
                       family = "negbin",
                       data = df)
@@ -116,7 +116,7 @@ regression_groups_pvrty_ratio_tercile <-
                           mean_years_worked_unit +
                           violent_cr_capita +
                           property_cr_capita +
-                          log_total_officers +
+                          nr_officer +
                           offset(log(black)) | unit + year,
                       family = "negbin",
                       data = df)
@@ -131,7 +131,7 @@ regression_groups_pvrty_prcnt_tercile <-
                           mean_years_worked_unit +
                           violent_cr_capita +
                           property_cr_capita +
-                          log_total_officers +
+                          nr_officer +
                           offset(log(black)) | unit + year,
                       family = "negbin",
                       data = df)
@@ -147,11 +147,12 @@ modelsummary(regression_groups_pvrty_ratio_tercile,
                    prcnt_officer_black = "Percentage of Officers Who Are Black",
                    violent_cr_capita = "Violent Crime Per 10,000",
                    property_cr_capita = "Property Crime Per 10,000",
-                   log_total_officers = "Log of the Total Number of Officers"
+                   log_total_officers = "Log of the Total Number of Officers",
+                   nr_officer = "Total number of officers"
                  ),
              estimate = "{estimate} ({std.error}){stars}",
              statistic = NULL,
-             fmt = 2,
+             #fmt = 2,
              stars = T,
              gof_omit = "R2|RMSE",
              exponentiate = T,
@@ -172,7 +173,8 @@ modelsummary(regression_groups_pvrty_prcnt_tercile,
                    prcnt_officer_black = "Percentage of Officers Who Are Black",
                    violent_cr_capita = "Violent Crime Per 10,000",
                    property_cr_capita = "Property Crime Per 10,000",
-                   log_total_officers = "Log of the Total Number of Officers"
+                   log_total_officers = "Log of the Total Number of Officers",
+                   nr_officer = "Total number of officers"
                  ),
              estimate = "{estimate} ({std.error}){stars}",
              statistic = NULL,

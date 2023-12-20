@@ -79,7 +79,7 @@ nb_prcnt_exp <-
             mean_years_worked_unit +
             violent_cr_capita +
             property_cr_capita +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars
@@ -119,7 +119,7 @@ nb_ratio_exp <-
             mean_years_worked_unit +
             violent_cr_capita +
             property_cr_capita +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars
@@ -223,7 +223,7 @@ new_data_ratio <-
         mean_years_worked_unit = mean(mean_years_worked_unit),
         violent_cr_capita = mean(violent_cr_capita),
         property_cr_capita = mean(property_cr_capita),
-        log_total_officers = mean(log_total_officers),
+        nr_officer = mean(nr_officer),
         black = mean(black),
         min = min(black_ratio),
         max = max(black_ratio),

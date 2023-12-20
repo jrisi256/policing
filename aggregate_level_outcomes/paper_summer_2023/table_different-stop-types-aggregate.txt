@@ -1,18 +1,18 @@
-|                                    |  black_stops   | nr_stops_drug | nr_stops_loitering | nr_stops_other | nr_stops_sus_tr | nr_stops_sus_tr_lo | nr_stops_suspicious |  nr_stops_traffic   |        stops        |
-|:-----------------------------------|:--------------:|:-------------:|:------------------:|:--------------:|:---------------:|:------------------:|:-------------------:|:-------------------:|:-------------------:|
-|                                    |  black_stops   | nr_stops_drug | nr_stops_loitering | nr_stops_other | nr_stops_sus_tr | nr_stops_sus_tr_lo | nr_stops_suspicious | nr_stops_suspicious | nr_stops_suspicious |
-|Black Racial Congruence             | 0.45 (0.12)**  |  0.91 (1.19)  |    0.34 (0.59)     |  0.94 (0.66)   | 0.41 (0.08)***  |   0.40 (0.08)***   |   0.23 (0.05)***    |    0.26 (0.19)+     |   0.40 (0.06)***    |
-|Years Worked In Unit (Mean)         | 0.76 (0.05)*** |  0.66 (0.23)  |   0.23 (0.09)***   |  0.89 (0.22)   |  0.81 (0.08)*   |    0.79 (0.08)*    |    0.75 (0.09)*     |     0.71 (0.20)     |    0.82 (0.07)*     |
-|Violent Crime Per 10,000            |  0.99 (0.01)   | 0.95 (0.03)+  |    1.03 (0.03)     |  0.95 (0.03)*  |   0.99 (0.01)   |    1.00 (0.01)     |    1.03 (0.01)**    |    0.90 (0.03)**    |     0.99 (0.01)     |
-|Property Crime Per 10,000           |  0.99 (0.00)*  | 0.98 (0.01)*  |    1.03 (0.01)*    | 0.96 (0.00)*** |   1.00 (0.00)   |    1.00 (0.00)     |    1.01 (0.00)**    |   0.95 (0.01)***    |    0.99 (0.00)**    |
-|Log of the Total Number of Officers |  0.41 (0.39)   | 8.07 (24.01)  |    0.00 (0.00)*    | 25.52 (58.96)  |  0.15 (0.15)+   |    0.14 (0.15)+    |     0.20 (0.25)     |     2.38 (6.69)     |     0.57 (0.59)     |
-|Num.Obs.                            |      792       |      792      |        792         |      792       |       792       |        792         |         792         |         792         |         792         |
-|AIC                                 |    10492.8     |    7896.9     |       5019.4       |    10470.1     |     10621.0     |      10643.7       |       9974.9        |       10067.0       |       11511.9       |
-|BIC                                 |    10628.3     |    8032.4     |       5154.9       |    10605.7     |     10756.6     |      10779.2       |       10110.5       |       10202.6       |       11647.5       |
-|Offset                              |   Black Pop.   |  Total Pop.   |     Total Pop.     |   Total Pop.   |   Total Pop.    |     Total Pop.     |     Total Pop.      |     Total Pop.      |     Total Pop.      |
-|Std.Errors                          |    by: unit    |   by: unit    |      by: unit      |    by: unit    |    by: unit     |      by: unit      |      by: unit       |      by: unit       |      by: unit       |
-|FE: unit                            |       X        |       X       |         X          |       X        |        X        |         X          |          X          |          X          |          X          |
-|FE: year                            |       X        |       X       |         X          |       X        |        X        |         X          |          X          |          X          |          X          |
+|                            |  black_stops   | nr_stops_drug | nr_stops_loitering | nr_stops_other | nr_stops_sus_tr | nr_stops_sus_tr_lo | nr_stops_suspicious | nr_stops_traffic |     stops      |
+|:---------------------------|:--------------:|:-------------:|:------------------:|:--------------:|:---------------:|:------------------:|:-------------------:|:----------------:|:--------------:|
+|                            |  black_stops   | nr_stops_drug | nr_stops_loitering | nr_stops_other | nr_stops_sus_tr | nr_stops_sus_tr_lo | nr_stops_suspicious | nr_stops_traffic |     stops      |
+|Black Racial Congruence     | 0.45 (0.11)**  |  0.93 (1.24)  |    0.40 (0.68)     |  0.92 (0.68)   | 0.41 (0.08)***  |   0.40 (0.08)***   |   0.23 (0.05)***    |   0.26 (0.19)+   | 0.39 (0.06)*** |
+|Years Worked In Unit (Mean) | 0.76 (0.05)*** |  0.66 (0.23)  |   0.30 (0.11)**    |  0.82 (0.21)   |  0.81 (0.09)*   |    0.80 (0.09)*    |    0.75 (0.09)*     |   0.68 (0.18)    |  0.81 (0.07)*  |
+|Violent Crime Per 10,000    |  0.99 (0.01)   | 0.95 (0.03)+  |    1.04 (0.03)     |  0.94 (0.03)*  |   0.99 (0.01)   |    1.00 (0.01)     |    1.03 (0.01)**    |  0.90 (0.03)**   |  0.99 (0.01)   |
+|Property Crime Per 10,000   |  0.99 (0.00)*  | 0.98 (0.01)*  |    1.03 (0.01)*    | 0.96 (0.00)*** |   1.00 (0.00)   |    1.00 (0.00)     |    1.01 (0.00)**    |  0.95 (0.01)***  | 0.99 (0.00)**  |
+|nr_officer                  |  1.00 (0.00)   |  1.00 (0.01)  |    0.99 (0.01)     |  1.01 (0.01)   |  1.00 (0.00)+   |    1.00 (0.00)+    |     1.00 (0.00)     |   1.00 (0.01)    |  1.00 (0.00)   |
+|Num.Obs.                    |      792       |      792      |        792         |      792       |       792       |        792         |         792         |       792        |      792       |
+|AIC                         |    10492.3     |    7896.8     |       5027.9       |    10471.2     |     10622.4     |      10645.3       |       9975.2        |     10067.1      |    11511.1     |
+|BIC                         |    10627.9     |    8032.4     |       5163.4       |    10606.8     |     10757.9     |      10780.9       |       10110.7       |     10202.7      |    11646.7     |
+|Offset                      |   Black Pop.   |  Total Pop.   |     Total Pop.     |   Total Pop.   |   Total Pop.    |     Total Pop.     |     Total Pop.      |    Total Pop.    |   Total Pop.   |
+|Std.Errors                  |    by: unit    |   by: unit    |      by: unit      |    by: unit    |    by: unit     |      by: unit      |      by: unit       |     by: unit     |    by: unit    |
+|FE: unit                    |       X        |       X       |         X          |       X        |        X        |         X          |          X          |        X         |       X        |
+|FE: year                    |       X        |       X       |         X          |       X        |        X        |         X          |          X          |        X         |       X        |
 
 __Note:__
 ^^ Standard Errors in parentheses. Coefficients are incident rate ratios.

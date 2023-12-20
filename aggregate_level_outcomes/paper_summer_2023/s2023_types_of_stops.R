@@ -87,7 +87,7 @@ regression_groups <-
                       mean_years_worked_unit +
                       violent_cr_capita +
                       property_cr_capita +
-                      log_total_officers | unit + year,
+                      nr_officer | unit + year,
                   offset  = log(df$offset_var),
                   family = "negbin",
                   data = df)
@@ -102,8 +102,8 @@ offset_row <- tibble(term = c("", "Offset"),
                      `Model 5` = c(names(regression_groups)[5], "Total Pop."),
                      `Model 6` = c(names(regression_groups)[6], "Total Pop."),
                      `Model 7` = c(names(regression_groups)[7], "Total Pop."),
-                     `Model 8` = c(names(regression_groups)[7], "Total Pop."),
-                     `Model 9` = c(names(regression_groups)[7], "Total Pop."))
+                     `Model 8` = c(names(regression_groups)[8], "Total Pop."),
+                     `Model 9` = c(names(regression_groups)[9], "Total Pop."))
 attr(offset_row, "position") <- c(1, 10)
 
 modelsummary(regression_groups,

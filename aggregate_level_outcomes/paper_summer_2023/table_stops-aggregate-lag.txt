@@ -1,20 +1,20 @@
 |                                                   |                     |Stops of Black Civilians |                     |                       |
 |:--------------------------------------------------|:--------------------|:------------------------|:--------------------|:----------------------|
 |                                                   |Model 3 from Table 2 |Model 3 (1 month lags)   |Model 4 from Table 2 |Model 4 (1 month lags) |
-|Black Racial Congruence                            |0.455 (0.116)**      |                         |                     |                       |
-|Black Racial Congruence (1 month lag)              |                     |0.422 (0.103)***         |                     |                       |
-|Percentage of Officers Who Are Black               |                     |                         |0.970 (0.016)+       |                       |
+|Black Racial Congruence                            |0.452 (0.113)**      |                         |                     |                       |
+|Black Racial Congruence (1 month lag)              |                     |0.419 (0.102)***         |                     |                       |
+|Percentage of Officers Who Are Black               |                     |                         |0.969 (0.016)+       |                       |
 |Percentage of Officers Who Are Black (1 month lag) |                     |                         |                     |0.972 (0.016)+         |
-|Years Worked In Unit (Mean)                        |0.763 (0.047)***     |0.783 (0.047)***         |0.836 (0.081)+       |0.854 (0.083)          |
+|Years Worked In Unit (Mean)                        |0.758 (0.055)***     |0.777 (0.056)***         |0.830 (0.084)+       |0.847 (0.086)          |
 |Property Crime Per 10,000                          |0.995 (0.002)*       |                         |0.995 (0.002)+       |                       |
 |Property Crime Per 10,000 (1 month lag)            |                     |0.992 (0.002)***         |                     |0.992 (0.002)***       |
 |Violent Crime Per 10,000                           |0.992 (0.008)        |                         |0.991 (0.008)        |                       |
-|Violent Crime Per 10,000 (1 month lag)             |                     |0.994 (0.005)            |                     |0.993 (0.005)          |
-|Log of the Total Number of Officers                |0.414 (0.386)        |0.524 (0.484)            |0.745 (0.782)        |0.966 (1.016)          |
+|Violent Crime Per 10,000 (1 month lag)             |                     |0.994 (0.005)            |                     |0.993 (0.004)          |
+|Total number of officers                           |0.998 (0.002)        |0.998 (0.002)            |0.999 (0.003)        |1.000 (0.003)          |
 |Num.Obs.                                           |792                  |770                      |792                  |770                    |
 |Offset - Black Pop.                                |Yes                  |Yes                      |Yes                  |Yes                    |
-|AIC                                                |10492.8              |10178.8                  |10510.2              |10201.1                |
-|BIC                                                |10628.3              |10313.6                  |10645.8              |10335.9                |
+|AIC                                                |10492.3              |10178.4                  |10510.0              |10201.1                |
+|BIC                                                |10627.9              |10313.1                  |10645.6              |10335.8                |
 |Std.Errors                                         |by: unit             |by: unit                 |by: unit             |by: unit               |
 |FE: unit                                           |X                    |X                        |X                    |X                      |
 |FE: year                                           |X                    |X                        |X                    |X                      |

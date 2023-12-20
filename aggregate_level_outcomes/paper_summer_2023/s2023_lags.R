@@ -47,7 +47,7 @@ nb_prcnt_exp <-
             mean_years_worked_unit +
             violent_cr_capita +
             property_cr_capita +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars
@@ -60,9 +60,10 @@ nb_prcnt_exp_month <-
             mean_years_worked_unit +
             violent_cr_capita +
             property_cr_capita +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year + month,
         family = "negbin",
+        cluster = c("unit", "year", "month"),
         data = unit_level_model_vars
     )
 
@@ -73,7 +74,7 @@ nb_prcnt_exp_full_lag <-
             mean_years_worked_unit +
             violent_cr_capita_lag_1m +
             property_cr_capita_lag_1m +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars
@@ -88,7 +89,7 @@ nb_ratio_exp <-
             mean_years_worked_unit +
             violent_cr_capita +
             property_cr_capita +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars
@@ -101,9 +102,9 @@ nb_ratio_exp_month <-
             mean_years_worked_unit +
             violent_cr_capita +
             property_cr_capita +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year + month,
-        cluster = c("unit"),
+        cluster = c("unit", "year", "month"),
         family = "negbin",
         data = unit_level_model_vars
     )
@@ -115,7 +116,7 @@ nb_ratio_exp_full_lag <-
             mean_years_worked_unit +
             violent_cr_capita_lag_1m +
             property_cr_capita_lag_1m +
-            log_total_officers +
+            nr_officer +
             offset(log(black)) | unit + year,
         family = "negbin",
         data = unit_level_model_vars
@@ -144,7 +145,8 @@ rename =
       violent_cr_capita = "Violent Crime Per 10,000",
       violent_cr_capita_lag_1m = "Violent Crime Per 10,000 (1 month lag)",
       log_total_officers = "Log of the Total Number of Officers",
-      black_stops = "Number of stops of Black civilians"
+      black_stops = "Number of stops of Black civilians",
+      nr_officer = "Total number of officers"
     )
 
 modelsummary(
@@ -190,7 +192,8 @@ rename =
       violent_cr_capita = "Violent Crime Per 10,000",
       violent_cr_capita_lag_1m = "Violent Crime Per 10,000 (1 month lag)",
       log_total_officers = "Log of the Total Number of Officers",
-      black_stops = "Number of stops of Black civilians"
+      black_stops = "Number of stops of Black civilians",
+      nr_officer = "Total number of officers"
     )
 
 modelsummary(

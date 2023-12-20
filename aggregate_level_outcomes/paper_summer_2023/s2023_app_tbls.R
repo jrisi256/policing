@@ -93,28 +93,28 @@ modelsummary(regression_groups_white_ratio,
 # Estimate regression models where dependent variable is arrests
 nb_prcnt_arrest <-
     femlm(black_arrests ~ prcnt_officer_black + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+              violent_cr_capita + property_cr_capita + nr_officer +
               offset(log(black)) | unit + year,
           family = "negbin",
           data = unit_level)
 
 nb_ratio_arrest <-
     femlm(black_arrests ~ black_ratio + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+              violent_cr_capita + property_cr_capita + nr_officer +
               offset(log(black)) | unit + year,
           family = "negbin",
           data = unit_level)
 
 nb_prcnt_arrest_stopsiv <-
     femlm(black_arrests ~ prcnt_officer_black + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+              violent_cr_capita + property_cr_capita + nr_officer +
               black_stops + offset(log(black)) | unit + year,
           family = "negbin",
           data = unit_level)
 
 nb_ratio_arrest_stopsiv <-
     femlm(black_arrests ~ black_ratio + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+              violent_cr_capita + property_cr_capita + nr_officer +
               black_stops + offset(log(black)) | unit + year,
           family = "negbin",
           data = unit_level)
@@ -133,7 +133,8 @@ rename = c(black_ratio = "Black Racial Congruence",
            violent_cr_capita = "Violent Crime Per 10,000",
            property_cr_capita = "Property Crime Per 10,000",
            log_total_officers = "Log of the Total Number of Officers",
-           black_stops = "Number of stops of Black civilians")
+           black_stops = "Number of stops of Black civilians",
+           nr_officer = "Total number of officers")
 f <- function(x) format(x, digits = 3, nsmall = 1, scientific = F)
 
 modelsummary(
@@ -163,28 +164,28 @@ modelsummary(
 # Estimate regression models where dependent variable is uses of force
 nb_prcnt_force <-
     femlm(black_force ~ prcnt_officer_black + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+              violent_cr_capita + property_cr_capita + nr_officer +
               offset(log(black)) | unit + year,
           family = "negbin",
           data = unit_level)
 
 nb_ratio_force <-
     femlm(black_force ~ black_ratio + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+              violent_cr_capita + property_cr_capita + nr_officer +
               offset(log(black)) | unit + year,
           family = "negbin",
           data = unit_level)
 
 nb_prcnt_force_stopsiv <-
     femlm(black_force ~ prcnt_officer_black + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+              violent_cr_capita + property_cr_capita + nr_officer +
               black_stops + offset(log(black)) | unit + year,
           family = "negbin",
           data = unit_level)
 
 nb_ratio_force_stopsiv <-
     femlm(black_force ~ black_ratio + mean_years_worked_unit +
-              violent_cr_capita + property_cr_capita + log_total_officers +
+              violent_cr_capita + property_cr_capita + nr_officer +
               black_stops + offset(log(black)) | unit + year,
           family = "negbin",
           data = unit_level)

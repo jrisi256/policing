@@ -72,6 +72,9 @@ full_data_beats <-
            `Police Unit` = as.character(`Police Unit`))
 
 stops_df <- full_data_beats %>% filter(!is.na(stops_n))
+white_stops_df <- stops_df %>% filter(officer_white == 1)
+black_stops_df <- stops_df %>% filter(officer_black == 1)
+
 arrests_df <- full_data_beats %>% filter(!is.na(arrests_n))
 force_df <- full_data_beats %>% filter(!is.na(force_n))
 
@@ -92,6 +95,40 @@ individual_stops <-
         cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
         data = stops_df)
 
+white_stops <-
+    fenegbin(
+        stops_black ~
+            officer_female +
+            years_exp +
+            years_exp_sq +
+            mult_officer +
+            n_officer_black +
+            n_officer_white +
+            n_officer_hisp| beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+        cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+        data = white_stops_df)
+
+black_stops <-
+    fenegbin(
+        stops_black ~
+            officer_female +
+            years_exp +
+            years_exp_sq +
+            mult_officer +
+            n_officer_black +
+            n_officer_white +
+            n_officer_hisp | beat_assigned ^ `Month-Year` ^ weekday ^ shift,
+        cluster = ~ `Police Unit` + `Individual Officer` + `Month-Year`,
+        data = black_stops_df)
+
+num <- (white_stops$coefficients[["n_officer_black"]] - black_stops$coefficients[["n_officer_black"]])
+denom <- sqrt(white_stops$se[["n_officer_black"]] ^ 2 + black_stops$se[["n_officer_black"]] ^ 2)
+test_coef <- 2 * pnorm(abs(num / denom), lower = F)
+
+num <- (white_stops$coefficients[["n_officer_white"]] - black_stops$coefficients[["n_officer_white"]])
+denom <- sqrt(white_stops$se[["n_officer_white"]] ^ 2 + black_stops$se[["n_officer_white"]] ^ 2)
+test_coef <- 2 * pnorm(abs(num / denom), lower = F)
+
 individual_stops_no_mult <-
     fenegbin(
         stops_black ~
@@ -107,8 +144,37 @@ individual_stops_no_mult <-
         data = stops_df)
 
 ################################################################################
-# Reviewer comment no multiple officers variable
+# Reviewer comment - Estimate regression models for each racial group
+offset_row <-
+    tibble(term = c("", "FE - Day of the Week", "FE - Month-Year", "FE - Shift Timing", "FE - Beat"),
+           `Model 1` = c("", "X", "X", "X", "X"),
+           `Model 2` = c("", "X", "X", "X", "X"))
+attr(offset_row, "position") <- c(1, 13, 14, 15, 15)
 
+modelsummary(list("Black officers" = black_stops,
+                  "White officers" = white_stops),
+             coef_rename = c(officer_black = "Officer Race/Ethnicity - Black",
+                             officer_hisp = "Officer Race/Ethniciy - Hispanic",
+                             officer_female = "Officer Sex - Female",
+                             years_exp = "Officer Experience (Years)",
+                             years_exp_sq = "Officer Experience Squared (Years)",
+                             mult_officer = "Multipe officers assigned to the shift?",
+                             n_officer_black = "Number of other Black officers on shift",
+                             n_officer_white = "Number of other White officers on shift",
+                             n_officer_hisp = "Number of other Hispanic officers on shift"),
+             estimate = "{estimate} ({std.error}){stars}",
+             exponentiate = T,
+             statistic = NULL,
+             stars = T,
+             output = file.path(dir, "black-white_individual-results.txt"),
+             add_rows = offset_row,
+             coef_omit = ".theta",
+             gof_omit = "FE:|RMSE|AIC|R2 Within$",
+             notes = c("Standard Errors in parentheses.",
+                       "P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001"))
+
+################################################################################
+# Reviewer comment no multiple officers variable
 offset_row <-
     tibble(term = c("", "FE - Day of the Week", "FE - Month-Year", "FE - Shift Timing", "FE - Beat"),
            `Model 1` = c("Model from Table 4", "X", "X", "X", "X"),
