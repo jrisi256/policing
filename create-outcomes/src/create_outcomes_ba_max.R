@@ -2,7 +2,7 @@ library(here)
 source(here("functions.R"))
 
 stops_assignments <-
-    my_read_csv(here("create-outcomes",
+    read_csv(here("create-outcomes",
                      "input",
                      "stops_officers_assignments_ba_max.csv"))
 
