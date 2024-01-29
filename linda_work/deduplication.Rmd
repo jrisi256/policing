@@ -1,0 +1,150 @@
+---
+title: "De-duplication of outcomes"
+output: pdf_document
+---
+
+## The problem
+
+There are overlapping shifts and some police activity (e.g. stops) occurred during the overlap. It's unclear during which shift the activity **actually** occurred. Using the latitude and longitude from the police activity, I will attempt to discern what **beat** the activity occurred in and attempt to match that with the **beat where the shift assignment took place**.
+
+This method does not really work to clear up all duplicates, unfortunately. Some overlapping shifts were assigned to the same beat. Some police activity is missing a longitude and latitude. Other times the location of the police activity did not occur in any assigned beats as indicated in the shift assignment so a judgment call would have to be made as to which beat (and subsequently which shift assignment) the police activity actually occurred in. The distance from the police activity and each of the assigned beats could be used to discern during which shift the activity took place. However not all assigned beats correspond to a physical location. In the end, there is no foolproof method, and the very small number of affected cases does not warrant further effort for the time being.
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+library(sf)
+library(tidyr)
+library(readr)
+library(dplyr)
+library(purrr)
+library(forcats)
+library(stringr)
+library(ggplot2)
+library(lubridate)
+
+beats <- st_read(dsn = here("clean-and-process", "input", 'beat_shape'),
+                 layer = 'geo_export_d5819960-7491-4022-9aaf-63f6a431f4f9')
+stops_assignments <- my_read_csv(here("clean-and-process", "output", "stops_officers_assignments_ba_max.csv"))
+```
+
+```{r}
+duplicate_stops <-
+    stops_assignments %>%
+    group_by(stop_officer_id) %>%
+    filter(!is.na(stop_officer_id) & n() > 1) %>%
+    ungroup()
+
+only_duplicates <-
+    duplicate_stops %>%
+    distinct(stop_officer_id, .keep_all = T) %>%
+    mutate(duplicate = "Duplicate")
+
+no_duplicates <-
+    stops_assignments %>%
+    group_by(stop_officer_id) %>%
+    filter(is.na(stop_officer_id) | n() <= 1) %>%
+    ungroup() %>%
+    mutate(duplicate = "Not A Duplicate")
+
+deduped <- rbind(only_duplicates, no_duplicates)
+```
+
+```{r}
+duplicate_stops_sf <-
+    duplicate_stops %>%
+    filter(!is.na(lon) & !is.na(lat)) %>%
+    st_as_sf(coords = c("lon", "lat")) %>%
+    st_transform(st_crs(beats))
+
+beats <- beats %>% select(beat_num, geometry)
+
+join <-
+    st_join(duplicate_stops_sf, beats) %>%
+    mutate(beat_assigned = str_remove(beat_assigned, "[A-Za-z]"),
+           beat_assigned = if_else(str_length(beat_assigned) == 3,
+                                   paste0(0, beat_assigned),
+                                   beat_assigned),
+           match = beat_assigned == beat_num) %>%
+    group_by(stop_officer_id, beat_assigned) %>%
+    filter(n() < 2)
+
+join_fltr <-
+    join %>%
+    group_by(stop_officer_id) %>%
+    filter(!any(match))
+```
+
+* Total number of duplicate entries: `r nrow(duplicate_stops)`
+    * Number of entries which are missing coordinates: `r nrow(duplicate_stops) - nrow(duplicate_stops_sf)`
+    * Number of entries with the same beat assignment: `r nrow(duplicate_stops_sf) - nrow(join)`
+    * Number of entries where a **match can be identified**: `r nrow(join) - nrow(join_fltr)`. Notice how few cases can be de-duplicated.
+    * Number of entries where a **match cannot be identified**: `r nrow(join_fltr)`. More work would have to be done to determine if these cases could be de-duplicated. Even then, it's a small number of cases.
+
+## Do duplicates look like non-duplicates?
+
+* Race looks the same.
+* Gender looks the same.
+* Age looks the same.
+* District looks different, but there aren't many duplicates so I am not too concerned.
+* Most duplicates happen during Monday and Wednesday. This is odd.
+* Duplicates have a weird bimodal distribution as to when they appear the most.
+* Contact type does not exactly match, but it is not terribly far off.
+    
+```{r}
+deduped %>%
+    filter(!is.na(civ.race)) %>%
+    mutate(civ.race = fct_recode(civ.race,
+                                 naal = "AMER IND/ALASKAN NATIVE",
+                                 aapi = "ASIAN/PACIFIC ISLANDER")) %>%
+    ggplot(aes(x = civ.race)) +
+    geom_bar() +
+    facet_wrap(~duplicate, scales = "free_y") +
+    theme_bw()
+
+deduped %>%
+    filter(!is.na(civ.gender) & civ.gender != "X") %>%
+    ggplot(aes(x = civ.gender)) +
+    geom_bar() +
+    facet_wrap(~duplicate, scales = "free_y") +
+    theme_bw()
+
+deduped %>%
+    filter(!is.na(civ.age) & civ.age <= 200) %>%
+    ggplot(aes(x = civ.age)) +
+    geom_density() +
+    facet_wrap(~duplicate, scales = "free_y") +
+    theme_bw()
+
+deduped %>%
+    filter(!is.na(district)) %>%
+    ggplot(aes(x = district)) +
+    geom_bar() +
+    facet_wrap(~duplicate, scales = "free_x") +
+    theme_bw() +
+    coord_flip()
+
+deduped %>%
+    filter(!is.na(time)) %>%
+    ggplot(aes(x = wday(time, label = T))) +
+    geom_bar() +
+    facet_wrap(~duplicate, scales = "free_y") +
+    theme_bw()
+
+deduped %>%
+    filter(!is.na(time)) %>%
+    ggplot(aes(x = time)) +
+    geom_density() +
+    facet_wrap(~duplicate, scales = "free_y") +
+    theme_bw()
+
+deduped %>%
+    filter(!is.na(contact_type)) %>%
+    ggplot(aes(x = contact_type)) +
+    geom_bar() +
+    facet_wrap(~duplicate, scales = "free_y") +
+    theme_bw()
+```

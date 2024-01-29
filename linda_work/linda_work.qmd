@@ -1,0 +1,376 @@
+---
+title: "Chicago police force: Shift investigation"
+format: pdf
+---
+
+## Source of CPD data
+
+This comes from the original Ba et al. (2021) paper. From Appendix S1.2 (pgs. 5-6).
+
+"The administrative data from the CPD used in this study span multiple data sets collected in collaboration with the Invisible Institute, Sam Stecklow, and Emma Herman over the course of three years (2016-2019). We obtained these records from the Chicago Police Department or Chicago Department of Human Resources via Freedom of Information Act (FOIA) or through court ordered releases stemming from requests made by Invisible Institute and Jaime Kalven. CPD provided the following data: rosters of all available current and past officers up to 2018, unit history data for individual officers from the 1930s to 2016, Tactical Response Reports from 2004 to 2018 (i.e. use of force reports), and arrest data with arresting officers and arrestee demographic information from 2001 to 2017. The Chicago Department of Human Resources provided data on officers’ language skills up to 2019. We supplement our core data with data on “Stop, Question and Frisk” (SQF) activity between 2012-2015, which was shared by the Lucy Parson’s Lab. Finally, the Automated Daily Attendance and Assignment sheet data for each police district between 2012 and 2015 was obtained via a FOIA request to the CPD and shared by Rachel Ryley.
+
+These data and others have been used to construct rich profiles of Chicago Police Officers. While no file contains a unique identifier (star numbers change over time, names are common, etc.), we constructed unique officer profiles through a successive merge process described here. Each file contains some identifying information such as of demographic data (birth year, race, gender) or other characteristics (name, start/badge number, appointed date, resignation date, current unit). We used these identifying characteristics to first de-duplicate officers within a file and to then merge to pre-existing officer data with inter-file unique identifiers. The merging process itself is an iterative-pairwise matching method, where the officers in each data set are repeatedly merged on identifying characteristics and any successful 1-to-1 match in a round removes the matched officers from the next round of merging."
+
+```{r, message = F, include = F}
+library(sf)
+library(here)
+library(dplyr)
+library(readr)
+library(knitr)
+library(tidyr)
+library(dtplyr)
+library(stringr)
+library(ggplot2)
+library(lubridate)
+library(data.table)
+
+opts_chunk$set(message = F, echo = F, warning = F)
+
+densitychart <- function(df, col, xtitle, ytitle = "Density") {
+    raw_values <- df[[col]]
+    boxplot_coord <- max(density(raw_values, na.rm = T)$y) / 2
+    
+    ggplot(df, aes(x = .data[[col]])) +
+        geom_boxplot(aes(y = -boxplot_coord), width = boxplot_coord) +
+        geom_density() +
+        labs(x = xtitle, y = ytitle) +
+        theme_bw()
+}
+```
+
+```{r, message = F}
+officer_assignments <-
+    read_csv(
+        here(
+            "aggregate_level_outcomes",
+            "paper_summer_2023",
+            "officers_assignments_ba.csv"
+        )
+    )
+
+stops <-
+    read_csv(here("aggregate_level_outcomes", "paper_summer_2023", "stops.csv"))
+
+arrests <-
+    read_csv(here("aggregate_level_outcomes", "paper_summer_2023", "arrests.csv"))
+
+stops_assignments <-
+    read_csv(here("linda_work", "stops_officers_assignments_ba_max.csv"))
+
+arrests_assignments <-
+    read_csv(here("linda_work", "arrests_officers_assignments_ba_max.csv"))
+```
+
+## How regular is a police officer's shfit?
+
+In other words, how often does a police officer work a particular shift? We are trying to investigate how much information we can extract from the shift assignment data. And then, how much do we believe it? Is this data capturing actual work habits of police officers: Where are they working? When are they working? Who are they working with?
+
+A shift assignment refers to the specific place, **a beat**, a police officer is patrolling at a specific time, **morning**, **afternoon**, or **evening** for a specific **unit**.
+
+* We could relax the **unit** part. We could just look at **beat** and **time**. However, I am not sure if patrolling a specific beat at a specific time means something different in you are in one unit vs. another. What does it mean if someone is patrolling a beat from a unit **not** assigned that beat in the districts maps?
+
+### The number of units a police officer works in during from 2012-2015
+
+Across the 4 years of data we have (2012-2015), how many different units do we have a police officer patrolling for?
+
+```{r}
+nr_units_worked_for <-
+    officer_assignments %>%
+    count(officer_id, unit) %>%
+    count(officer_id)
+
+ggplot(nr_units_worked_for, aes(x = n)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Number of units worked for", y = "Number of officers")
+```
+
+### How regularly does a police officer work a specific shift?
+
+* The first graph depicts the distribution of how often a police officer is assigned to their most common shift assignment. For each police officer (for each unique unit they ever worked in), I find every shift assignment they ever had, and how many times they were assigned to work each shift assignment. Then, I found what shift assignment they worked the most. Finally, I found what percent of shifts worked was spent working their most common shift assignment.
+    * Overall, the median police officer spends 50% of their time working their most commonly worked shift.
+* The second graph depicts the distribution of the number of unique shift assignments a police officer works in our 4 years. The median police officer worked roughly 13 unique shift assignments (per unit they worked for) in the course of these 4 years.
+* I do for each police officer *for each police unit* because I would expect that an officer's shift assignments would be different if they are in a different unit. **NOTE**: We do not have data on when a police officer formally moves units. We can only infer when a police officer moves units based on how their shift assignments change (i.e., the unit listed on the shift assignment changes).
+
+```{r}
+shift_ids <-
+    officer_assignments %>%
+    group_by(unit, shift, beat_assigned) %>%
+    mutate(shift_id = cur_group_id()) %>%
+    ungroup()
+
+nr_times_shift_worked_per_officer <-
+    shift_ids %>%
+    count(officer_id, unit, shift_id)
+
+max_nr_shifts_per_officer <-
+    nr_times_shift_worked_per_officer %>%
+    group_by(officer_id, unit) %>%
+    mutate(prcnt = n / sum(n) * 100) %>%
+    filter(prcnt == max(prcnt)) %>%
+    ungroup()
+
+nr_unique_shifts_per_officer <-
+    nr_times_shift_worked_per_officer %>%
+    count(officer_id, unit)
+
+densitychart(
+    max_nr_shifts_per_officer,
+    "prcnt",
+    "The percentage of time an officer works their most common shift (per unit)"
+)
+
+densitychart(
+    nr_unique_shifts_per_officer,
+    "n",
+    "The number of unique shifts worked by an officer (per unit)"
+)
+
+```
+
+This is a snippet of the table used to generate the above visualizations. The entire data table shows, for each officer in chronological order, each shift assignment the officer has (and how many times they work that shift consecutively).
+
+```{r}
+nr_times_working_shift <-
+    shift_ids %>%
+    filter(!is.na(start_datetime)) %>%
+    arrange(officer_id, start_datetime, end_datetime) %>%
+    select(officer_id, start_datetime, end_datetime, unit, shift, beat_assigned,
+           shift_id) %>%
+    group_by(officer_id) %>%
+    mutate(run_id = rleid(shift_id)) %>%
+    group_by(officer_id, run_id) %>%
+    mutate(n = n()) %>%
+    ungroup()
+    
+kable(head(nr_times_working_shift, 50))
+
+# nr_days_working_shift <-
+#     nr_times_working_shift %>%
+#     lazy_dt() %>%
+#     group_by(officer_id, run_id, unit, shift, beat_assigned) %>%
+#     summarise(time = max(end_datetime) - min(start_datetime)) %>%
+#     mutate(time2 = day(seconds_to_period(time))) %>%
+#     ungroup() %>%
+#     as_tibble()
+```
+
+### How often does a police officer work?
+
+* This is for all shift assignments which are not missing their start and end time.
+* Note that this analysis does not include those weeks in which an officer does not work. We could look into how often a police officer is not working. Determining why a police officer might not be working is tricky because: 1) we have to factor in when the officer joined the force, 2) the officer may have retired (which we cannot discern from the data), 3) the officer may have been promoted, or 4) some other reason (punishment, reward, given desk duty).
+* The below graphs depict how many times (and what percent of the time) a police officer works "X" number of shifts in a given week, for every police officer (given they worked that week).
+
+```{r}
+nr_shifts_per_week <-
+    officer_assignments %>%
+    filter(!is.na(start_datetime)) %>%
+    mutate(
+        week_id = paste0(week(start_datetime), "_", year(start_datetime))
+    ) %>%
+    count(officer_id, week_id)
+
+ggplot(nr_shifts_per_week, (aes(x = n))) +
+    geom_bar() +
+    theme_bw() +
+    labs(
+        x = "Number of shifts worked in one week",
+        y = "Number of officer-week observations"
+    )
+
+ggplot(nr_shifts_per_week, (aes(x = n))) +
+    geom_bar(aes(y = after_stat(count / sum(count)))) +
+    theme_bw() +
+    labs(
+        x = "Number of shifts worked in one week",
+        y = "Percentage of officer-week observations"
+    )
+```
+
+* These graphs depict: 1) the average number of shifts a police officer works in a given week over the course of all 4 years (given they worked that week at all), and 2) how many total shifts a police officer worked over the course of the 4 years of data collection. For comparison's sake, if a police officer worked 4 shifts a week every week for four years, they will have worked (4 * 52 * 4) 832 total shifts.
+
+```{r}
+nr_shifts_per_week_per_officer <-
+    nr_shifts_per_week %>%
+    group_by(officer_id) %>%
+    summarise(
+        avg_nr_shifts_per_week = mean(n),
+        sd_nr_shifts_per_week = sd(n),
+        total_nr_shifts = sum(n)
+    )
+   
+densitychart(
+    nr_shifts_per_week_per_officer,
+    "avg_nr_shifts_per_week",
+    "The average number of shifts per week an officer works",
+    "Number of officers (Density)"
+)
+
+densitychart(
+    nr_shifts_per_week_per_officer,
+    "total_nr_shifts",
+    "Total number of shifts worked by an officer",
+    "Number of officers (Density)"
+)
+```
+
+### Complications
+
+From Ba et al. 2021, Appendix S1.6 (pgs. 8-10)
+
+"For example, area 1431 corresponds to a known collection of city blocks in the CPD’s Shakespeare district, to which over 6,000 officer-shift slots were assigned. Within
+this geographic area, our patrol assignment data distinguishes between standard patrol tasks (indicated with beat code “1431,” roughly 4,000 officer-shifts) and additional patrol tasks distinguished by a alphabetical suffix (in this case, beat code “1431R,” roughly 2,000 officer-shifts). In this case, beat code “1431” is assigned for officers working shifts 2 and 3, which overlap in the afternoon but not in the early morning. Beat code “1431R“ indicates a relief assignment and is always assigned for shift 1; it overlaps with the end of shift 3 and the beginning of shift 1 to ensure no gap in service exists. Other suffixes such as A or E refer to squads that rotate based on the operations calendar, but the numeric beat that precedes the suffix refers to the same area.
+
+Comparing officers within beat codes (and not generalizing to numeric beats) ensures that we are robustly controlling for the function officers perform when assigned to a specific beat code in addition to their geographic location.
+
+Other beat codes correspond to fixed geographic areas not depicted in official CPD documents. For example, area 1442 is a nearby collection of city blocks in Shakespeare district that shares administrative tasks (e.g. community meetings (41) with area 1431); it is not indicated on any known CPD map and is allocated a smaller number of officer-shifts (roughly 1,000).
+
+In addition to these geographically demarcated patrol tasks, another 8.6% of beat codes correspond to desk duty in various parts of the city. These are indicated with 02 suffixes, such as assignment 1402, which is subdivided further into desk assignments 1402A, 1402B, 1402C, and so on. Throughout our analysis, we compare officers assigned to the same patrol task by exactly matching on patrol assignments, including both numeric codes and alphabetical suffixes. Though we cannot always pinpoint the geographic locations of beat assignments, this hyper-granular assignment data makes it highly plausible to assume that officers working under the same beat code are assigned to face common circumstances.
+
+We now describe temporal variation in the specific officers that fill a patrol slot — the exogenous variation in officer identities (and hence demographics) that our analytic approach exploits. Officers request vacant “watches” including day, swing, and night shifts; these groups are allocated in a process based on seniority and the needs of the police unit. Officers also bid in advance for furlough assignments (leave days in excess of the usual days off each week) following a similar seniority-based process (42). Among officers available to serve in a patrol assignment — as determined by the watch allocation process and, most likely, additional consultation with unit commanders — specific daily patrol assignments are allocated based on predetermined rotating leave schedules. Officers are assigned to day-off groups in advance, which determine their non-furlough leave days according to a CPD-wide operations calendar issued late in the preceding year. For officers working standard 8.5-hour shifts, a duty cycle typically consists of six on-duty days, followed by two days off. (However, when the days off coincide with a weekend, officers receive a third day off.)
+
+A notable feature of this system is that cycles do not occur on a weekly basis, so that most officers working the first shift on the first Tuesday of January will receive leave on some other Tuesday in January. Moreover, because both operations calendars and watch, furlough, and day-off group selections are made far in advance, officers effectively have no ability to anticipate fluctuations in civilian behavior encountered while on any particular patrol, conditional on assigned beat and shift time. Similarly, civilians do not have information on the officers they may encounter on a particular day and time. This assignment process therefore provides exogenous variation in patrol assignments that are orthogonal to conditions on the ground, allowing us to estimate the effect of deploying officers from one group vs. another while holding environmental conditions constant."
+
+```{r, results = "hide"}
+beats <-
+    st_read(
+        dsn = here("linda_work",'beat_shape'),
+        layer = 'geo_export_d5819960-7491-4022-9aaf-63f6a431f4f9'
+    )
+```
+
+
+```{r}
+unique_beats <- unique(officer_assignments$beat_assigned)
+unique_beats_no_letter <- unique(str_replace(unique_beats, "[A-Za-z]", ""))
+
+nr_physical_beats <-
+    officer_assignments %>% filter(beat_assigned %in% beats$beat_num)
+
+nr_physical_beats_no_letter <-
+    officer_assignments %>%
+    mutate(new_beat = str_replace(beat_assigned, "[A-Za-z]", "")) %>%
+    filter(new_beat %in% beats$beat_num)
+```
+
+* In the shift assignment data, there are `r length(unique_beats)` unique beats. The official CPD shape data for beats only has `r length(unique(beats$beat_num))` beats, though. This is a huge difference. Something important to note is that beats in the officer assignment data table sometimes have letters appended to their numeric code. The above extended quote from Ba et al. (2021) gets into (a little bit) what these letter codes mean. For their analysis, the use the beat numeric codes in conjunction with the letter suffixes for purposes of determining if two officers *worked together*. I follow this convention.
+* However, for curiosity's sake, if we remove all letters from all beat codes, we are still left with `r length(unique_beats_no_letter)` unique beats which is still much larger than the number of beats provided by CPD shape files.
+* `r round(nrow(nr_physical_beats) / nrow(officer_assignments) , 3) * 100`% of all shift assignments correspond to a beat location enumerated in the CPD's map.
+* This jumps to `r round(nrow(nr_physical_beats_no_letter) / nrow(officer_assignments) , 3) * 100`% if we remove all letters from the beat in the shift assignments.
+
+## Are officers making stops and arrests in the areas they are patrolling?
+
+* Unfortunately, this is not an easy question to answer. Stops and arrests have a latitude and longitude. It would require some work to get the shape files for each police officer's beat and then determine how far away the stop/arrest was from the beat. This is not impossible, and it seems like something returning to. 
+
+## Are officers who work the same shift together more likely to make arrests and stops together?
+
+* This pair of graphs depict what percent of time officers work a shift alone vs. with at least one other police officer. Note this is **inferred** from the shift assignment data. If another officer has the same shift assignment as another officer, they are said to be working together.
+
+```{r}
+nr_officers_working_shift <-
+    shift_ids %>%
+    filter(!is.na(start_datetime)) %>%
+    mutate(start_date = as_date(start_datetime)) %>%
+    count(shift_id, start_date)
+
+ggplot(nr_officers_working_shift, aes(x = n)) +
+    geom_bar() +
+    theme_bw() +
+    labs(
+        x = "Number of officers working a given shift",
+        y = "Number of shifts"
+    )
+
+ggplot(nr_officers_working_shift, aes(x = n)) +
+    geom_bar(aes(y = after_stat(count / sum(count)))) +
+    theme_bw() +
+    labs(
+        x = "Number of officers working a given shift",
+        y = "Number of shifts"
+    )
+```
+
+* These graphs are visual answers to the above question of whether or not officers who work together are more likely to make stops/arrests together.
+* Some limitations and errors I have observed:
+    * There is a **po_first** column which indicates which police officer was the first one on the scene or the one to initiate the stop/arrest. In some cases, though, when only one officer is recorded on the stop/arrest, the po_first column may be set to false for that officer.
+    * There is a very involved and extensive process behind determining if a stop/arrest occurred during an officer's shift assignment, and then which shift assignment did it occur during. I reviewed Ba et al.'s method, and I came up with (to my mind) an equally reasonable matching process which gave slightly different results. I use Ba et al.'s results for now.
+    * You will have officers making stops/arrests when they did not have a recorded shift assignment. If these **off-duty** officers make an arrest/stop with another officer, I count them as not having been assigned to that officer's shift assignment. If two or more off-duty officers make an stop/arrest together, I exclude that stop/arrest from analysis.
+    * There are a small number of cases where an officer will be recorded as working overlapping shifts, and a stop/arrest will occur in the intersection of those shift assignments. These are a small number of cases, and I filter them out for now.
+
+* From 2012-2015, there were `r length(unique(stops$stop_id))` stops made by `r nrow(stops)` officers.
+* The below graph depicts how many of these stops were made by 1 officer vs. 2 officers.
+
+```{r}
+stops_together <- 
+    stops_assignments %>%
+    filter(!is.na(stop_id)) %>% # remove shift assignments with no stops
+    group_by(officer_id, stop_id) %>%
+    filter(n() == 1) %>% # remove overlapping shifts
+    ungroup() %>%
+    full_join(stops, by = c("officer_id", "stop_id")) %>% # get off-duty stops
+    group_by(unit, shift, beat_assigned) %>%
+    mutate(shift_id = as.character(cur_group_id())) %>%
+    ungroup() %>%
+    mutate(shift_id = if_else(is.na(beat_assigned), "off_duty", shift_id)) %>%
+    group_by(stop_id) %>%
+    summarise(
+        nr_officers = n(),
+        nr_shifts = n_distinct(shift_id),
+        all_off_duty = all(shift_id == "off_duty"),
+        any_off_duty = any(shift_id == "off_duty")
+    ) %>%
+    ungroup()
+
+ggplot(stops_together, aes(x = nr_officers)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Number of times X officers made a stop together") +
+    labs(y = "Number of stops")
+```
+
+* These pair of graphs depict: 1) how many stops involved at least one off-duty officer, 2) how many stops involved only off-duty officers.
+
+```{r}
+ggplot(stops_together, aes(x = any_off_duty)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Did the stop involve at least one off-duty officer?")
+
+ggplot(stops_together, aes(x = all_off_duty)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Did the stop involve only off-duty officer(s)?")
+
+```
+
+* Looking only at those stops which involved two officers (and as long as both of them were not off-duty), how many times did the stop occur between officers working the same shift assignment (as defined by unit, beat assigned, and shift timing)?
+* Basically, 50% of all stops with two officers occur with officers who are working the same shift assignment.
+
+```{r}
+stops_together_two <-
+    stops_together %>%
+    filter(nr_officers > 1, !all_off_duty)
+
+
+ggplot(stops_together_two, aes(x = nr_shifts)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Number of shifts represented when two officers make a stop together") +
+    labs(y = "Number of stops involving 2 officers")
+```
+
+```{r}
+a <-
+    shift_ids %>%
+    count(unit, beat_assigned, shift, officer_race) %>%
+    group_by(unit, beat_assigned, officer_race) %>%
+    mutate(n2 = sum(n)) %>% arrange(unit, beat_assigned, officer_race) %>%
+    ungroup() %>%
+    mutate(prcnt = n / n2) %>%
+    group_by(unit, beat_assigned) %>%
+    filter(length(unique(officer_race)) > 1) %>%
+    group_by(unit, beat_assigned, officer_race) %>%
+    mutate(shift_max = if_else(prcnt == max(prcnt), shift, F)) %>%
+    ungroup()
+```
+
