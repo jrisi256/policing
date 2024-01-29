@@ -21,6 +21,7 @@ library(tidyr)
 library(dtplyr)
 library(stringr)
 library(ggplot2)
+library(forcats)
 library(lubridate)
 library(data.table)
 
@@ -143,7 +144,7 @@ nr_times_working_shift <-
     mutate(n = n()) %>%
     ungroup()
     
-kable(head(nr_times_working_shift, 50))
+kable(head(nr_times_working_shift, 10))
 
 # nr_days_working_shift <-
 #     nr_times_working_shift %>%
@@ -239,7 +240,6 @@ beats <-
     )
 ```
 
-
 ```{r}
 unique_beats <- unique(officer_assignments$beat_assigned)
 unique_beats_no_letter <- unique(str_replace(unique_beats, "[A-Za-z]", ""))
@@ -260,7 +260,7 @@ nr_physical_beats_no_letter <-
 
 ## Are officers making stops and arrests in the areas they are patrolling?
 
-* Unfortunately, this is not an easy question to answer. Stops and arrests have a latitude and longitude. It would require some work to get the shape files for each police officer's beat and then determine how far away the stop/arrest was from the beat. This is not impossible, and it seems like something returning to. 
+* Unfortunately, this is not an easy question to answer. Stops and arrests have a latitude and longitude. It would require some work to get the shape files for each police officer's beat and then determine how far away the stop/arrest was from the beat. This is not impossible, and it seems like something worth returning to. 
 
 ## Are officers who work the same shift together more likely to make arrests and stops together?
 
@@ -290,11 +290,14 @@ ggplot(nr_officers_working_shift, aes(x = n)) +
     )
 ```
 
-* These graphs are visual answers to the above question of whether or not officers who work together are more likely to make stops/arrests together.
+### Stops
+
+* The below graphs are visual answers to the above question of whether or not officers who work together are more likely to make stops/arrests together.
 * Some limitations and errors I have observed:
     * There is a **po_first** column which indicates which police officer was the first one on the scene or the one to initiate the stop/arrest. In some cases, though, when only one officer is recorded on the stop/arrest, the po_first column may be set to false for that officer.
     * There is a very involved and extensive process behind determining if a stop/arrest occurred during an officer's shift assignment, and then which shift assignment did it occur during. I reviewed Ba et al.'s method, and I came up with (to my mind) an equally reasonable matching process which gave slightly different results. I use Ba et al.'s results for now.
     * You will have officers making stops/arrests when they did not have a recorded shift assignment. If these **off-duty** officers make an arrest/stop with another officer, I count them as not having been assigned to that officer's shift assignment. If two or more off-duty officers make an stop/arrest together, I exclude that stop/arrest from analysis.
+        * It can also be the case that the officer's shift assignment was missing its start and end date so the police officer is mistakenly considered off-duty.
     * There are a small number of cases where an officer will be recorded as working overlapping shifts, and a stop/arrest will occur in the intersection of those shift assignments. These are a small number of cases, and I filter them out for now.
 
 * From 2012-2015, there were `r length(unique(stops$stop_id))` stops made by `r nrow(stops)` officers.
@@ -324,7 +327,7 @@ stops_together <-
 ggplot(stops_together, aes(x = nr_officers)) +
     geom_bar() +
     theme_bw() +
-    labs(x = "Number of times X officers made a stop together") +
+    labs(x = "Number of times X officers made a stop") +
     labs(y = "Number of stops")
 ```
 
@@ -334,43 +337,336 @@ ggplot(stops_together, aes(x = nr_officers)) +
 ggplot(stops_together, aes(x = any_off_duty)) +
     geom_bar() +
     theme_bw() +
-    labs(x = "Did the stop involve at least one off-duty officer?")
+    labs(
+        x = "Did the stop involve at least one off-duty officer?",
+        y = "Number of stops"
+    )
 
 ggplot(stops_together, aes(x = all_off_duty)) +
     geom_bar() +
     theme_bw() +
-    labs(x = "Did the stop involve only off-duty officer(s)?")
-
+    labs(
+        x = "Did the stop involve only off-duty officer(s)?",
+        y = "Number of stops"
+    )
 ```
 
 * Looking only at those stops which involved two officers (and as long as both of them were not off-duty), how many times did the stop occur between officers working the same shift assignment (as defined by unit, beat assigned, and shift timing)?
 * Basically, 50% of all stops with two officers occur with officers who are working the same shift assignment.
+* If we exclude all stops which involved an off-duty officer, the results flip and 81% of all stops with two officers occur with officers who are working the same shift assignment.
 
 ```{r}
 stops_together_two <-
     stops_together %>%
     filter(nr_officers > 1, !all_off_duty)
 
-
 ggplot(stops_together_two, aes(x = nr_shifts)) +
     geom_bar() +
     theme_bw() +
     labs(x = "Number of shifts represented when two officers make a stop together") +
     labs(y = "Number of stops involving 2 officers")
+
+stops_together_two_no_offduty <-
+    stops_together %>%
+    filter(nr_officers > 1, !any_off_duty)
+
+ggplot(stops_together_two_no_offduty, aes(x = nr_shifts)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Number of shifts represented when two officers make a stop together (no off-duty)") +
+    labs(y = "Number of stops involving 2 officers")
 ```
 
+### Arrests
+
+* From 2012-2015, there were `r length(unique(arrests$arrest_id))` stops made by `r nrow(arrests)` officers.
+* The below graph depicts how many of these arrests were made by 1 officer vs. 2 officers.
+
 ```{r}
-a <-
-    shift_ids %>%
-    count(unit, beat_assigned, shift, officer_race) %>%
-    group_by(unit, beat_assigned, officer_race) %>%
-    mutate(n2 = sum(n)) %>% arrange(unit, beat_assigned, officer_race) %>%
+arrests_together <- 
+    arrests_assignments %>%
+    filter(!is.na(arrest_id)) %>% # remove shift assignments with no arrests
+    group_by(officer_id, arrest_id) %>%
+    filter(n() == 1) %>% # remove overlapping shifts
     ungroup() %>%
-    mutate(prcnt = n / n2) %>%
+    full_join(arrests, by = c("officer_id", "arrest_id")) %>% # get off-duty arrests
+    group_by(unit, shift, beat_assigned) %>%
+    mutate(shift_id = as.character(cur_group_id())) %>%
+    ungroup() %>%
+    mutate(shift_id = if_else(is.na(beat_assigned), "off_duty", shift_id)) %>%
+    group_by(arrest_id) %>%
+    summarise(
+        nr_officers = n(),
+        nr_shifts = n_distinct(shift_id),
+        all_off_duty = all(shift_id == "off_duty"),
+        any_off_duty = any(shift_id == "off_duty")
+    ) %>%
+    ungroup()
+
+ggplot(arrests_together, aes(x = nr_officers)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Number of times X officers made an arrest") +
+    labs(y = "Number of arrests")
+```
+
+* These pair of graphs depict: 1) how many arrests involved at least one off-duty officer, 2) how many arrests involved only off-duty officers.
+
+```{r}
+ggplot(arrests_together, aes(x = any_off_duty)) +
+    geom_bar() +
+    theme_bw() +
+    labs(
+        x = "Did the arrest involve at least one off-duty officer?",
+        y = "Number of arrests"
+    )
+
+ggplot(arrests_together, aes(x = all_off_duty)) +
+    geom_bar() +
+    theme_bw() +
+    labs(
+        x = "Did the arrest involve only off-duty officer(s)?",
+        y = "Number of arrests"
+    )
+```
+
+* Looking only at those stops which involved two officers (and as long as both of them were not off-duty), how many times did the stop occur between officers working the same shift assignment (as defined by unit, beat assigned, and shift timing)?
+* 43% of all arrests with two officers occur with officers who are working the same shift assignment.
+* If we exclude any arrest which includes an off-duty officer, the results flip and 73% of all arrests with two officers occur with officers who are working the same shift assignment.
+
+```{r}
+arrests_together_two <-
+    arrests_together %>%
+    filter(nr_officers > 1, !all_off_duty)
+
+ggplot(arrests_together_two, aes(x = nr_shifts)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Number of shifts represented when two officers make an arrest together") +
+    labs(y = "Number of arrests involving 2 officers")
+
+arrests_together_two_no_offduty <-
+    arrests_together %>%
+    filter(nr_officers > 1, !any_off_duty)
+
+ggplot(arrests_together_two_no_offduty, aes(x = nr_shifts)) +
+    geom_bar() +
+    theme_bw() +
+    labs(x = "Number of shifts represented when two officers make an arrest together (no off-duty)") +
+    labs(y = "Number of arrests involving 2 officers")
+```
+
+## Variation across districts and shift assignments
+
+### Shift assignments
+
+```{r}
+nr_officers_working_specific_shift <-
+    shift_ids %>%
+    count(shift_id) %>%
+    mutate(shift_id = as.character(shift_id)) %>%
+    arrange(desc(n)) %>%
+    mutate(prcnt = n / sum(n), cumsum = cumsum(n), cumsum_prcnt = cumsum(prcnt))
+```
+
+* There were `r nrow(nr_officers_working_specific_shift)` unique shift assignments (unit, beat, shift timing) from 2012-2015 which generated `r nrow(officer_assignments)` unique **officer shift assignments** (worked by `r length(unique(officer_assignments$officer_id))` officers).
+* The below graph depicts the cumulative sum of how many **officer shift assignments** were assigned to a specific shift assignment.
+* **Interpretation**: Most shift assignments are hardly worked. Roughly 17% of all unique shift assignments generated 80% of the actual officer shift assignments. 23% of all unique shift assignments generated 90% of the actual officer shift assignments.
+
+```{r}
+ggplot(nr_officers_working_specific_shift, aes(x = cumsum_prcnt)) +
+    stat_ecdf() +
+    coord_flip() +
+    theme_bw() +
+    labs(
+        x = "Percent of officer shift assignments",
+        y = "Percent of shift assignments"
+    )
+```
+
+* The below graphs depict the racial, sex, and work experience breakdowns across shift assignments.
+
+```{r, fig.height=8, fig.width=8}
+variation_officer_race_order <-
+    shift_ids %>%
+    count(shift_id, unit, officer_race) %>%
+    group_by(shift_id, unit) %>%
+    mutate(
+        prcnt = n / sum(n), shift_id = as.character(shift_id), total = sum(n)
+    ) %>%
+    pivot_wider(
+        id_cols = c(shift_id, total, unit),
+        names_from = officer_race,
+        values_from = prcnt,
+        values_fill = 0
+    ) %>%
+    arrange(unit, desc(officer_black), desc(officer_hisp), desc(officer_white)) %>%
+    pull(shift_id)
+    
+variation_officer_race <-
+    shift_ids %>%
+    count(shift_id, unit, officer_race) %>%
+    group_by(shift_id, unit) %>%
+    mutate(
+        prcnt = n / sum(n),
+        shift_id = factor(shift_id, variation_officer_race_order)
+    )
+
+ggplot(variation_officer_race, aes(x = shift_id, y = prcnt)) +
+    geom_bar(
+        position = "fill",
+        stat = "identity",
+        aes(fill = officer_race, color = officer_race)
+    ) +
+    theme_bw() + 
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+    ) +
+    labs(
+        x = "Shift assignment",
+        y = "Percent of shift assignment worked by officers of a particular race"
+    ) +
+    facet_wrap(~ unit, scales = "free_x")
+```
+
+```{r, fig.height=8, fig.width=8}
+variation_officer_sex_order <-
+    shift_ids %>%
+    count(shift_id, unit, officer_gender) %>%
+    group_by(shift_id, unit) %>%
+    mutate(
+        prcnt = n / sum(n), shift_id = as.character(shift_id), total = sum(n)
+    ) %>%
+    pivot_wider(
+        id_cols = c(shift_id, total),
+        names_from = officer_gender,
+        values_from = prcnt,
+        values_fill = 0
+    ) %>%
+    arrange(desc(FEMALE)) %>%
+    pull(shift_id)
+    
+variation_officer_sex <-
+    shift_ids %>%
+    count(shift_id, unit, officer_gender) %>%
+    group_by(shift_id, unit) %>%
+    mutate(
+        prcnt = n / sum(n),
+        shift_id = factor(shift_id, variation_officer_sex_order)
+    )
+
+ggplot(variation_officer_sex, aes(x = shift_id, y = prcnt)) +
+    geom_bar(
+        position = "fill",
+        stat = "identity",
+        aes(fill = officer_gender, color = officer_gender)
+    ) +
+    theme_bw() + 
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+    ) +
+    labs(
+        x = "Shift assignment",
+        y = "Percent of shift assignment worked by officers of a particular sex"
+    ) +
+    facet_wrap(~unit, scales = "free_x")
+```
+
+```{r, fig.height=8, fig.width=8}
+variation_officer_exp <-
+    shift_ids %>%
+    mutate(
+        years_from_start = months_from_start / 12,
+        shift_id = as.character(shift_id),
+    ) %>%
+    group_by(shift_id, unit) %>%
+    summarise(mean_yrs_exp = mean(years_from_start, na.rm = T))
+    
+ggplot(
+    variation_officer_exp,
+    aes(x = fct_reorder(shift_id, mean_yrs_exp), y = mean_yrs_exp)
+) +
+    geom_bar(stat = "identity") +
+    theme_bw() + 
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+    ) +
+    labs(
+        x = "Shift assignment",
+        y = "Mean years of work experience of all officers who worked a specific shift assignment"
+    ) +
+    facet_wrap(~unit, scales = "free_x")
+```
+
+### Variation within shift assignments
+
+Typically a shift assignment has three shift times (morning, afternoon, and evening) in which someone can work. So within a specific shift assignment, are officers from different races largely working different shift timings or the same shift timings?
+
+```{r}
+unit_beat_ids <-
+    shift_ids %>%
     group_by(unit, beat_assigned) %>%
-    filter(length(unique(officer_race)) > 1) %>%
-    group_by(unit, beat_assigned, officer_race) %>%
-    mutate(shift_max = if_else(prcnt == max(prcnt), shift, F)) %>%
+    mutate(unit_beat_id = cur_group_id())
+
+variation_within_shift <-
+    unit_beat_ids %>%
+    count(unit_beat_id, shift) %>%
+    group_by(unit_beat_id) %>%
+    mutate(
+        prcnt = n / sum(n),
+        shift = as.character(shift)
+    ) %>%
     ungroup()
 ```
 
+This is a provisional look at this idea. I take the 25 most worked shift assignments, and I plot: 1) For all officers, what is the distribution of shift timings, 2) For White, Black, and Hispanic officers how do the shift timings differ for the overall average?
+
+The eyeball test suggests there are definitely shift assignments where minority police officers are working at different times than White officers.
+
+```{r, fig.height=8, fig.width=8}
+common_beat_assignments <-
+    variation_within_shift %>%
+    group_by(unit_beat_id) %>%
+    filter(n() == 3) %>%
+    summarise(total = sum(n)) %>%
+    slice_max(total, n = 25)
+
+variation_within_shift_by_all <-
+    variation_within_shift %>%
+    mutate(officer_race = "all", unit_beat_id = as.character(unit_beat_id)) %>%
+    filter(unit_beat_id %in% common_beat_assignments$unit_beat_id) %>%
+    select(unit_beat_id, shift, officer_race, prcnt)
+
+variation_within_shift_by_race <-
+    unit_beat_ids %>%
+    filter(unit_beat_id %in% common_beat_assignments$unit_beat_id) %>%
+    count(unit_beat_id, shift, officer_race) %>%
+    group_by(unit_beat_id, officer_race) %>%
+    mutate(
+        prcnt = n / sum(n),
+        unit_beat_id = as.character(unit_beat_id),
+        shift = as.character(shift),
+        officer_race = str_replace(officer_race, "officer_", "")
+    ) %>%
+    ungroup() %>%
+    select(unit_beat_id, shift, officer_race, prcnt) %>%
+    bind_rows(variation_within_shift_by_all)
+
+ggplot(variation_within_shift_by_race, aes(x = officer_race, y = prcnt)) +
+    geom_bar(position = "fill", stat = "identity", aes(fill = shift)) +
+    theme_bw() +
+    facet_wrap(~unit_beat_id) +
+    labs(
+        x = "Officer race",
+        y = "Percentage of time working a particular shift timing"
+    )
+```
