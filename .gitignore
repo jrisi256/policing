@@ -42,3 +42,5 @@ vignettes/*.pdf
 */input
 */output
 *.csv
+*.csv.gz
+*.zip
