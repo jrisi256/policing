@@ -489,6 +489,7 @@ ggplot(nr_officers_working_specific_shift, aes(x = cumsum_prcnt)) +
 ```{r, fig.height=8, fig.width=8}
 variation_officer_race_order <-
     shift_ids %>%
+    filter(year(date) == 2015) %>%
     count(shift_id, unit, officer_race) %>%
     group_by(shift_id, unit) %>%
     mutate(
@@ -505,16 +506,26 @@ variation_officer_race_order <-
     
 variation_officer_race <-
     shift_ids %>%
+    filter(year(date) == 2015) %>%
     count(shift_id, unit, officer_race) %>%
     group_by(shift_id, unit) %>%
     mutate(
         prcnt = n / sum(n),
         shift_id = factor(shift_id, variation_officer_race_order)
-    )
+    ) %>%
+    group_by(shift_id) %>%
+    mutate(total_nr_officers_ever_work_shift = sum(n)) %>%
+    group_by(unit) %>%
+    mutate(
+        width =
+            total_nr_officers_ever_work_shift /
+            max(total_nr_officers_ever_work_shift)
+    ) %>%
+    filter(width >= 0.5) %>%
+    ungroup()
 
-ggplot(variation_officer_race, aes(x = shift_id, y = prcnt)) +
+ggplot(variation_officer_race, aes(x = shift_id, y = prcnt, width = width)) +
     geom_bar(
-        position = "fill",
         stat = "identity",
         aes(fill = officer_race, color = officer_race)
     ) +
@@ -526,8 +537,9 @@ ggplot(variation_officer_race, aes(x = shift_id, y = prcnt)) +
         panel.grid.minor.x = element_blank()
     ) +
     labs(
-        x = "Shift assignment",
-        y = "Percent of shift assignment worked by officers of a particular race"
+        x = "Patrol assignment",
+        y = "% of shift assignment worked by officers of X race",
+        title = "Segregation within units (2015) by most worked patrol assignments"
     ) +
     facet_wrap(~ unit, scales = "free_x")
 ```
@@ -619,6 +631,7 @@ unit_beat_ids <-
 
 variation_within_shift <-
     unit_beat_ids %>%
+    filter(year(date) == 2015) %>%
     count(unit_beat_id, shift) %>%
     group_by(unit_beat_id) %>%
     mutate(
@@ -644,10 +657,11 @@ variation_within_shift_by_all <-
     variation_within_shift %>%
     mutate(officer_race = "all", unit_beat_id = as.character(unit_beat_id)) %>%
     filter(unit_beat_id %in% common_beat_assignments$unit_beat_id) %>%
-    select(unit_beat_id, shift, officer_race, prcnt)
+    select(unit_beat_id, shift, officer_race, prcnt, n)
 
 variation_within_shift_by_race <-
     unit_beat_ids %>%
+    filter(year(date) == 2015) %>%
     filter(unit_beat_id %in% common_beat_assignments$unit_beat_id) %>%
     count(unit_beat_id, shift, officer_race) %>%
     group_by(unit_beat_id, officer_race) %>%
@@ -658,15 +672,21 @@ variation_within_shift_by_race <-
         officer_race = str_replace(officer_race, "officer_", "")
     ) %>%
     ungroup() %>%
-    select(unit_beat_id, shift, officer_race, prcnt) %>%
-    bind_rows(variation_within_shift_by_all)
+    select(unit_beat_id, shift, officer_race, prcnt, n) %>%
+    bind_rows(variation_within_shift_by_all) %>%
+    group_by(unit_beat_id, officer_race) %>%
+    mutate(nr_officers_of_x_race = sum(n)) %>%
+    group_by(unit_beat_id) %>%
+    mutate(width = nr_officers_of_x_race / max(nr_officers_of_x_race)) %>%
+    ungroup()
 
-ggplot(variation_within_shift_by_race, aes(x = officer_race, y = prcnt)) +
-    geom_bar(position = "fill", stat = "identity", aes(fill = shift)) +
+ggplot(variation_within_shift_by_race, aes(x = officer_race, y = prcnt, width = width)) +
+    geom_bar(stat = "identity", aes(fill = shift), color = "black") +
     theme_bw() +
     facet_wrap(~unit_beat_id) +
     labs(
         x = "Officer race",
-        y = "Percentage of time working a particular shift timing"
+        y = "Percentage of time working a particular shift timing",
+        title = "Segregation within top 25 most worked patrol assignments (2015)"
     )
 ```
