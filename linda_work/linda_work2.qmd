@@ -1,0 +1,173 @@
+---
+title: "Chicago Policing Patrol Assignments"
+format: html
+---
+
+```{r}
+library(sf)
+library(here)
+library(dplyr)
+library(readr)
+library(knitr)
+library(tidyr)
+library(dtplyr)
+library(stringr)
+library(ggplot2)
+library(forcats)
+library(lubridate)
+library(data.table)
+
+opts_chunk$set(message = F, echo = F, warning = F)
+```
+
+```{r}
+officer_assignments <-
+    read_csv(
+        here(
+            "aggregate_level_outcomes",
+            "paper_summer_2023",
+            "officers_assignments_ba.csv"
+        )
+    )
+
+shift_ids <-
+    officer_assignments %>%
+    group_by(unit, shift, beat_assigned) %>%
+    mutate(shift_id = cur_group_id()) %>%
+    ungroup()
+
+beat_ids <-
+    officer_assignments %>%
+    group_by(unit, beat_assigned) %>%
+    mutate(beat_id = cur_group_id()) %>%
+    ungroup()
+```
+
+```{r, results = "hide"}
+beats <-
+    st_read(
+        dsn = here("linda_work",'beat_shape'),
+        layer = 'geo_export_d5819960-7491-4022-9aaf-63f6a431f4f9'
+    )
+```
+
+```{r}
+unique_beats <- unique(officer_assignments$beat_assigned)
+unique_beats_no_letter <- unique(str_replace(unique_beats, "[A-Za-z]", ""))
+
+nr_physical_beats <-
+    officer_assignments %>% filter(beat_assigned %in% beats$beat_num)
+
+nr_physical_beats_no_letter <-
+    officer_assignments %>%
+    mutate(new_beat = str_replace(beat_assigned, "[A-Za-z]", "")) %>%
+    filter(new_beat %in% beats$beat_num)
+```
+
+```{r}
+beats_3_char <- unique_beats[str_length(unique_beats) == 3]
+
+beats_4_char <- unique_beats[str_length(unique_beats) == 4]
+beats_4_char_no_letter <- unique(str_replace(beats_4_char, "[A-Za-z][A-Za-z0-9]", ""))
+beats_4_char_letters <- tibble(letters = str_extract(beats_4_char, "[A-Za-z][A-Za-z0-9]*")) %>% count(letters)
+
+beats_5_char <- unique_beats[str_length(unique_beats) == 5]
+
+beats_6_char <- unique_beats[str_length(unique_beats) == 6]
+
+a <- "874A1S" # officer id 22444. maybe it is supplementing the A1 shift, I don't know.
+b <- "1134A2230" # officer id 24774, this just feels like a typo.
+b2 <- "11134A" # officer id 24774, also feels like a typo
+c <- "A407 is sus but it might hold" # officer id 63, cannot find any other shifts that officer has that match it.
+d <- "683AREL" # officer id 26605, it could be a relief role.
+f <- "1926B3685" # officer id 10185, feels like a typo.
+g <- "369B8529" # officer id 4776, feels like a typo.
+
+beats <-
+    officer_assignments %>%
+    count(beat_assigned) %>%
+    mutate(
+        beat_character = str_extract(beat_assigned, "[A-Za-z][A-Za-z0-9]*"),
+        beat_code_length = str_length(beat_assigned),
+        beat_pos = str_locate(beat_assigned, "[A-Za-z][A-Za-z0-9]*")[,1]
+    )
+
+beat_fltr <- beats %>% filter(beat_code_length != beat_pos)
+```
+
+```{r}
+ba_df <-
+    tibble(
+        ba = officer_assignments$beat_assigned,
+        ba_replace = str_replace_all(ba, "[^0-9]", ""),
+        length = str_length(ba_replace),
+        desk =
+            if_else(
+                length == 4,
+                str_sub(ba_replace, 3, 4) == "02",
+                str_sub(ba_replace, 2, 3) == "02"
+            ),
+        special =
+            if_else(!str_detect(ba, '^[0-9]+$') | str_length(ba) >= 5, 1, 0)
+    )
+```
+
+
+```{r}
+variation_officer_race_order <-
+    beat_ids %>%
+    filter(year(date) == 2015) %>%
+    count(beat_id, unit, officer_race) %>%
+    group_by(beat_id, unit) %>%
+    mutate(
+        prcnt = n / sum(n), beat_id = as.character(beat_id), total = sum(n)
+    ) %>%
+    pivot_wider(
+        id_cols = c(beat_id, total, unit),
+        names_from = officer_race,
+        values_from = prcnt,
+        values_fill = 0
+    ) %>%
+    arrange(unit, desc(officer_black), desc(officer_hisp), desc(officer_white)) %>%
+    pull(beat_id)
+
+variation_officer_race <-
+    beat_ids %>%
+    filter(year(date) == 2015) %>%
+    count(beat_id, unit, officer_race) %>%
+    group_by(beat_id, unit) %>%
+    mutate(
+        prcnt = n / sum(n),
+        beat_id = factor(beat_id, variation_officer_race_order)
+    ) %>%
+    group_by(beat_id) %>%
+    mutate(total_nr_officers_ever_work_shift = sum(n)) %>%
+    ungroup() %>%
+    arrange(unit, desc(total_nr_officers_ever_work_shift)) %>%
+    group_by(unit) %>%
+    mutate(rank = dense_rank(desc(total_nr_officers_ever_work_shift))) %>%
+    filter(rank <= 30)
+
+ggplot(variation_officer_race, aes(x = beat_id, y = prcnt)) +
+    geom_bar(
+        stat = "identity",
+        color = "black",
+        linewidth = 0.2,
+        width = 1,
+        aes(fill = officer_race)
+    ) +
+    theme_bw() + 
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+    ) +
+    labs(
+        x = "Patrol assignment",
+        y = "% of patrol assignment worked by officers of X race",
+        title = "Segregation within units (2015) by most worked patrol assignments"
+    ) +
+    facet_wrap(~ unit, scales = "free_x")
+```
+

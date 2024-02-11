@@ -219,8 +219,7 @@ densitychart(
 
 From Ba et al. 2021, Appendix S1.6 (pgs. 8-10)
 
-"For example, area 1431 corresponds to a known collection of city blocks in the CPD’s Shakespeare district, to which over 6,000 officer-shift slots were assigned. Within
-this geographic area, our patrol assignment data distinguishes between standard patrol tasks (indicated with beat code “1431,” roughly 4,000 officer-shifts) and additional patrol tasks distinguished by a alphabetical suffix (in this case, beat code “1431R,” roughly 2,000 officer-shifts). In this case, beat code “1431” is assigned for officers working shifts 2 and 3, which overlap in the afternoon but not in the early morning. Beat code “1431R“ indicates a relief assignment and is always assigned for shift 1; it overlaps with the end of shift 3 and the beginning of shift 1 to ensure no gap in service exists. Other suffixes such as A or E refer to squads that rotate based on the operations calendar, but the numeric beat that precedes the suffix refers to the same area.
+"For example, area 1431 corresponds to a known collection of city blocks in the CPD’s Shakespeare district, to which over 6,000 officer-shift slots were assigned. Within this geographic area, our patrol assignment data distinguishes between standard patrol tasks (indicated with beat code “1431,” roughly 4,000 officer-shifts) and additional patrol tasks distinguished by a alphabetical suffix (in this case, beat code “1431R,” roughly 2,000 officer-shifts). In this case, beat code “1431” is assigned for officers working shifts 2 and 3, which overlap in the afternoon but not in the early morning. Beat code “1431R“ indicates a relief assignment and is always assigned for shift 1; it overlaps with the end of shift 3 and the beginning of shift 1 to ensure no gap in service exists. Other suffixes such as A or E refer to squads that rotate based on the operations calendar, but the numeric beat that precedes the suffix refers to the same area.
 
 Comparing officers within beat codes (and not generalizing to numeric beats) ensures that we are robustly controlling for the function officers perform when assigned to a specific beat code in addition to their geographic location.
 
@@ -489,7 +488,6 @@ ggplot(nr_officers_working_specific_shift, aes(x = cumsum_prcnt)) +
 ```{r, fig.height=8, fig.width=8}
 variation_officer_race_order <-
     shift_ids %>%
-    filter(year(date) == 2015) %>%
     count(shift_id, unit, officer_race) %>%
     group_by(shift_id, unit) %>%
     mutate(
@@ -506,7 +504,6 @@ variation_officer_race_order <-
     
 variation_officer_race <-
     shift_ids %>%
-    filter(year(date) == 2015) %>%
     count(shift_id, unit, officer_race) %>%
     group_by(shift_id, unit) %>%
     mutate(
@@ -515,16 +512,8 @@ variation_officer_race <-
     ) %>%
     group_by(shift_id) %>%
     mutate(total_nr_officers_ever_work_shift = sum(n)) %>%
-    group_by(unit) %>%
-    mutate(
-        width =
-            total_nr_officers_ever_work_shift /
-            max(total_nr_officers_ever_work_shift)
-    ) %>%
-    filter(width >= 0.5) %>%
-    ungroup()
 
-ggplot(variation_officer_race, aes(x = shift_id, y = prcnt, width = width)) +
+ggplot(variation_officer_race, aes(x = shift_id, y = prcnt)) +
     geom_bar(
         stat = "identity",
         aes(fill = officer_race, color = officer_race)
