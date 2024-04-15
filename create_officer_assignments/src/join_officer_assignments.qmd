@@ -1,0 +1,246 @@
+---
+title: "Merge Officers To Their Work Assignments"
+format: pdf
+---
+
+```{r, include = F}
+library(here)
+library(readr)
+library(dplyr)
+library(knitr)
+library(stringr)
+library(lubridate)
+opts_chunk$set(message = F, echo = F, warning = F)
+read_path <- paste("create_officer_assignments", "input", sep = "/")
+write_path <- paste("create_officer_assignments", "output", sep = "/")
+```
+
+```{r}
+# Read in police officer roster.
+officers <- 
+    read_csv(
+        here(read_path, "officers.csv.gz"),
+        col_types = 
+            cols_only(
+                birth_year = "d",
+                appointed_month = col_date(format = "%Y-%m-%d"),
+                officer_id = "c",
+                officer_race = "c",
+                officer_gender = "c",
+                spanish = "l"
+            )
+        )
+
+# Read in officer-work assignment data.
+assignments <-
+    read_csv(
+        here(read_path, "assignments.csv.gz"),
+        col_types = 
+            cols_only(
+                officer_id = "c",
+                month = col_date(format = "%Y-%m-%d"),
+                rank = "c",
+                unit = "c",
+                date = col_date(format = "%Y-%m-%d"),
+                shift = "c",
+                start_time = "d",
+                end_time = "d",
+                weekday = "c",
+                beat_assigned = "c",
+                months_from_start = "d",
+                months_from_start_sq = "d",
+                duration = "d"
+            )
+    ) %>%
+    mutate(row_id = row_number()) %>%
+    group_by(month, weekday, beat_assigned, shift) %>%
+    mutate(mdsb_id = cur_group_id()) %>%
+    group_by(unit, beat_assigned, shift) %>%
+    mutate(work_assignment_id = cur_group_id()) %>%
+    group_by(beat_assigned, shift) %>%
+    mutate(work_assignment_no_unit_id = cur_group_id()) %>%
+    ungroup()
+```
+
+```{r}
+# Join officer roster to officer-work assignments.
+officer_assignments <- inner_join(assignments, officers, by = "officer_id")
+
+# drop all but POLICE OFFICER
+rank_fltr <- officer_assignments %>% filter(rank == 'POLICE OFFICER')
+
+# drop all officers except black, Hispanic, and white
+race_fltr <-
+    officer_assignments %>%
+    filter(officer_race %in% paste0('officer_',  c('black', 'white', 'hisp')))
+
+# Final data set for Ba et al. 2021
+officer_assignments_ba <-
+    officer_assignments %>%
+    filter(
+        officer_race %in% c(paste0("officer_", c("white", "black", "hisp"))),
+        rank == "POLICE OFFICER"
+    )
+write_csv(officer_assignments_ba, here(write_path, "officer_assignments_ba.csv"))
+gzip(here(write_path, "officer_assignments_ba.csv"))
+```
+
+## Join the officer roster to work assignments - Ba et al. 2021
+
+### Pre-filtering totals
+
+* **Number of officers**: `r length(unique(officer_assignments$officer_id))`
+* **Number of officer-work assignments**: `r nrow(officer_assignments)`
+* **Number of work assignments (unit + beat + shift)**: `r length(unique(officer_assignments$work_assignment_id))`
+* **Number of work assignments (beat + shift)**: `r length(unique(officer_assignments$work_assignment_no_unit_id))`
+* **Number of MDSBs (month/year + day of week + shift + beat)**: `r length(unique(officer_assignments$mdsb_id))`
+
+### Filtering by work assignment
+
+> "Within this subset, we further drop non-standard assignments (notably including “protest detail,” “station supervisor,” and “station security” assignments, as well as special assignments for training, compensatory time, and excused sick leave). Patrol assignments in which officers are indicated as non-present are also dropped... we drop double shifts (patrol assignment slots in which the assigned officer served for more than one shift on the same day) to address the possibility that officers behave differently due to fatigue in these circumstances. We also eliminate officers assigned to non-standard watches (i.e., other than first through third watches)." page 7 of Appendix Section S1.4 in Ba et al. 2021.
+
+I did not find any evidence in their code that they did this.
+
+### Filtering by race/ethnicity
+
+> "We restrict analysis to patrol assignments in which Black, Hispanic, or White officers serve. Asian/Pacific Islander and Native American/Alaskan Native officers are not examined due to small sample sizes." page 7 of Appendix Section S1.4 in Ba et al. 2021.
+
+* Number of officer-work assignments: `r nrow(race_fltr)`
+    * Officer-work assignments dropped: `r nrow(officer_assignments) - nrow(race_fltr)`
+    * Percentage reduction: `r round((nrow(officer_assignments) - nrow(race_fltr)) / nrow(officer_assignments) * 100, 3)`%
+* Number of unique officers: `r length(unique(race_fltr$officer_id))`
+    * Number Of Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))`
+    * Percentage reduction: `r round((length(unique(officer_assignments$officer_id)) - length(unique(race_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100, 3)`%
+
+### Filtering by rank
+
+> "Finally, we drop officers at ranks other than 'police officer.' This step eliminates police sergeants, who serve in 8% of beat assignments but make very few stops and arrests, as well as legal officers, helicopter pilots, explosives technicians, and canine handlers." page 7 of Appendix Section S1.4 in Ba et al. 2021.
+
+* Number of officer-work assignments: `r nrow(rank_fltr)`
+    * Officer-work assignments dropped: `r nrow(officer_assignments) - nrow(rank_fltr)`
+    * Percentage reduction: `r round((nrow(officer_assignments) - nrow(rank_fltr)) / nrow(officer_assignments) * 100, 3)`%
+* Number of unique officers: `r length(unique(rank_fltr$officer_id))`
+    * Officers dropped: `r length(unique(officer_assignments$officer_id)) - length(unique(rank_fltr$officer_id))`
+    * Percentage reduction: `r round((length(unique(officer_assignments$officer_id)) - length(unique(rank_fltr$officer_id))) / length(unique(officer_assignments$officer_id)) * 100, 3)`%
+
+### Final results
+
+* **Number of officers**: `r length(unique(officer_assignments_ba$officer_id))`
+    * **Percentage reduction**: `r round((length(unique(officer_assignments$officer_id)) - length(unique(officer_assignments_ba$officer_id))) / length(unique(officer_assignments$officer_id)) * 100, 3)`%
+* **Number of officer-work assignments**: `r nrow(officer_assignments_ba)`
+    * **Percentage reduction**: `r round((nrow(officer_assignments) - nrow(officer_assignments_ba)) / nrow(officer_assignments) * 100, 3)`%
+* **Number of work assignments (unit + beat + shift)**: `r length(unique(officer_assignments_ba$work_assignment_id))`
+    * **Percentage reduction**: `r round((length(unique(officer_assignments$work_assignment_id)) - length(unique(officer_assignments_ba$work_assignment_id))) / length(unique(officer_assignments$work_assignment_id)) * 100, 3)`%
+* **Number of work assignments (beat + shift)**: `r length(unique(officer_assignments_ba$work_assignment_no_unit_id))`
+    * **Percentage reduction**: `r round((length(unique(officer_assignments$work_assignment_no_unit_id)) - length(unique(officer_assignments_ba$work_assignment_no_unit_id))) / length(unique(officer_assignments$work_assignment_no_unit_id)) * 100, 3)`%
+* **Number of MDSBs**: `r length(unique(officer_assignments_ba$mdsb_id))`
+    * **Percentage reduction**: `r round((length(unique(officer_assignments$mdsb_id)) - length(unique(officer_assignments_ba$mdsb_id))) / length(unique(officer_assignments$mdsb_id)) * 100, 3)`%
+
+#### Missings
+
+* `r table(is.na(officer_assignments_ba$duration))[["TRUE"]]` officer-work assignments are missing their start and end time.
+* `r table(is.na(officer_assignments_ba$months_from_start))[["TRUE"]]` officer-work assignments are missing the work experience of the officer.
+
+## Join the officer roster to work assignments - Risi & Zhao
+
+```{r}
+# Make changes to officer race.
+officers_risi <-
+    officers %>%
+    rename(officer_sex = officer_gender) %>%
+    mutate(
+        officer_race = str_replace(officer_race, "officer_", ""),
+        officer_race = 
+            case_when(
+                officer_race == "aapi" ~ "aapi_native",
+                officer_race == "native" ~ "aapi_native",
+                T ~ officer_race
+            )
+    )
+
+# Make changes to officer ranks and work assignment start/end times.
+assignments_risi <-
+    assignments %>%
+    mutate(
+        rank =
+            case_when(
+                is.na(rank) ~ NA_character_,
+                rank %in% c("CHIEF", "COMMANDER", "DEPUTY CHIEF", "LIEUTENANT") ~ "leadership",
+                !(rank %in% c("CHIEF", "COMMANDER", "DEPUTY CHIEF", "LIEUTENANT", "POLICE OFFICER", "SERGEANT")) ~ "other",
+                T ~ rank
+            ),
+        start_date = if_else(is.na(start_time), NA_Date_, date),
+        start_hms = hms::hms(
+            rep(0, nrow(assignments)),
+            rep(0, nrow(assignments)),
+            start_time
+        ),
+        start_datetime = as_datetime(paste0(start_date, " ", start_hms)),
+        end_date =
+            case_when(
+                is.na(end_time) ~ NA_Date_,
+                end_time > 24 ~ date + 1,
+                TRUE ~ date
+            ),
+        end_hms = hms::hms(
+            rep(0, nrow(assignments)),
+            rep(0, nrow(assignments)),
+            case_when(
+                is.na(end_time) ~ NA_real_,
+                end_time > 24 ~ end_time - 24,
+                TRUE ~ end_time
+            )
+        ),
+        end_datetime = as_datetime(paste0(end_date, " ", end_hms))
+    ) %>%
+    select(-start_date, -start_hms, -end_date, -end_hms)
+
+# Merge officers to their work assignments
+officer_assignments_risi <-
+    inner_join(assignments_risi, officers_risi, by = "officer_id")
+write_csv(officer_assignments_risi, here(write_path, "officer_assignments_risi.csv"))
+gzip(here(write_path, "officer_assignments_risi.csv"))
+
+aj_officers <- anti_join(officers, assignments, by = "officer_id") %>% nrow()
+```
+
+1. For officer race, combine AAPI and Native American officers into one category.
+2. Create a start date time and end date time column which combines date with start time and end time respectively. This creates two columns in the YYYY-MM-DD HH:MM:SS format.
+3. For officer rank, I combine Chief, Commander, Deputy Chief, and Lieutenant into a **leadership** category. **Sergeant** and **Police Officer** remain the same. All other ranks are combined into an **other** category. Percentage-wise there are only a few work assignments for those in leadership, but there is still a large absolute number of patrols shifts conducted by those in leadership (in the tens of thousands).
+
+### Results of join
+
+* **Number of officer-work assignments**: `r nrow(officer_assignments_risi)`
+* **Number of officers**: `r length(unique(officer_assignments_risi$officer_id))`
+* **Number of work assignments (unit + beat + shift)**: `r length(unique(officer_assignments_risi$work_assignment_id))`
+* **Number of work assignments (beat + shift)**: `r length(unique(officer_assignments_risi$work_assignment_no_unit_id))`
+* **Number of MDSBs (month/year + day of week + shift + beat)**: `r length(unique(officer_assignments_risi$mdsb_id))`
+* **Number of non-matching officers**: `r aj_officers`
+    * **Percentage of officers who don't match**: `r round(aj_officers / nrow(officers) * 100, 3)`%
+    
+#### Missings
+
+```{r}
+active <- officer_assignments_risi %>% distinct(officer_id, .keep_all = T)
+
+missing_race <- active %>% filter(is.na(officer_race)) %>% nrow()
+missing_sex <- active %>% filter(is.na(officer_sex)) %>% nrow()
+missing_age <- active %>% filter(is.na(birth_year)) %>% nrow()
+missing_spanish <- active %>% filter(is.na(spanish)) %>% nrow()
+missing_exp <- active %>% filter(is.na(appointed_month)) %>% nrow()
+
+m_race_wa <- officer_assignments_risi %>% filter(is.na(officer_race)) %>% nrow()
+m_sex_wa <- officer_assignments_risi %>% filter(is.na(officer_sex)) %>% nrow()
+m_age_wa <- officer_assignments_risi %>% filter(is.na(birth_year)) %>% nrow()
+m_sp_wa <- officer_assignments_risi %>% filter(is.na(spanish)) %>% nrow()
+m_exp_wa <- officer_assignments_risi %>% filter(is.na(appointed_month)) %>% nrow()
+```
+
+* `r missing_race` officers are missing their race (`r m_race_wa` officer-work assignments).
+* `r missing_sex` officers are missing their sex (`r m_sex_wa` officer-work assignments).
+* `r missing_age` officers are missing their age (`r m_age_wa` officer-work assignments).
+* `r missing_spanish` officers are missing their Spanish-speaking ability (`r m_sp_wa` officer-work assignments).
+* `r missing_exp` officers are missing the month they started (`r m_exp_wa` officer-work assignments).
+* `r table(is.na(officer_assignments_risi$start_datetime))[["TRUE"]]` officer-work assignments are missing their start time/end time.
+* `r table(is.na(officer_assignments_risi$rank))[["TRUE"]]` officer-work assignments are missing their rank.
+* `r table(is.na(officer_assignments_risi$months_from_start))[["TRUE"]]` officer-work assignments are missing the amount of experience of the officer. This is due to a data error where the officer's appointment date is **AFTER** their work assignment date. I.e., they began working before they were officially a police officer.

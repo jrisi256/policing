@@ -16,6 +16,7 @@ library(ggplot2)
 library(forcats)
 library(lubridate)
 library(data.table)
+library(segregation)
 
 opts_chunk$set(message = F, echo = F, warning = F)
 ```
@@ -112,6 +113,35 @@ ba_df <-
     )
 ```
 
+```{r}
+units <-
+    officer_assignments %>%
+    filter(year(date) == 2015) %>%
+    distinct(unit, officer_id, .keep_all = T) %>%
+    count(unit, officer_race) %>%
+    group_by(unit) %>%
+    mutate(
+        prop = n / sum(n),
+        information = log((1 / prop), 2),
+        shannon_entropy = sum(prop * information),
+        police_unit = as.character(unit)
+    ) %>%
+    ungroup()
+
+ggplot(units, aes(x = fct_reorder(police_unit, shannon_entropy), y = prop)) +
+    geom_bar(
+        stat = "identity",
+        color = "black",
+        aes(fill = officer_race)
+    ) +
+    labs(
+        x = "Police Unit",
+        y = "Proportion",
+        title = "Police units organized from least to most diverse for 2015 (using Shannon Entropy)"
+    ) +
+    theme_bw()
+```
+
 
 ```{r}
 variation_officer_race_order <-
@@ -137,18 +167,61 @@ variation_officer_race <-
     count(beat_id, unit, officer_race) %>%
     group_by(beat_id, unit) %>%
     mutate(
-        prcnt = n / sum(n),
-        beat_id = factor(beat_id, variation_officer_race_order)
+        prcnt = n / sum(n)
     ) %>%
     group_by(beat_id) %>%
     mutate(total_nr_officers_ever_work_shift = sum(n)) %>%
+    filter(total_nr_officers_ever_work_shift >= 100) %>%
     ungroup() %>%
     arrange(unit, desc(total_nr_officers_ever_work_shift)) %>%
     group_by(unit) %>%
-    mutate(rank = dense_rank(desc(total_nr_officers_ever_work_shift))) %>%
-    filter(rank <= 30)
+    mutate(police_unit = as.character(unit)) %>%
+    mutate(rank = dense_rank(desc(total_nr_officers_ever_work_shift))) #%>%
+    #filter(rank <= 30)
 
-ggplot(variation_officer_race, aes(x = beat_id, y = prcnt)) +
+segregation_total <- mutual_total(variation_officer_race, group = "officer_race", unit = "beat_id", weight = "n")
+between_unit_seg <- mutual_total(variation_officer_race, group = "officer_race", unit = "police_unit", weight = "n")
+within_unit_seg <- mutual_total(variation_officer_race, group = "officer_race", unit = "beat_id", within = "police_unit", weight = "n")
+within_unit_seg_by_unit <- mutual_within(variation_officer_race, group = "officer_race", unit = "beat_id", within = "police_unit", weight = "n", wide = T)
+units <- units %>% inner_join(within_unit_seg_by_unit, by = "police_unit", multiple = "all")
+seg_local <- mutual_local(variation_officer_race, "officer_race", "beat_id", weight = "n", wide = TRUE)
+variation_officer_race <-
+    variation_officer_race %>%
+    inner_join(seg_local, by = "beat_id", multiple = "all") %>%
+    arrange(desc(ls), beat_id)
+
+variation_officer_race_order <- pull(variation_officer_race, beat_id) %>% unique()
+variation_officer_race <- variation_officer_race %>% mutate(beat_id = factor(beat_id, variation_officer_race_order))
+
+variation_officer_race_graph <-
+    variation_officer_race %>%
+    inner_join(
+        distinct(select(units, police_unit, shannon_entropy, H), police_unit, .keep_all = T),
+        by = "police_unit",
+        multiple = "all"
+    ) %>%
+    mutate(
+        police_unit =
+            paste0(
+                "Police unit (", police_unit, ")\n",
+                "Diversity: ", round(shannon_entropy, digits = 2), "\n",
+                "Segregation: ", round(H, digits = 2)
+            )
+    )
+
+variation_officer_race_unit_order <- variation_officer_race_graph %>% arrange(H) %>% pull(police_unit) %>% unique()
+variation_officer_race_unit_graph <- variation_officer_race_graph %>% mutate(police_unit = factor(police_unit, variation_officer_race_unit_order))
+
+ggplot(units, aes(x = shannon_entropy, y = H)) +
+    geom_point() +
+    theme_bw() +
+    labs(
+        x = "Shannon Entropy (diversity)",
+        y = "Theil Index (segregation)",
+        title = "Comparing diversity to segregation across police units (2015)"
+    )
+
+ggplot(variation_officer_race_unit_graph, aes(x = beat_id, y = prcnt)) +
     geom_bar(
         stat = "identity",
         color = "black",
@@ -157,17 +230,22 @@ ggplot(variation_officer_race, aes(x = beat_id, y = prcnt)) +
         aes(fill = officer_race)
     ) +
     theme_bw() + 
+    labs(
+        x = "Beat assignment",
+        y = "% of patrol assignment worked by officers of X race",
+        title = "Segregation within units (2015) - Beat assignments sorted from most to least segregated."
+    ) +
+    facet_wrap(~ police_unit, scales = "free_x") +
     theme(
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
         panel.grid.major.x = element_blank(),
-        panel.grid.minor.x = element_blank()
-    ) +
-    labs(
-        x = "Patrol assignment",
-        y = "% of patrol assignment worked by officers of X race",
-        title = "Segregation within units (2015) by most worked patrol assignments"
-    ) +
-    facet_wrap(~ unit, scales = "free_x")
+        panel.grid.minor.x = element_blank(),
+        strip.text = element_text(size = 17),
+        axis.title.x = element_text(size = 19),
+        axis.title.y = element_text(size = 19),
+        axis.text.y = element_text(size = 13),
+        title = element_text(size = 19),
+        legend.text = element_text(size = 16)
+    )
 ```
-

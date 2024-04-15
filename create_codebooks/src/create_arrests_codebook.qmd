@@ -1,0 +1,135 @@
+---
+title: "Arrests Codebook"
+format: pdf
+---
+
+```{r, include = F}
+library(here)
+library(readr)
+library(dplyr)
+library(purrr)
+library(knitr)
+library(flextable)
+opts_chunk$set(message = F, echo = F, warning = F)
+source(here("create_codebooks", "src", "generate_descriptive_tables.R"))
+```
+
+```{r}
+arrests <- 
+    read_csv(
+        here("join_outcomes_assignments", "input", "arrests.csv.gz"),
+        col_types = 
+            cols_only(
+                date = col_date(format = "%Y-%m-%d"),
+                hour = "n",
+                crime_code = "c",
+                statute_description = "c",
+                lat = "n",
+                lon = "n",
+                district = "c",
+                civ.race = "c",
+                civ.gender = "c",
+                civ.age = "n",
+                arrest_id = "c",
+                officer_id = "c",
+                month = col_date(format = "%Y-%m-%d"),
+                civilian_race_short = "c"
+            )
+    )
+```
+
+## Arrests
+
+* **date**: Date of the arrest in YYYY-MM-DD format.
+* **hour**: Hour of the day when the arrest took place rounded to the nearest hour in military time.
+* **crime_code**: The suspected crime type causing the arrest.
+* **statute_description**: More detailed categories describing what specific statute was suspected to have been violated.
+* **lat**: Latitude of the arrest.
+* **lon**: Longitude of the arrest.
+* **district**: Police district where the arrest took place.
+* **civ.race**: Race of the civilian.
+* **civ.gender**: Sex of the civilian.
+* **civ.age**: Age of the civilian at the time of the stop.
+* **arrest_id**: Identifier for each arrest.
+* **officer_id**: Unique identifier for each officer.
+* **month**: Month of the arrest in YYYY-MM-DD format. The day is always the first day of the month.
+* **civilian_race_short**: Collapsed version of **civ.race** (less categories).
+* The unit of analysis is a unique officer involved in an arrest. Each row can be uniquely identified by **officer_id** and **arrest_id**.
+* Each arrest involves only one civilian, but they can involve multiple officers. It is possible multiple arrests are all a part of one larger incident involving multiple civilians. This can be investigated by examining arrests that took place in the same location at the same time involving the same officers.
+* **Number of rows**: `r nrow(arrests)`
+* **Number of unique arrests**: `r length(unique(arrests$arrest_id))`
+# **Number of unique officers**: `r length(unique(arrests$officer_id))`
+
+> "Arrests for municipal code violations and outstanding warrants are categorized as 'other'". page 8 of Appendix Section S1.5 in Ba et al. 2021.
+
+```{r}
+descriptive_table_c_l <-
+    arrests %>%
+    select((where(is.character) | where(is.logical)) & !matches("id|statute")) %>%
+    describe_columns_c_l(nmax = Inf)
+
+descriptive_table_statute <-
+    arrests %>%
+    select(matches("statute")) %>%
+    describe_columns_c_l(nmax = 10)
+
+flextable(bind_rows(descriptive_table_c_l, descriptive_table_statute)) %>%
+    align(align = "left", part = "all" ) %>%
+    set_table_properties(layout = "autofit") %>%
+    fontsize(size = 10, part = "all")
+```
+
+```{r}
+descriptive_table_n <-
+    arrests %>%
+    select(where(is.numeric)) %>%
+    describe_columns_n()
+
+flextable(descriptive_table_n) %>%
+    align(align = "left", part = "all") %>%
+    set_table_properties(layout = "autofit", opts_pdf = list(tabcolsep = 3)) %>%
+    fontsize(size = 8, part = "all")
+```
+
+```{r}
+descriptive_table_id <-
+    arrests %>%
+    select(matches("id")) %>%
+    describe_columns_id()
+
+flextable(descriptive_table_id)
+```
+
+```{r}
+descriptive_table_date_num <-
+    arrests %>%
+    select(matches("date")) %>%
+    describe_columns_date_num()
+
+flextable(descriptive_table_date_num) %>%
+    align(align = "left", part = "all") %>%
+    set_table_properties(layout = "autofit", opts_pdf = list(tabcolsep = 8)) %>%
+    fontsize(size = 9, part = "all")
+```
+
+```{r}
+descriptive_table_date_category <-
+    arrests %>%
+    select(matches("date")) %>%
+    describe_columns_date_category()
+
+descriptive_table_hour <-
+    arrests %>%
+    select(hour) %>%
+    describe_columns_c_l(nmax = Inf) %>%
+    select(-nr_unique) %>%
+    rename(n = nr) %>%
+    mutate(
+        unit_of_time = "hour",
+        value = as.numeric(value)
+    )
+
+flextable(bind_rows(descriptive_table_date_category, descriptive_table_hour)) %>%
+    align(align = "left", part = "all") %>%
+    set_table_properties(layout = "autofit", opts_pdf = list(tabcolsep = 10))
+```
