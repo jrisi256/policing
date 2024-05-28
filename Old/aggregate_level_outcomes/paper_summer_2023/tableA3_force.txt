@@ -1,0 +1,23 @@
+|                                     |                      |Uses of force against Black civilians |                          |                           |
+|:------------------------------------|:---------------------|:-------------------------------------|:-------------------------|:--------------------------|
+|                                     |Model 5A              |Model 6A                              |Model 7A                  |Model 8A                   |
+|Black Racial Congruence              |                      |0.3270 (   0.169848)*                 |                          |0.3486 (    0.17915175)*   |
+|Percentage of Officers Who Are Black |0.9639 (   0.022060)  |                                      |0.9659 (   0.02151000)    |                           |
+|Years Worked In Unit (Mean)          |0.9679 (   0.151142)  |0.8889 (   0.116228)                  |0.9976 (   0.15574434)    |0.9191 (    0.12176702)    |
+|Violent Crime Per 10,000             |1.0148 (   0.006550)* |1.0162 (   0.007165)*                 |1.0158 (   0.00678940)*   |1.0171 (    0.00741576)*   |
+|Property Crime Per 10,000            |1.0094 (   0.004809)+ |1.0091 (   0.005094)+                 |1.0100 (   0.00468037)*   |1.0097 (    0.00499762)+   |
+|Number of stops of Black civilians   |                      |                                      |1.0001 (   0.00002641)*** |1.0001 (    0.00002517)*** |
+|Total number of officers             |1.0024 (   0.002727)  |1.0011 (   0.002380)                  |1.0025 (   0.00277966)    |1.0013 (    0.00249456)    |
+|Offset - Black Pop.                  |Yes                   |Yes                                   |Yes                       |Yes                        |
+|Num.Obs.                             |792                   |792                                   |792                       |792                        |
+|AIC                                  |3752.3                |3748.5                                |3748.9                    |3745.6                     |
+|BIC                                  |3887.8                |3884.1                                |3889.1                    |3885.8                     |
+|Std.Errors                           |by: unit              |by: unit                              |by: unit                  |by: unit                   |
+|FE: unit                             |X                     |X                                     |X                         |X                          |
+|FE: year                             |X                     |X                                     |X                         |X                          |
+
+__Note:__
+^^ Standard Errors in parentheses. Coefficients are incident rate ratios.
+
+__Note:__
+^^ P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001

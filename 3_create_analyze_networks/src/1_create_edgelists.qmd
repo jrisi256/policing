@@ -1,0 +1,494 @@
+---
+title: "Create co-stop and co-arrest networks"
+format: pdf
+---
+
+```{r, include = F}
+library(here)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(knitr)
+library(dtplyr)
+library(R.utils)
+library(stringr)
+library(ggplot2)
+library(flextable)
+opts_chunk$set(message = F, echo = F, warning = F, output = F)
+read_path <- here("2_clean_data", "output")
+out_path <- here("3_create_analyze_networks", "output")
+```
+
+```{r}
+stop_assignments <-
+    read_csv(
+        file.path(read_path, "3_stops_assignments_risi.csv.gz"),
+        col_types = cols_only(
+            stop_id = "c",
+            officer_id = "c",
+            officer_stop_id = "c",
+            officer_race = "c",
+            officer_sex = "c",
+            birth_year = "d",
+            appointed_month = col_date(format = "%Y-%m-%d"),
+            spanish = "l",
+            time = col_datetime(),
+            district = "c",
+            stop_type = "c",
+            contact_type = "c",
+            civ.race = "c",
+            civ.sex = "c",
+            civ.age = "d",
+            lat = "d",
+            lon = "d",
+            unit = "c",
+            beat_assigned = "c",
+            po_first = "d",
+            shift = "c",
+            assignment_id = "c"
+        )
+    )
+
+arrest_assignments <-
+    read_csv(
+        file.path(read_path, "3_arrests_assignments_risi.csv.gz"),
+        col_types = cols_only(
+            arrest_id = "c",
+            officer_id = "c",
+            officer_arrest_id = "c",
+            officer_race = "c",
+            officer_sex = "c",
+            birth_year = "d",
+            appointed_month = col_date(format = "%Y-%m-%d"),
+            spanish = "l",
+            time = col_datetime(),
+            district = "c",
+            crime_code = "c",
+            statute_description = "c",
+            civ.race = "c",
+            civ.sex = "c",
+            civ.age = "d",
+            lat = "d",
+            lon = "d",
+            unit = "c",
+            beat_assigned = "c",
+            shift = "c",
+            assignment_id = "c"
+        )
+    )
+
+stops <-
+    read_csv(
+        file.path(read_path, "cleaned_stops.csv.gz"),
+        col_types =
+            cols_only(
+                stop_id = "c",
+                time = col_datetime(),
+                district = "c",
+                po_first = "d",
+                stop_type = "c",
+                contact_type = "c",
+                civ.race = "c",
+                civ.sex = "c",
+                civ.age = "d",
+                lat = "d",
+                lon = "d",
+                officer_id = "c",
+                officer_stop_id = "c"
+            )
+    )
+
+arrests <-
+    read_csv(
+        file.path(read_path, "cleaned_arrests.csv.gz"),
+        col_types = 
+            cols_only(
+                arrest_id = "c",
+                time = col_datetime(),
+                district = "c",
+                crime_code = "c",
+                statute_description = "c",
+                civ.race = "c",
+                civ.sex = "c",
+                civ.age = "d",
+                lat = "d",
+                lon = "d",
+                officer_id = "c",
+                officer_arrest_id = "c"
+            )
+    )
+
+officers <-
+    read_csv(
+        file.path(read_path, "cleaned_officers.csv.gz"),
+        col_types = cols(officer_id = "c")
+    ) %>%
+    relocate(officer_id)
+```
+
+```{r}
+# Merge stops which did not match to a work assignment to those that did.
+stop_assignments_all <-
+    stops %>%
+    left_join(officers, by = "officer_id") %>%
+    # Keep only those stops which did not match to an officer's work assignment.
+    filter(!(officer_stop_id) %in% stop_assignments$officer_stop_id) %>%
+    # Then merge with stops which did match to a work assignment.
+    bind_rows(stop_assignments) %>%
+    mutate(
+        unit = if_else(is.na(unit), "NO MATCH", unit),
+        beat_assigned = if_else(is.na(beat_assigned), "NO MATCH", beat_assigned),
+        shift = if_else(is.na(shift), "NO MATCH", shift)
+    ) %>%
+    select(-officer_stop_id, -assignment_id) %>%
+    # Remove all work assignments which had no stops
+    filter(!is.na(stop_id))
+
+# Merge arrests which did not match to a work assignment to those that did.
+arrest_assignments_all <-
+    arrests %>%
+    left_join(officers, by = "officer_id") %>%
+    # Keep only those arrests which did not match to an officer's work assignment.
+    filter(!(officer_arrest_id) %in% arrest_assignments$officer_arrest_id) %>%
+    # then marge with arrests which did match to a work assignment.
+    bind_rows(arrest_assignments) %>%
+    mutate(
+        unit = if_else(is.na(unit), "NO MATCH", unit),
+        beat_assigned = if_else(is.na(beat_assigned), "NO MATCH", beat_assigned),
+        shift = if_else(is.na(shift), "NO MATCH", shift)
+    ) %>%
+    select(-officer_arrest_id, -assignment_id) %>%
+    # Remove all work assignments which had no arrests
+    filter(!is.na(arrest_id))
+```
+
+```{r}
+stop_edgelist_df <-
+    stop_assignments_all %>%
+    lazy_dt() %>%
+    # Create pairs of officers who made stops together.
+    full_join(
+        select(
+            stop_assignments_all, officer_id, unit, beat_assigned, po_first,
+            shift, officer_race, officer_race, spanish, officer_sex, birth_year,
+            appointed_month, stop_id
+        ),
+        by = "stop_id",
+        suffix = c("_1", "_2"),
+        multiple = "all"
+    ) %>%
+    group_by(stop_id) %>%
+    # Remove pairs which match an officer to themselves and are not solo-stops.
+    filter(officer_id_1 != officer_id_2 | n() == 1) %>%
+    ungroup() %>%
+    as_tibble() %>%
+    # Create a unique id for each officer pairing (1-2 and 2-1 are the same).
+    rowwise() %>%
+    mutate(
+        officer_pair_id =
+            paste0(
+                sort(c(officer_id_1, officer_id_2))[1],
+                "_",
+                sort(c(officer_id_1, officer_id_2))[2]
+            )
+    ) %>%
+    lazy_dt() %>%
+    distinct(stop_id, officer_pair_id, .keep_all = T) %>%
+    select(-officer_pair_id) %>%
+    # Check and see which officers were working together when they made a stop.
+    mutate(
+        solo_stop = officer_id_1 == officer_id_2,
+        beat_no_alpha_1 = 
+            if_else(
+                beat_assigned_1 != "NO MATCH",
+                str_replace_all(beat_assigned_1, "[A-Za-z]", ""),
+                beat_assigned_1
+            ),
+        beat_no_alpha_2 = 
+            if_else(
+                beat_assigned_2 != "NO MATCH",
+                str_replace_all(beat_assigned_2, "[A-Za-z]", ""),
+                beat_assigned_2
+            ),
+        shared_beat_no_alpha = beat_no_alpha_1 == beat_no_alpha_2,
+        shared_beat_unit_shift =
+            beat_assigned_1 == beat_assigned_2 & unit_1 == unit_2 & shift_1 == shift_2,
+        shared_unit = unit_1 == unit_2
+    ) %>%
+    relocate(from, to) %>%
+    as_tibble()
+
+write_csv(stop_edgelist_df, file.path(out_path, "stop_edgelist_df.csv"))
+gzip(file.path(out_path, "stop_edgelist_df.csv"), overwrite = T)
+```
+
+```{r}
+arrest_edgelist_df <-
+    arrest_assignments_all %>%
+    lazy_dt() %>%
+    # Create pairs of officers who made arrests together.
+    full_join(
+        select(
+            arrest_assignments_all, officer_id, unit, beat_assigned, shift,
+            officer_race, officer_race, spanish, officer_sex, birth_year,
+            appointed_month, arrest_id
+        ),
+        by = "arrest_id",
+        suffix = c("_1", "_2"),
+        multiple = "all"
+    ) %>%
+    group_by(arrest_id) %>%
+    # Remove pairs which match an officer to themselves and are not solo-arrests.
+    filter(officer_id_1 != officer_id_2 | n() == 1) %>%
+    ungroup() %>%
+    as_tibble() %>%
+    # Create a unique id for each officer pairing (1-2 and 2-1 are the same).
+    rowwise() %>%
+    mutate(
+        officer_pair_id =
+            paste0(
+                sort(c(officer_id_1, officer_id_2))[1],
+                "_",
+                sort(c(officer_id_1, officer_id_2))[2]
+            )
+    ) %>%
+    lazy_dt() %>%
+    distinct(arrest_id, officer_pair_id, .keep_all = T) %>%
+    select(-officer_pair_id) %>%
+    # Check and see which officers were working together when they made an arrest.
+    mutate(
+        solo_arrest = officer_id_1 == officer_id_2,
+        beat_no_alpha_1 = 
+            if_else(
+                beat_assigned_1 != "NO MATCH",
+                str_replace_all(beat_assigned_1, "[A-Za-z]", ""),
+                beat_assigned_1
+            ),
+        beat_no_alpha_2 = 
+            if_else(
+                beat_assigned_2 != "NO MATCH",
+                str_replace_all(beat_assigned_2, "[A-Za-z]", ""),
+                beat_assigned_2
+            ),
+        shared_beat_no_alpha = beat_no_alpha_1 == beat_no_alpha_2,
+        shared_beat_unit_shift =
+            beat_assigned_1 == beat_assigned_2 & unit_1 == unit_2 & shift_1 == shift_2,
+        shared_unit = unit_1 == unit_2
+    ) %>%
+    as_tibble()
+
+write_csv(arrest_edgelist_df, file.path(out_path, "arrest_edgelist_df.csv"))
+gzip(file.path(out_path, "arrest_edgelist_df.csv"), overwrite = T)
+```
+
+```{r}
+nr_stop_events <- length(unique(stop_edgelist_df$stop_id))
+nr_arrest_events <- length(unique(arrest_edgelist_df$arrest_id))
+
+solo_stops <- stop_edgelist_df %>% filter(solo_stop)
+nr_solo_stops <-  solo_stops %>% nrow()
+nr_solo_stops_na <- solo_stops %>% filter(unit_1 == "NO MATCH") %>% nrow()
+nr_solo_stops_not_na <- solo_stops %>% filter(unit_1 != "NO MATCH") %>% nrow()
+
+co_stops <- stop_edgelist_df %>% filter(!solo_stop)
+nr_co_stops <-  co_stops %>% nrow()
+nr_co_stops_na <- co_stops %>% filter(unit_1 == "NO MATCH" | unit_2 == "NO MATCH") %>% nrow()
+nr_co_stops_not_na <- co_stops %>% filter(unit_1 != "NO MATCH" & unit_2 != "NO MATCH") %>% nrow()
+
+solo_arrs <- arrest_edgelist_df %>% filter(solo_arrest)
+nr_solo_arrs <-  solo_arrs %>% nrow()
+nr_solo_arrs_na <- solo_arrs %>% filter(unit_1 == "NO MATCH") %>% nrow()
+nr_solo_arrs_not_na <- solo_arrs %>% filter(unit_1 != "NO MATCH") %>% nrow()
+
+co_arrs <- arrest_edgelist_df %>% filter(!solo_arrest)
+nr_co_arrs <-  co_arrs %>% nrow()
+nr_co_arrs_na <- co_arrs %>% filter(unit_1 == "NO MATCH" | unit_2 == "NO MATCH") %>% nrow()
+nr_co_arrs_not_na <- co_arrs %>% filter(unit_1 != "NO MATCH" & unit_2 != "NO MATCH") %>% nrow()
+
+officers_with_work_assignment <-
+    officers %>%
+    filter(officer_id %in% stop_assignments$officer_id)
+
+write_csv(officers_with_work_assignment, file.path(out_path, "officer_nodes_df.csv"))
+gzip(file.path(out_path, "officer_nodes_df.csv"), overwrite = T)
+
+officers_with_work_assignment <- officers_with_work_assignment %>% select(officer_id)
+```
+
+## Stops and Arrests
+
+A quick note. For some small number of solo-stops, the officer was indicated as not being the responding officer. Does this mean this stop actually involved multiple officers, and we are missing data on the first responding officer? Or is this a data error and these are truly solo stops? It is hard to say. Since it is such a small number of stops affected, I keep them for now.
+
+Number of solo stops where it was indicated the officer was not the first responding officer: `r solo_stops %>% filter(po_first_1 == 0) %>% nrow()`
+
+* Number of stop events: `r nr_stop_events`
+    * Number of solo stops: `r nr_solo_stops` (`r round(nr_solo_stops / nr_stop_events * 100, 2)`%)
+        * Number of stops where the stop could not be traced back to a work assignment: `r nr_solo_stops_na` (`r round(nr_solo_stops_na / nr_solo_stops * 100, 2)`%)
+        * Number of stops which could be traced back to a work assignment: `r nr_solo_stops_not_na` (`r round(nr_solo_stops_not_na / nr_solo_stops * 100, 2)`%)
+    * Number of co-stops: `r nr_co_stops` (`r round(nr_co_stops / nr_stop_events * 100, 2)`%)
+        * Number of stops where the stop for at least one officer could not be traced back to a work assignment: `r nr_co_stops_na` (`r round(nr_co_stops_na / nr_co_stops * 100, 2)`%)
+        * Number of stops where the stop could be traced back to a work assignment for all officers: `r nr_co_stops_not_na` (`r round(nr_co_stops_not_na / nr_co_stops * 100, 2)`%)
+* Number of arrest events: `r nr_arrest_events`
+    * Number of solo arrests: `r nr_solo_arrs` (`r round(nr_solo_arrs / nr_arrest_events * 100, 2)`%)
+        * Number of arrests where the arrest could not be traced back to a work assignment: `r nr_solo_arrs_na` (`r round(nr_solo_arrs_na / nr_solo_arrs * 100, 2)`%)
+        * Number of arrests which could be traced back to a work assignment: `r nr_solo_arrs_not_na` (`r round(nr_solo_arrs_not_na / nr_solo_arrs * 100, 2)`%)
+    * Number of co-arrests: `r nr_co_arrs` (`r round(nr_co_arrs / nr_arrest_events * 100, 2)`%)
+        * Number of arrests where the arrest for at least one officer could not be traced back to a work assignment: `r nr_co_arrs_na` (`r round(nr_co_arrs_na / nr_co_arrs * 100, 2)`%)
+        * Number of arrests where the arrest could be traced back to a work assignment for all officers: `r nr_co_arrs_not_na` (`r round(nr_co_arrs_not_na / nr_co_arrs * 100, 2)`%)
+
+```{r}
+clean_stop_ids <- stop_edgelist_df %>% filter(unit_1 != "NO MATCH" & unit_2 != "NO MATCH") %>% pull(stop_id)
+clean_stops_df <- stops %>% filter(stop_id %in% clean_stop_ids)
+
+officer_stop_count <-
+    clean_stops_df %>%
+    lazy_dt() %>%
+    # Count the number of officers involved in each stop.
+    count(stop_id, officer_id) %>%
+    # Count the number of stops with 1 officer, 2 officers, etc.
+    count(stop_id, name = "nr_officers_on_stop") %>%
+    full_join(clean_stops_df, by = "stop_id", multiple = "all") %>%
+    mutate(
+        nr_officers_on_stop =
+            if_else(nr_officers_on_stop == 1, "solo_stops", "mult_stops")
+    ) %>%
+    # Count number of 1-officer stops, 2-officer stops, etc. for each officer.
+    count(officer_id, nr_officers_on_stop, name = "nr_stops") %>%
+    pivot_wider(
+        names_from = "nr_officers_on_stop",
+        values_from = "nr_stops",
+        values_fill = 0
+    ) %>%
+    full_join(officers_with_work_assignment, by = "officer_id") %>%
+    mutate(
+        solo_stops = if_else(is.na(solo_stops), 0, solo_stops),
+        mult_stops = if_else(is.na(mult_stops), 0, mult_stops),
+        nr_stops_total = solo_stops + mult_stops,
+        prop_total = if_else(nr_stops_total == 0, 0, nr_stops_total / sum(nr_stops_total)),
+        prop_solo = if_else(nr_stops_total == 0, 0, solo_stops / nr_stops_total),
+        prop_mult = if_else(nr_stops_total == 0, 0, mult_stops / nr_stops_total),
+        officer_prop = 1 / n()
+    ) %>%
+    arrange(desc(nr_stops_total)) %>%
+    mutate(cum_prop_total = cumsum(prop_total), officer_cum_prop = cumsum(officer_prop)) %>%
+    as_tibble()
+
+officers_who_made_a_stop <- officer_stop_count %>% filter(nr_stops_total != 0) %>% nrow()
+```
+
+## Officer stops during their work assignments
+
+* Number of stop events where each stop can be traced back to a work assignment for every officer involved: `r length(clean_stop_ids)`
+* Number of officers with a work assignment: `r nrow(officers_with_work_assignment)`
+* Number of officers who made stops during a work assignment: `r officers_who_made_a_stop` (`r round(officers_who_made_a_stop / nrow(officers_with_work_assignment) * 100, 2)`%)
+    * Mean number of stops: `r mean(officer_stop_count$nr_stops_total)`
+        * Standard deviation: `r sd(officer_stop_count$nr_stops_total)`
+    * Median number of stops: `r median(officer_stop_count$nr_stops_total)`
+        * IQR: `r IQR(officer_stop_count$nr_stops_total)`
+        * Median absolute deviation: `r mad(officer_stop_count$nr_stops_total)`
+    * Weighted average proportion of the time that officers made a stop with another officer: `r weighted.mean(officer_stop_count$prop_mult, officer_stop_count$nr_stops_total)`
+        
+```{r, include = T, output = T}
+ggplot(officer_stop_count, aes(x = nr_stops_total)) +
+    geom_histogram(bins = 25, color = "red") + 
+    theme_bw() +
+    labs(x = "Number of total stops made by officers while on a work assignment")
+
+ggplot(officer_stop_count, aes(x = officer_cum_prop, y = cum_prop_total)) +
+    geom_point() +
+    theme_bw() +
+    labs(
+        x = "Proportion of officers",
+        y = "Proportion of stops",
+        title = "X proportion of officers are responsible for Y proportion of stops"
+    )
+
+ggplot(officer_stop_count, aes(x = prop_mult)) +
+    geom_histogram(bins = 20, color = "red") +
+    theme_bw() +
+    labs(
+        x = "Proportion of the time an officer made a stop with another officer"
+    )
+```
+
+Some observations:
+
+1. A minority of officers are responsible for a majority of the stops (~26% of officers are responsible for 75% of stops).
+2. When officers make a stop, it is overwhelmingly likely that they made the stop with another officer.
+
+```{r}
+clean_arr_ids <- arrest_edgelist_df %>% filter(unit_1 != "NO MATCH" & unit_2 != "NO MATCH") %>% pull(arrest_id)
+clean_arrs_df <- arrests %>% filter(arrest_id %in% clean_arr_ids)
+
+officer_arrest_count <-
+    clean_arrs_df %>%
+    lazy_dt() %>%
+    # Count the number of officers involved in each arrest.
+    count(arrest_id, officer_id) %>%
+    # Count the number of arrests with 1 officer, 2 officers, etc.
+    count(arrest_id, name = "nr_officers_on_arrest") %>%
+    full_join(clean_arrs_df, by = "arrest_id", multiple = "all") %>%
+    mutate(
+        nr_officers_on_arrest =
+            if_else(nr_officers_on_arrest == 1, "solo_arrests", "mult_arrests")
+    ) %>%
+    # Count number of 1-officer arrests, 2-officer arrests, etc. for each officer.
+    count(officer_id, nr_officers_on_arrest, name = "nr_arrests") %>%
+    pivot_wider(
+        names_from = "nr_officers_on_arrest",
+        values_from = "nr_arrests",
+        values_fill = 0
+    ) %>%
+    full_join(officers_with_work_assignment, by = "officer_id") %>%
+    mutate(
+        solo_arrests = if_else(is.na(solo_arrests), 0, solo_arrests),
+        mult_arrests = if_else(is.na(mult_arrests), 0, mult_arrests),
+        nr_arrests_total = solo_arrests + mult_arrests,
+        prop_total = if_else(nr_arrests_total == 0, 0, nr_arrests_total / sum(nr_arrests_total)),
+        prop_solo = if_else(nr_arrests_total == 0, 0, solo_arrests / nr_arrests_total),
+        prop_mult = if_else(nr_arrests_total == 0, 0, mult_arrests / nr_arrests_total),
+        officer_prop = 1 / n()
+    ) %>%
+    arrange(desc(nr_arrests_total)) %>%
+    mutate(cum_prop_total = cumsum(prop_total), officer_cum_prop = cumsum(officer_prop)) %>%
+    as_tibble()
+
+officers_who_made_an_arrest <- officer_arrest_count %>% filter(nr_arrests_total != 0) %>% nrow()
+```
+
+## Officer arrests during their work assignments
+
+* Number of arrest events where each arrest can be traced back to a work assignment for every officer involved: `r length(clean_arr_ids)`
+* Number of officers with a work assignment: `r nrow(officers_with_work_assignment)`
+* Number of officers who made arrests during a work assignment: `r officers_who_made_an_arrest` (`r round(officers_who_made_an_arrest / nrow(officers_with_work_assignment) * 100, 2)`%)
+    * Mean number of arrests: `r mean(officer_arrest_count$nr_arrests_total)`
+        * Standard deviation: `r sd(officer_arrest_count$nr_arrests_total)`
+    * Median number of arrests: `r median(officer_arrest_count$nr_arrests_total)`
+        * IQR: `r IQR(officer_arrest_count$nr_arrests_total)`
+        * Median absolute deviation: `r mad(officer_arrest_count$nr_arrests_total)`
+    * Weighted average proportion of the time that officers made an arrest with another officer: `r weighted.mean(officer_arrest_count$prop_mult, officer_arrest_count$nr_arrests_total)`
+        
+```{r, include = T, output = T}
+ggplot(officer_arrest_count, aes(x = nr_arrests_total)) +
+    geom_histogram(bins = 25, color = "red") + 
+    theme_bw() +
+    labs(x = "Number of total arrests made by officers while on a work assignment")
+
+ggplot(officer_stop_count, aes(x = officer_cum_prop, y = cum_prop_total)) +
+    geom_point() +
+    theme_bw() +
+    labs(
+        x = "Proportion of officers",
+        y = "Proportion of arrests",
+        title = "X proportion of officers are responsible for Y proportion of arrests"
+    )
+
+ggplot(officer_arrest_count, aes(x = prop_mult)) +
+    geom_histogram(bins = 20, color = "red") +
+    theme_bw() +
+    labs(
+        x = "Proportion of the time an officer made an arrest with another officer"
+    )
+```
+
+The stop distribution looks very similar to the stop distribution and the overall conclusions are the same. A small minority of officers are responsible for the majority of arrests and officers, when they make a stop, are very likely to have made the stop with another officer.

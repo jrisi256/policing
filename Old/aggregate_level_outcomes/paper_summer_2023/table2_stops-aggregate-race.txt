@@ -1,0 +1,21 @@
+|                            | Stops of All Civilians | Stops of Black Civilians | Stops of White Civilians | Stops of Hispanic Civilians |
+|:---------------------------|:----------------------:|:------------------------:|:------------------------:|:---------------------------:|
+|                            |        Model 1         |         Model 2          |         Model 3          |           Model 4           |
+|Black Racial Congruence     |    0.393 (0.058)***    |     0.452 (0.113)**      |     0.324 (0.073)***     |       0.451 (0.115)**       |
+|Years Worked In Unit (Mean) |     0.806 (0.072)*     |     0.758 (0.055)***     |      0.801 (0.081)*      |       0.746 (0.109)*        |
+|Violent Crime Per 10,000    |     0.993 (0.009)      |      0.992 (0.008)       |      0.995 (0.013)       |        0.985 (0.009)        |
+|Property Crime Per 10,000   |    0.993 (0.002)**     |      0.995 (0.002)*      |     0.989 (0.004)**      |       0.994 (0.003)+        |
+|Total number of officers    |     0.998 (0.003)      |      0.998 (0.002)       |      0.998 (0.003)       |        0.997 (0.003)        |
+|Num.Obs.                    |          792           |           792            |           792            |             792             |
+|AIC                         |        11511.1         |         10492.3          |          8216.9          |           8367.7            |
+|Offset                      |         Total          |          Black           |          White           |          Hispanic           |
+|BIC                         |        11646.7         |         10627.9          |          8352.5          |           8503.3            |
+|Std.Errors                  |        by: unit        |         by: unit         |         by: unit         |          by: unit           |
+|FE: unit                    |           X            |            X             |            X             |              X              |
+|FE: year                    |           X            |            X             |            X             |              X              |
+
+__Note:__
+^^ Standard Errors in parentheses. Coefficients are incident rate ratios.
+
+__Note:__
+^^ P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001

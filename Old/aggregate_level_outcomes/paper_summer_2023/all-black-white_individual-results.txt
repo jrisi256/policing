@@ -1,0 +1,28 @@
+|                                           |                      All Officers                       |                     Black officers                      |                     White officers                      |
+|:------------------------------------------|:-------------------------------------------------------:|:-------------------------------------------------------:|:-------------------------------------------------------:|
+|                                           |                                                         |                                                         |                                                         |
+|Officer Race/Ethnicity - Black             |                   0.7322 (0.0262)***                    |                                                         |                                                         |
+|Officer Race/Ethniciy - Hispanic           |                   0.9005 (0.0184)***                    |                                                         |                                                         |
+|Officer Sex - Female                       |                     1.0026 (0.0247)                     |                     1.0434 (0.0471)                     |                     0.9942 (0.0282)                     |
+|Officer Experience (Years)                 |                   0.9422 (0.0037)***                    |                   0.9516 (0.0084)***                    |                   0.9408 (0.0083)***                    |
+|Officer Experience Squared (Years)         |                   1.0011 (0.0002)***                    |                    1.0010 (0.0003)**                    |                    1.0012 (0.0004)**                    |
+|Multipe officers assigned to the shift?    |                    0.9277 (0.0218)**                    |                     0.9691 (0.0402)                     |                     1.0266 (0.0328)                     |
+|Number of other Black officers on shift    |                   0.8724 (0.0199)***                    |                     0.9705 (0.0265)                     |                    0.8997 (0.0320)**                    |
+|Number of other Hispanic officers on shift |                     0.9839 (0.0229)                     |                    1.1239 (0.0499)**                    |                     0.9815 (0.0309)                     |
+|Number of other White officers on shift    |                    1.0444 (0.0166)**                    |                   1.1419 (0.0353)***                    |                    0.9533 (0.0190)*                     |
+|Num.Obs.                                   |                         1119893                         |                         272283                          |                         463139                          |
+|R2                                         |                          0.128                          |                          0.140                          |                          0.155                          |
+|R2 Adj.                                    |                         -0.029                          |                         -0.066                          |                         -0.041                          |
+|FE - Day of the Week                       |                            X                            |                            X                            |                            X                            |
+|FE - Month-Year                            |                            X                            |                            X                            |                            X                            |
+|FE - Shift Timing                          |                            X                            |                            X                            |                            X                            |
+|FE - Beat                                  |                            X                            |                            X                            |                            X                            |
+|R2 Within Adj.                             |                          0.037                          |                          0.040                          |                          0.050                          |
+|BIC                                        |                        5308043.5                        |                        1438307.2                        |                        2690198.1                        |
+|Std.Errors                                 | by: `Police Unit` & `Individual Officer` & `Month-Year` | by: `Police Unit` & `Individual Officer` & `Month-Year` | by: `Police Unit` & `Individual Officer` & `Month-Year` |
+
+__Note:__
+^^ Standard Errors in parentheses.
+
+__Note:__
+^^ P-values are denoted by symbols: + p: 0.1, * p: 0.05, ** p: 0.01, *** p: 0.001

@@ -1,0 +1,404 @@
+---
+title: "Join outcomes to officers' work assignments"
+format: pdf
+---
+
+```{r, include = F}
+library(here)
+library(dplyr)
+library(readr)
+library(knitr)
+library(R.utils)
+opts_chunk$set(message = F, echo = F, warning = F, output = F)
+output_dir <- here("2_clean_data", "output")
+```
+
+```{r}
+# Read in officer work assignments.
+officer_assignments <-
+    read_csv(
+        file.path(
+            here("2_clean_data", "output", "2_officer_assignments_risi.csv.gz")
+        ),
+        col_types = 
+            cols_only(
+                officer_id = "c",
+                rank = "c",
+                unit = "c",
+                shift = "c",
+                weekday = "c",
+                beat_assigned = "c",
+                months_from_start = "d",
+                months_from_start_sq = "d",
+                duration = "d",
+                assignment_id = "c",
+                start_datetime = col_datetime(format = ""),
+                end_datetime = col_datetime(format = ""),
+                birth_year = "d",
+                appointed_month = col_date(format = "%Y-%m-%d"),
+                officer_race = "c",
+                officer_sex = "c",
+                spanish = "l",
+                month = col_date(format = "%Y-%m-%d")
+            )
+    )
+
+# Read in stops.
+stops <-
+    read_csv(
+        file.path(here("1_create_codebooks", "output", "stops_id.csv.gz")),
+        col_types = 
+            cols_only(
+                stop_id = "c",
+                time = col_datetime(format = ""),
+                district = "c",
+                po_first = "d",
+                stop_type = "c",
+                contact_type = "c",
+                civ.race = "c",
+                civ.gender = "c",
+                civ.age = "d",
+                lat = "d",
+                lon = "d",
+                officer_id = "c",
+                officer_stop_id = "c"
+            )
+    )
+
+# Read in arrests.
+arrests <- 
+    read_csv(
+        here("1_create_codebooks", "output", "arrests_id.csv.gz"),
+        col_types = 
+            cols_only(
+                crime_code = "c",
+                statute_description = "c",
+                lat = "d",
+                lon = "d",
+                district = "c",
+                civ.race = "c",
+                civ.gender = "c",
+                civ.age = "d",
+                arrest_id = "c",
+                officer_id = "c",
+                officer_arrest_id = "c",
+                time = col_datetime()
+            )
+    )
+
+# Read in uses of force.
+force <-
+    read_csv(
+        here("1_create_codebooks", "input", "force.csv.gz"),
+        col_types = 
+            cols_only(
+                time = col_datetime(),
+                district = "c",
+                lat = "d",
+                lon = "d",
+                civ.race = "c",
+                civ.gender = "c",
+                civ.age = "d",
+                civ.injured = "c",
+                force_id = "c",
+                officer_id = "c",
+            )
+    )
+```
+
+```{r}
+nr_sex_change_stops <- stops %>% filter(civ.gender == "X") %>% nrow()
+prcnt_sex_change_stops <- round(nr_sex_change_stops / nrow(stops) * 100, 2)
+
+# Change race and sex for civilians in stops, arrests, and uses of force.
+stops <-
+    stops %>%
+    mutate(
+        civ.race = 
+            case_when(
+                civ.race == "ASIAN/PACIFIC ISLANDER" ~ "aapi_native",
+                civ.race == "AMER IND/ALASKAN NATIVE" ~ "aapi_native",
+                T ~ civ.race
+            ),
+        civ.gender = if_else(civ.gender == "X", NA_character_, civ.gender)
+    ) %>%
+    rename(civ.sex = civ.gender)
+
+write_csv(stops, here(output_dir, "cleaned_stops.csv"))
+gzip(file.path(output_dir, "cleaned_stops.csv"), overwrite = T)
+
+arrests <-
+    arrests %>%
+    mutate(
+        civ.race =
+            case_when(
+                civ.race == "ASIAN/PACIFIC ISLANDER" ~ "aapi_native",
+                civ.race == "NATIVE AMERICAN/ALASKAN NATIVE" ~ "aapi_native",
+                T ~ civ.race
+            )
+    ) %>%
+    rename(civ.sex = civ.gender)
+
+write_csv(arrests, here(output_dir, "cleaned_arrests.csv"))
+gzip(file.path(output_dir, "cleaned_arrests.csv"), overwrite = T)
+
+force <-
+    force %>%
+    mutate(
+        civ.race =
+            case_when(
+                civ.race == "ASIAN/PACIFIC ISLANDER" ~ "aapi_native",
+                civ.race == "NATIVE AMERICAN/ALASKAN NATIVE" ~ "aapi_native",
+                T ~ civ.race
+            )
+    ) %>%
+    rename(civ.sex = civ.gender)
+
+write_csv(force, here(output_dir, "cleaned_force.csv"))
+gzip(file.path(output_dir, "cleaned_force.csv"), overwrite = T)
+
+nr_race_change_stops <- stops %>% filter(civ.race == "aapi_native") %>% nrow()
+prcnt_race_change_stops <- round(nr_race_change_stops / nrow(stops) * 100, 2)
+
+nr_race_change_arr <- arrests %>% filter(civ.race == "aapi_native") %>% nrow()
+prcnt_race_change_arr <- round(nr_race_change_arr / nrow(arrests) * 100, 2)
+
+nr_race_change_force <- force %>% filter(civ.race == "aapi_native") %>% nrow()
+prcnt_race_change_force <- round(nr_race_change_force / nrow(force) * 100, 2)
+```
+
+## Changes to the stops, arrests, and uses of force - Risi & Zhao
+
+* **civ.race**: I combine Asian American/Pacific Islanders and Native Americans/Alaskan Natives into their own category.
+    * For **stops**, `r nr_race_change_stops` (`r prcnt_race_change_stops`%) rows are affected.
+    * For **arrests**, `r nr_race_change_arr` (`r prcnt_race_change_arr`%) rows are affected.
+    * For **uses of force**, `r nr_race_change_force` (`r prcnt_race_change_force`%) rows are affected.
+* **civ.gender** (renamed to **civ.sex**): Any civilians whose gender is categorized as **X** gets re-coded as missing.
+    * For **stops**, `r nr_sex_change_stops` (`r prcnt_sex_change_stops`%) rows are affected.
+    
+```{r}
+nr_uniq_stop <- length(unique(stops$stop_id))
+nr_uniq_arr <- length(unique(arrests$arrest_id))
+
+# Join outcomes to officer assignments.
+by <- join_by(officer_id, between(x$time, y$start_datetime, y$end_datetime))
+join_stops <- stops %>% right_join(officer_assignments, by)
+join_arrests <- arrests %>% right_join(officer_assignments, by)
+join_force <- force %>% right_join(officer_assignments, by)
+
+write_csv(join_stops, file.path(output_dir, "3_stops_assignments_risi.csv"))
+write_csv(join_arrests, file.path(output_dir, "3_arrests_assignments_risi.csv"))
+write_csv(join_force, file.path(output_dir, "3_force_assignments_risi.csv"))
+gzip(file.path(output_dir, "3_stops_assignments_risi.csv"), overwrite = T)
+gzip(file.path(output_dir, "3_arrests_assignments_risi.csv"), overwrite = T)
+gzip(file.path(output_dir, "3_force_assignments_risi.csv"), overwrite = T)
+
+nr_stop_no_match <-
+    stops %>%
+    filter(!(officer_stop_id %in% join_stops$officer_stop_id)) %>%
+    nrow()
+
+nr_uniq_stop_no_match <-
+    stops %>%
+    filter(!(stop_id %in% join_stops$stop_id)) %>%
+    nrow()
+
+nr_arr_no_match <-
+    arrests %>%
+    filter(!(officer_arrest_id %in% join_arrests$officer_arrest_id)) %>%
+    nrow()
+
+nr_uniq_arr_no_match <-
+    arrests %>%
+    filter(!(arrest_id %in% join_arrests$arrest_id)) %>%
+    nrow()
+
+nr_force_no_match <-
+    force %>%
+    filter(!(force_id %in% join_force$force_id)) %>%
+    nrow()
+
+prcnt_stop_no_match <- round(nr_stop_no_match / nrow(stops) * 100, 2)
+prcnt_uniq_stop_no_match <- round(nr_uniq_stop_no_match / nr_uniq_stop * 100, 2)
+prcnt_arr_no_match <- round(nr_arr_no_match / nrow(arrests) * 100, 2)
+prcnt_uniq_arr_no_match <- round(nr_uniq_arr_no_match / nr_uniq_arr * 100, 2)
+prcnt_force_no_match <- round(nr_force_no_match / nrow(force) * 100, 2)
+```
+
+## Pre-join totals
+
+* Number of officer work assignments: `r nrow(officer_assignments)`
+* Number of officer-stops: `r nrow(stops)`
+    * Number of stops: `r nr_uniq_stop`
+* Number of officer-arrests: `r nrow(arrests)`
+    * Number of arrests: `r nr_uniq_arr`
+* Number of uses of force: `r nrow(force)`
+
+## Join stops, arrests, and uses of force to officer work assignments.
+
+We use a non-equi join to join stops, arrests, and uses of force to officer work assignments. Specifically, we use a right non-equi join where we keep all officer work assignments, and we keep only those stops/arrests/uses of force which match to a work assignment. A stop/arrest/use of force matches with an officer assignment if the time when it happened falls between the start time and end time of the corresponding officer's work assignment.
+
+### Join results
+
+* **STOPS**
+    * `r nr_stop_no_match` (`r prcnt_stop_no_match`%) officer-stops did not match to an officer's work assignment.
+    * `r nr_uniq_stop_no_match` (`r prcnt_uniq_stop_no_match`%) stops did not match to an officer's work assignment. These are stops where **none** of the officer-stops matched to an officer's work assignment.
+* **ARRESTS**
+    * `r nr_arr_no_match` (`r prcnt_arr_no_match`%) officer-arrests did not match to an officer's work assignment.
+    * `r nr_uniq_arr_no_match` (`r prcnt_uniq_arr_no_match`%) arrests did not match to an officer's work assignment. These are arrests where **none** of the officer-arrests matched to an officer's work assignment.
+* **USES OF FORCE**
+    * `r nr_force_no_match` (`r prcnt_force_no_match`%) uses of force did not match to an officer's work assignment.
+    
+* Number of **stops** captured: `r length(unique(join_stops$officer_stop_id))`
+    * Number of **unique stops** captured: `r length(unique(join_stops$stop_id))`
+* Number of **arrests** captured: `r length(unique(join_arrests$arrest_id))`
+    * Number of **unique arrests** captured: `r length(unique(join_arrests$officer_arrest_id))`
+* Number of **uses of force** captured: `r length(unique(join_force$force_id))`
+
+```{r}
+########################################### Missing values at the officer level.
+active_officers <- officer_assignments %>% distinct(officer_id, .keep_all = T)
+active_stops <- join_stops %>% filter(!is.na(officer_stop_id))
+active_arr <- join_arrests %>% filter(!is.na(officer_arrest_id))
+active_force <- join_force %>% filter(!is.na(force_id))
+
+missing_age <- active_officers %>% filter(is.na(birth_year)) %>% nrow()
+missing_start <- active_officers %>% filter(is.na(appointed_month)) %>% nrow()
+missing_officer_sex <- active_officers %>% filter(is.na(officer_sex)) %>% nrow()
+missing_officer_spanish <- active_officers %>% filter(is.na(spanish)) %>% nrow()
+missing_officer_race <- active_officers %>% filter(is.na(officer_race))
+
+missing_officer_race_work_assignments <-
+    officer_assignments %>%
+    filter(officer_id %in% missing_officer_race$officer_id) %>%
+    nrow()
+
+missing_officer_race_work_stops <-
+    join_stops %>%
+    filter(!is.na(stop_id)) %>%
+    filter(officer_id %in% missing_officer_race$officer_id) %>%
+    nrow()
+
+missing_officer_race_work_arrests <-
+    join_arrests %>%
+    filter(!is.na(arrest_id)) %>%
+    filter(officer_id %in% missing_officer_race$officer_id) %>%
+    nrow()
+
+missing_officer_race_work_force <-
+    join_force %>%
+    filter(!is.na(force_id)) %>%
+    filter(officer_id %in% missing_officer_race$officer_id) %>%
+    nrow()
+
+################################ Missing values at the officer assignment level.
+missing_rank <- officer_assignments %>% filter(is.na(rank))
+missing_exp <- officer_assignments %>% filter(is.na(months_from_start))
+
+missing_rank_officer <-
+    active_officers %>%
+    filter(officer_id %in% missing_rank$officer_id) %>%
+    nrow()
+
+missing_exp_officer <-
+    active_officers %>%
+    filter(officer_id %in% missing_exp$officer_id) %>%
+    nrow()
+
+missing_rank_stops <-
+    join_stops %>%
+    filter(!is.na(stop_id)) %>%
+    filter(assignment_id %in% missing_rank$assignment_id) %>%
+    nrow()
+
+missing_exp_stops <-
+    join_stops %>%
+    filter(!is.na(stop_id)) %>%
+    filter(assignment_id %in% missing_exp$assignment_id) %>%
+    nrow()
+
+missing_rank_arrests <-
+    join_arrests %>%
+    filter(!is.na(arrest_id)) %>%
+    filter(assignment_id %in% missing_rank$assignment_id) %>%
+    nrow()
+
+missing_exp_arrests <-
+    join_arrests %>%
+    filter(!is.na(arrest_id)) %>%
+    filter(assignment_id %in% missing_exp$assignment_id) %>%
+    nrow()
+
+missing_rank_force <-
+    join_force %>%
+    filter(!is.na(force_id)) %>%
+    filter(assignment_id %in% missing_rank$assignment_id) %>%
+    nrow()
+
+missing_exp_force <-
+    join_force %>%
+    filter(!is.na(force_id)) %>%
+    filter(assignment_id %in% missing_exp$assignment_id) %>%
+    nrow()
+
+######################### Missing values from stops, arrests, and uses of force.
+missing_stop_type <- active_stops %>% filter(is.na(stop_type)) %>% nrow()
+missing_stop_civ_race <- active_stops %>% filter(is.na(civ.race)) %>% nrow()
+missing_stop_civ_sex <- active_stops %>% filter(is.na(civ.sex)) %>% nrow()
+missing_stop_civ_age <- active_stops %>% filter(is.na(civ.age)) %>% nrow()
+missing_stop_lat_lon <- active_stops %>% filter(is.na(lat)) %>% nrow()
+
+missing_arr_type <- active_arr %>% filter(is.na(crime_code)) %>% nrow()
+missing_arr_civ_race <- active_arr %>% filter(is.na(civ.race)) %>% nrow()
+missing_arr_civ_sex <- active_arr %>% filter(is.na(civ.sex)) %>% nrow()
+missing_arr_civ_age <- active_arr %>% filter(is.na(civ.age)) %>% nrow()
+missing_arr_lat_lon <- active_arr %>% filter(is.na(lat)) %>% nrow()
+
+missing_injured <- active_force %>% filter(is.na(civ.injured)) %>% nrow()
+missing_force_civ_race <- active_force %>% filter(is.na(civ.race)) %>% nrow()
+missing_force_civ_sex <- active_force %>% filter(is.na(civ.sex)) %>% nrow()
+missing_force_civ_age <- active_force %>% filter(is.na(civ.age)) %>% nrow()
+missing_force_lat_lon <- active_force %>% filter(is.na(lat)) %>% nrow()
+```
+
+### Missings
+
+* **Officers**: `r length(unique(join_stops$officer_id))` officers
+    * `r missing_age` officers are missing their age.
+    * `r missing_start` officers are missing their age.
+    * `r missing_officer_race %>% nrow()` officers are missing their age.
+        * `r missing_officer_race_work_assignments` officer work assignments are affected.
+        * `r missing_officer_race_work_stops` officer stops are affected.
+        * `r missing_officer_race_work_arrests` officer arrests are affected.
+        * `r missing_officer_race_work_force` officer uses of force are affected.
+    * `r missing_officer_sex` officers are missing their age.
+    * `r missing_officer_spanish` officers are missing their age.
+* **Officer work assignments**: `r nrow(officer_assignments)` officer work assignments.
+    * `r missing_rank %>% nrow()` officer work assignments are missing the rank of the officer.
+        * `r missing_rank_officer` officers are affected.
+        * `r missing_rank_stops` officer stops are affected.
+        * `r missing_rank_arrests` officer arrests are affected.
+        * `r missing_rank_force` officer uses of force are affected.
+    * `r missing_exp %>% nrow()` officer work assignments are missing the amount of work experience for the officer. This is due to a data error where the officer's appointment date is **AFTER** their work assignment date. I.e., they began working before they were officially a police officer.
+        * `r missing_exp_officer` officers are affected.
+        * `r missing_exp_stops` officer stops are affected.
+        * `r missing_exp_arrests` officer arrests are affected.
+        * `r missing_exp_force` officer uses of force are affected.
+* **Stops during an officer's work assignment**
+    * `r missing_stop_type` (`r round(missing_stop_type / nrow(active_stops) * 100, 2)`%) officer stops are missing the stop type.
+    * `r missing_stop_civ_race` (`r round(missing_stop_civ_race / nrow(active_stops) * 100, 2)`%) officer stops are missing the race of the civilian who was stopped.
+    * `r missing_stop_civ_sex` (`r round(missing_stop_civ_sex / nrow(active_stops) * 100, 2)`%) officer stops are missing the sex of the civilian who was stopped.
+    * `r missing_stop_civ_age` (`r round(missing_stop_civ_age / nrow(active_stops) * 100, 2)`%) officer stops are missing the age of the civilian who was stopped.
+    * `r missing_stop_lat_lon` (`r round(missing_stop_lat_lon / nrow(active_stops) * 100, 2)`%) officer stops are missing the latitude/longitude of the stop.
+* **Arrests during an officer's work assignment**
+    * `r missing_arr_type` (`r round(missing_arr_type / nrow(active_arr) * 100, 2)`%) officer arrests are missing the arrest type.
+    * `r missing_arr_civ_race` (`r round(missing_arr_civ_race / nrow(active_arr) * 100, 2)`%) officer arrests are missing the race of the civilian who was arrested.
+    * `r missing_arr_civ_sex` (`r round(missing_arr_civ_sex / nrow(active_arr) * 100, 2)`%) officer arrests are missing the sex of the civilian who was arrested.
+    * `r missing_arr_civ_age` (`r round(missing_arr_civ_age / nrow(active_arr) * 100, 2)`%) officer arrests are missing the age of the civilian who was arrested.
+    * `r missing_arr_lat_lon` (`r round(missing_arr_lat_lon / nrow(active_arr) * 100, 2)`%) officer arrests are missing the latitude/longitude of the arrest.
+* **Uses of force during an officer's work assignment**
+    * `r missing_injured` (`r round(missing_injured / nrow(active_force) * 100, 2)`%) officer uses of force are missing if the civilian was injured.
+    * `r missing_force_civ_race` (`r round(missing_force_civ_race / nrow(active_force) * 100, 2)`%) officer uses of force are missing the race of the civilian who had force used against them.
+    * `r missing_force_civ_sex` (`r round(missing_force_civ_sex / nrow(active_force) * 100, 2)`%) officer uses of force are missing the sex of the civilian who had force used against them.
+    * `r missing_force_civ_age` (`r round(missing_force_civ_age / nrow(active_force) * 100, 2)`%) officer uses of force are missing the age of the civilian who had force used against them.
+    * `r missing_force_lat_lon` (`r round(missing_force_lat_lon / nrow(active_force) * 100, 2)`%) officer uses of force are missing the latitude/longitude of the use of force.

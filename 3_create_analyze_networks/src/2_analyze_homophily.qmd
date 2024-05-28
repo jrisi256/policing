@@ -1,0 +1,434 @@
+---
+title: "Examine homophily in co-stop and co-arrest networks"
+format: pdf
+---
+
+```{r, include = F}
+library(here)
+library(dplyr)
+library(readr)
+library(purrr)
+library(knitr)
+library(ggplot2)
+library(stringr)
+opts_chunk$set(message = F, echo = F, warning = F, output = F)
+read_path <- here("3_create_analyze_networks", "output")
+```
+
+```{r}
+stop_edgelist <-
+    read_csv(file.path(read_path, "stop_edgelist_df.csv.gz")) %>%
+    mutate(
+        race_match = officer_race_1 == officer_race_2,
+        sex_match = officer_sex_1 == officer_sex_2,
+        spanish_match = spanish_1 == spanish_2,
+        age_diff = abs(birth_year_1 - birth_year_2)
+    )
+    
+arrest_edgelist <-
+    read_csv(file.path(read_path, "arrest_edgelist_df.csv.gz")) %>%
+    mutate(
+        race_match = officer_race_1 == officer_race_2,
+        sex_match = officer_sex_1 == officer_sex_2,
+        spanish_match = spanish_1 == spanish_2,
+        age_diff = abs(birth_year_1 - birth_year_2)
+    )
+```
+
+```{r}
+missing_race_stop <-
+    stop_edgelist %>%
+    filter(is.na(officer_race_1) | is.na(officer_race_2)) %>%
+    nrow()
+
+missing_sex_stop <-
+    stop_edgelist %>%
+    filter(is.na(officer_sex_1) | is.na(officer_sex_2)) %>%
+    nrow()
+
+missing_spanish_stop <-
+    stop_edgelist %>%
+    filter(is.na(spanish_1) | is.na(spanish_2)) %>%
+    nrow()
+
+missing_age_stop <-
+    stop_edgelist %>%
+    filter(is.na(birth_year_1) | is.na(birth_year_2)) %>%
+    nrow()
+
+missing_race_arr <-
+    arrest_edgelist %>%
+    filter(is.na(officer_race_1) | is.na(officer_race_2)) %>%
+    nrow()
+
+missing_sex_arr <-
+    arrest_edgelist %>%
+    filter(is.na(officer_sex_1) | is.na(officer_sex_2)) %>%
+    nrow()
+
+missing_spanish_arr <-
+    arrest_edgelist %>%
+    filter(is.na(spanish_1) | is.na(spanish_2)) %>%
+    nrow()
+
+missing_age_arr <-
+    arrest_edgelist %>%
+    filter(is.na(birth_year_1) | is.na(birth_year_2)) %>%
+    nrow()
+```
+
+## Missings
+
+### Stops
+
+* `r missing_race_stop` stop ties have at least one officer missing their race.
+* `r missing_sex_stop` stop ties have at least one officer missing their sex.
+* `r missing_spanish_stop` stop ties have at least one officer missing their Spanish speaking ability.
+* `r missing_age_stop` stop ties have at least one officer missing their age.
+
+### Arrests
+
+* `r missing_race_arr` arrest ties have at least one officer missing their race.
+* `r missing_sex_arr` arrest ties have at least one officer missing their sex.
+* `r missing_spanish_arr` arrest ties have at least one officer missing their Spanish speaking ability.
+* `r missing_age_arr` arrest ties have at least one officer missing their age.
+
+```{r}
+co_stops <- stop_edgelist %>% filter(!solo_stop)
+
+stop_na <-
+    co_stops %>%
+    filter(unit_1 == "NO MATCH" | unit_2 == "NO MATCH")
+
+stop_work_together_strict <-
+    co_stops %>%
+    filter(shared_beat_unit_shift & unit_1 != "NO MATCH" & unit_2 != "NO MATCH")
+
+stop_no_work_together_strict <-
+    co_stops %>%
+    filter(!shared_beat_unit_shift & unit_1 != "NO MATCH" & unit_2 != "NO MATCH")
+
+stop_work_together_flex <-
+    co_stops %>%
+    filter(shared_beat_no_alpha & unit_1 != "NO MATCH" & unit_2 != "NO MATCH")
+
+stop_no_work_together_flex <-
+    co_stops %>%
+    filter(!shared_beat_no_alpha & unit_1 != "NO MATCH" & unit_2 != "NO MATCH")
+
+shared_unit_stop <-
+    co_stops %>%
+    filter(shared_unit & unit_1 != "NO MATCH" & unit_2 != "NO MATCH") %>%
+    nrow()
+```
+
+```{r}
+co_arrests <- arrest_edgelist %>% filter(!solo_arrest)
+
+arrest_na <-
+    co_arrests %>%
+    filter(unit_1 == "NO MATCH" | unit_2 == "NO MATCH")
+
+arrest_work_together_strict <-
+    co_arrests %>%
+    filter(shared_beat_unit_shift & unit_1 != "NO MATCH" & unit_2 != "NO MATCH")
+
+arrest_no_work_together_strict <-
+    co_arrests %>%
+    filter(!shared_beat_unit_shift & unit_1 != "NO MATCH" & unit_2 != "NO MATCH")
+
+arrest_work_together_flex <-
+    co_arrests %>%
+    filter(shared_beat_no_alpha & unit_1 != "NO MATCH" & unit_2 != "NO MATCH")
+
+arrest_no_work_together_flex <-
+    co_arrests %>%
+    filter(!shared_beat_no_alpha & unit_1 != "NO MATCH" & unit_2 != "NO MATCH")
+
+shared_unit_arrest <-
+    co_arrests %>%
+    filter(shared_unit & unit_1 != "NO MATCH" & unit_2 != "NO MATCH") %>%
+    nrow()
+```
+
+## How often are officers working together when they make a stop/arrest?
+
+How should we determine if two officers were working together? There are many different definitions we could use. The least restrictive would be both officers simply have to have been assigned to the same beat (removing all letters). The most restrictive would be that both officers have to have been assigned to the same beat (including letters), during the same shift, as part of the same unit.
+
+I prefer to use the least restrictive definition of working together. Why? This biases our results against our hypothesis (that work assignments contribute to homophily). By using the least restrictive definition, we may be including some officers who were not actually working together. The differences are very slight, though, so I do not expect results to change much depending on which definition is used.
+
+### Stops
+
+* Total number of stop-ties: `r nrow(stop_edgelist)`
+* Number of stop-ties which involve multiple officers: `r nrow(co_stops)` (`r round(nrow(co_stops) / nrow(stop_edgelist) * 100, 2)`%)
+    * Number of stop-ties which involve officers working together (least restrictive definition): `r nrow(stop_work_together_flex)` (`r round(nrow(stop_work_together_flex) / nrow(co_stops) * 100, 2)`%)
+    * Number of stop-ties which involve officers working together (most restrictive definition): `r nrow(stop_work_together_strict)` (`r round(nrow(stop_work_together_strict) / nrow(co_stops) * 100, 2)`%)
+    * Number of stop-ties where at least one officer did not have a work assignment: `r nrow(stop_na)` (`r round(nrow(stop_na) / nrow(co_stops) * 100, 2)`%)
+    * Number of stop-ties between officers from the same unit: `r shared_unit_stop` (`r round(shared_unit_stop / nrow(co_stops) * 100, 2)`%)
+    
+### Arrests
+
+* Total number of arrest-ties: `r nrow(arrest_edgelist)`
+* Number of arrest-ties which involve multiple officers: `r nrow(co_arrests)` (`r round(nrow(co_arrests) / nrow(arrest_edgelist) * 100, 2)`%)
+    * Number of arrest-ties which involve officers working together (least restrictive definition): `r nrow(arrest_work_together_flex)` (`r round(nrow(arrest_work_together_flex) / nrow(co_arrests) * 100, 2)`%)
+    * Number of arrest-ties which involve officers working together (most restrictive definition): `r nrow(arrest_work_together_strict)` (`r round(nrow(arrest_work_together_strict) / nrow(co_arrests) * 100, 2)`%)
+    * Number of arrest-ties where at least one officer did not have a work assignment: `r nrow(arrest_na)` (`r round(nrow(arrest_na) / nrow(co_arrests) * 100, 2)`%)
+    * Number of arrest-ties between officers from the same unit: `r shared_unit_arrest` (`r round(shared_unit_arrest / nrow(co_arrests) * 100, 2)`%)
+
+```{r}
+stop_list <-
+    list(
+        stop_t_strict = stop_work_together_strict,
+        stop_nt_strict = stop_no_work_together_strict,
+        stop_t_flex = stop_work_together_flex,
+        stop_nt_flex = stop_no_work_together_flex,
+        stop_na = stop_na
+    )
+
+arrest_list <-
+    list(
+        arrest_t_strict = arrest_work_together_strict,
+        arrest_nt_strict = arrest_no_work_together_strict,
+        arrest_t_flex = arrest_work_together_flex,
+        arrest_nt_flex = arrest_no_work_together_flex,
+        arrest_na = arrest_na
+    )
+
+calculate_homophily <- function(df) {
+    race = paste0(round(prop.table(table(df$race_match, useNA = "no"))[["TRUE"]] * 100, 2), "%")
+    sex = paste0(round(prop.table(table(df$sex_match, useNA = "no"))[["TRUE"]] * 100, 2), "%")
+    spanish = paste0(round(prop.table(table(df$spanish_match, useNA = "no"))[["TRUE"]] * 100, 2), "%")
+    age_mean = round(mean(df$age_diff, na.rm = T), 2)
+    
+    return(list(race = race, sex = sex, spanish = spanish, age_mean = age_mean))
+}
+
+homophily_stops <- map(stop_list, calculate_homophily)
+homophily_arrests <- map(arrest_list, calculate_homophily)
+```
+
+## Homophily
+
+### Stops
+
+* When officers make stops while working together vs. not working together (least strict definition):
+    * They are the same race `r homophily_stops$stop_t_flex$race` vs. `r homophily_stops$stop_nt_flex$race` of the time.
+    * They are the same sex `r homophily_stops$stop_t_flex$sex` vs. `r homophily_stops$stop_nt_flex$sex` of the time.
+    * They both speak Spanish `r homophily_stops$stop_t_flex$spanish` vs. `r homophily_stops$stop_nt_flex$spanish` of the time.
+    * The mean difference in age is `r homophily_stops$stop_t_flex$age_mean` vs. `r homophily_stops$stop_nt_flex$age_mean`.
+* When officers make stops while working together vs. not working together (most strict definition):
+    * They are the same race `r homophily_stops$stop_t_strict$race` vs. `r homophily_stops$stop_nt_strict$race` of the time.
+    * They are the same sex `r homophily_stops$stop_t_strict$sex` vs. `r homophily_stops$stop_nt_strict$sex` of the time.
+    * They both speak Spanish `r homophily_stops$stop_t_strict$spanish` vs. `r homophily_stops$stop_nt_strict$spanish` of the time.
+    * The mean difference in age is `r homophily_stops$stop_t_strict$age_mean` vs. `r homophily_stops$stop_nt_strict$age_mean`.
+* When officers make stops and it is uncertain if they were working together:
+    * They are the same race `r homophily_stops$stop_na$race` of the time.
+    * They are the same sex `r homophily_stops$stop_na$sex` of the time.
+    * They both speak Spanish `r homophily_stops$stop_na$spanish` of the time.
+    * The mean difference in age is `r homophily_stops$stop_na$age_mean`.
+
+### Arrests
+
+* When officers make arrests while working together vs. not working together (least strict definition):
+    * They are the same race `r homophily_arrests$arrest_t_flex$race` vs. `r homophily_arrests$arrest_nt_flex$race` of the time.
+    * They are the same sex `r homophily_arrests$arrest_t_flex$sex` vs. `r homophily_arrests$arrest_nt_flex$sex` of the time.
+    * They both speak Spanish `r homophily_arrests$arrest_t_flex$spanish` vs. `r homophily_arrests$arrest_nt_flex$spanish` of the time.
+    * The mean difference in age is `r homophily_arrests$arrest_t_flex$age_mean` vs. `r homophily_arrests$arrest_nt_flex$age_mean`.
+* When officers make arrests while working together vs. not working together (most strict definition):
+    * They are the same race `r homophily_arrests$arrest_t_strict$race` vs. `r homophily_arrests$arrest_nt_strict$race` of the time.
+    * They are the same sex `r homophily_arrests$arrest_t_strict$sex` vs. `r homophily_arrests$arrest_nt_strict$sex` of the time.
+    * They both speak Spanish `r homophily_arrests$arrest_t_strict$spanish` vs. `r homophily_arrests$arrest_nt_strict$spanish` of the time.
+    * The mean difference in age is `r homophily_arrests$arrest_t_strict$age_mean` vs. `r homophily_arrests$arrest_nt_strict$age_mean`.
+* When officers make arrests and it is uncertain if they were working together:
+    * They are the same race `r homophily_arrests$arrest_na$race` of the time.
+    * They are the same sex `r homophily_arrests$arrest_na$sex` of the time.
+    * They both speak Spanish `r homophily_arrests$arrest_na$spanish` of the time.
+    * The mean difference in age is `r homophily_arrests$arrest_na$age_mean`.
+
+```{r}
+conduct_ttest <- function(col, df1, df2, category) {
+    ttest <- t.test(df1[[col]], df2[[col]])
+    tibble(
+        category = category,
+        column = col,
+        difference = ttest$estimate[1] - ttest$estimate[2],
+        ci_95_lower = ttest$conf.int[1],
+        ci_95_upper = ttest$conf.int[2],
+    )
+}
+
+ttest_diffs <-
+    pmap(
+        list(
+            col = rep(list("race_match", "sex_match", "spanish_match", "age_diff"), 2),
+            df1 = rep(list(stop_list$stop_t_flex, arrest_list$arrest_t_flex), each = 4),
+            df2 = rep(list(stop_list$stop_nt_flex, arrest_list$arrest_nt_flex), each = 4),
+            category = rep(list("stops", "arrests"), each = 4)
+        ),
+        conduct_ttest
+    ) %>%
+    bind_rows()
+```
+
+### Statistical significance
+
+The below graphs demonstrate stops and arrests which were made between officers who were working together are more homophilous (compared to stops and arrests made between officers who were not working together) on race, sex, Spanish-speaking ability, and age. For example looking at race, arrests which were made between officers who were working together are 8 percentage points more likely to have been made between officers of the same race (compared to officers who made an arrest together and were not working together). For stops, it is about 5 percentage points.
+
+It does not appear as if stops or arrest are particularlary more or less homophilous than each other, though.
+
+```{r, include = T, output = T}
+ggplot(ttest_diffs, aes(x = category, y = difference)) +
+    geom_point() +
+    geom_errorbar(aes(ymin = ci_95_lower, ymax = ci_95_upper)) +
+    theme_bw() +
+    facet_wrap(~column, scales = "free")
+```
+
+```{r}
+calculate_nr_outcome <- function(df) {
+    race = table(df$race_match, useNA = "no")[["TRUE"]]
+    sex = table(df$sex_match, useNA = "no")[["TRUE"]]
+    spanish = table(df$spanish_match, useNA = "no")[["TRUE"]]
+    age_mean = mean(df$age_diff, na.rm = T)
+    
+    return(list(race = race, sex = sex, spanish = spanish, age_mean = age_mean))
+}
+
+nr_co_stops_no_na <- co_stops %>% filter(unit_1 != "NO MATCH" & unit_2 != " NO MATCH") %>% nrow()
+homophily_nr_stops <- map(stop_list, calculate_nr_outcome)
+
+nr_race_homophilous <- homophily_nr_stops$stop_t_flex$race + homophily_nr_stops$stop_nt_flex$race
+nr_sex_homophilous <- homophily_nr_stops$stop_t_flex$sex + homophily_nr_stops$stop_nt_flex$sex
+
+# How much would racial homophily increase if all stops came from officers in the same work assignment?
+projected_nr_stops_race_t <-
+    round(as.numeric(str_replace(homophily_stops$stop_t_flex$race, "%", "")) / 100 * nr_co_stops_no_na)
+
+prcnt_increase_race_stops <-
+    round(
+        (projected_nr_stops_race_t - nr_race_homophilous) / nr_race_homophilous * 100, 
+        2
+    )
+
+# How much would racial homophily decrease if all stops came from officers in different work assignments?
+projected_nr_stops_race_nt <-
+    round(as.numeric(str_replace(homophily_stops$stop_nt_flex$race, "%", "")) / 100 * nr_co_stops_no_na)
+
+prcnt_decrease_race_stops <-
+    round(
+        (nr_race_homophilous - projected_nr_stops_race_nt) / nr_race_homophilous * 100, 
+        2
+    )
+
+# How much would sex homophily increase if all stops came from officers in the same work assignment?
+projected_nr_stops_sex_t <-
+    round(as.numeric(str_replace(homophily_stops$stop_t_flex$sex, "%", "")) / 100 * nr_co_stops_no_na)
+
+prcnt_increase_sex_stops <-
+    round(
+        (projected_nr_stops_sex_t - nr_sex_homophilous) / nr_sex_homophilous * 100, 
+        2
+    )
+
+# How much would sex homophily decrease if all stops came from officers in different work assignments?
+projected_nr_stops_sex_nt <-
+    round(as.numeric(str_replace(homophily_stops$stop_nt_flex$sex, "%", "")) / 100 * nr_co_stops_no_na)
+
+prcnt_decrease_sex_stops <-
+    round(
+        (nr_sex_homophilous - projected_nr_stops_sex_nt) / nr_sex_homophilous * 100, 
+        2
+    )
+```
+
+### Projecting Number of stops
+
+* There are `r nr_co_stops_no_na` stop-ties where the the work assignment was identified for all involved officers.
+    * There are `r nrow(stop_work_together_flex)` stop-ties which involve officers from the same work-assignment.
+        * Of these stop-ties, `r homophily_nr_stops$stop_t_flex$race` stop-ties involves officers of the same race.
+        * Of these stop-ties, `r homophily_nr_stops$stop_t_flex$sex` stop-ties involves officers of the same sex.
+    * There are `r nrow(stop_no_work_together_flex)` stop-ties which involve officers from different work-assignments.
+        * Of these stop-ties, `r homophily_nr_stops$stop_nt_flex$race` stop-ties involves officers of the same race.
+        * Of these stop-ties, `r homophily_nr_stops$stop_nt_flex$sex` stop-ties involves officers of the same sex.
+    * In total, there are `r homophily_nr_stops$stop_t_flex$race + homophily_nr_stops$stop_nt_flex$race` stop-ties involving officers of the same race.
+    * In total, there are `r homophily_nr_stops$stop_t_flex$sex + homophily_nr_stops$stop_nt_flex$sex` stop-ties involving officers of the same sex.
+    
+#### Racial homophily
+
+* If all these co-stops came from officers who were working together, based on the racial homophily among those working together, we project that the number of racially homophilous co-stops **would increase** to: `r format(projected_nr_stops_race_t, scientific = F)` (a `r prcnt_increase_race_stops`% increase).
+* If all these co-stops came from officer who were not working together, based on racial homophily among those not working together, we project that the number of racially homophilous co-stops **would decrease** to: `r format(projected_nr_stops_race_nt, scientific = F)` (a `r prcnt_decrease_race_stops`% increase).
+
+#### Sex homophily
+
+* If all these co-stops came from officers who were working together, based on the sex homophily among those working together, we project that the number of sexually homophilous co-stops **would increase** to: `r format(projected_nr_stops_sex_t, scientific = F)` (a `r prcnt_increase_sex_stops`% increase).
+* If all these co-stops came from officer who were not working together, based on sex homophily among those not working together, we project that the number of sexually homophilous co-stops **would decrease** to: `r format(projected_nr_stops_sex_nt, scientific = F)` (a `r prcnt_decrease_sex_stops`% decrease).
+
+```{r}
+nr_co_arrests_no_na <- co_arrests %>% filter(unit_1 != "NO MATCH" & unit_2 != " NO MATCH") %>% nrow()
+homophily_nr_arrests <- map(arrest_list, calculate_nr_outcome)
+
+nr_race_homophilous <- homophily_nr_arrests$arrest_t_flex$race + homophily_nr_arrests$arrest_nt_flex$race
+nr_sex_homophilous <- homophily_nr_arrests$arrest_t_flex$sex + homophily_nr_arrests$arrest_nt_flex$sex
+
+# How much would racial homophily increase if all arrests came from officers in the same work assignment?
+projected_nr_arrests_race_t <-
+    round(as.numeric(str_replace(homophily_arrests$arrest_t_flex$race, "%", "")) / 100 * nr_co_arrests_no_na)
+
+prcnt_increase_race_arrests <-
+    round(
+        (projected_nr_arrests_race_t - nr_race_homophilous) / nr_race_homophilous * 100, 
+        2
+    )
+
+# How much would racial homophily decrease if all arrests came from officers in different work assignments?
+projected_nr_arrests_race_nt <-
+    round(as.numeric(str_replace(homophily_arrests$arrest_nt_flex$race, "%", "")) / 100 * nr_co_arrests_no_na)
+
+prcnt_decrease_race_arrests <-
+    round(
+        (nr_race_homophilous - projected_nr_arrests_race_nt) / nr_race_homophilous * 100, 
+        2
+    )
+
+# How much would sex homophily increase if all arrests came from officers in the same work assignment?
+projected_nr_arrests_sex_t <-
+    round(as.numeric(str_replace(homophily_arrests$arrest_t_flex$sex, "%", "")) / 100 * nr_co_arrests_no_na)
+
+prcnt_increase_sex_arrests <-
+    round(
+        (projected_nr_arrests_sex_t - nr_sex_homophilous) / nr_sex_homophilous * 100, 
+        2
+    )
+
+# How much would sex homophily decrease if all arrests came from officers in different work assignments?
+projected_nr_arrests_sex_nt <-
+    round(as.numeric(str_replace(homophily_arrests$arrest_nt_flex$sex, "%", "")) / 100 * nr_co_arrests_no_na)
+
+prcnt_decrease_sex_arrests <-
+    round(
+        (nr_sex_homophilous - projected_nr_arrests_sex_nt) / nr_sex_homophilous * 100, 
+        2
+    )
+```
+
+### Projecting Number of arrests
+
+* There are `r nr_co_arrests_no_na` arrest-ties where the the work assignment was identified for all involved officers.
+    * There are `r nrow(arrest_work_together_flex)` arrest-ties which involve officers from the same work-assignment.
+        * Of these arrest-ties, `r homophily_nr_arrests$arrest_t_flex$race` arrest-ties involves officers of the same race.
+        * Of these arrest-ties, `r homophily_nr_arrests$arrest_t_flex$sex` arrest-ties involves officers of the same sex.
+    * There are `r nrow(arrest_no_work_together_flex)` arrest-ties which involve officers from different work-assignments.
+        * Of these arrest-ties, `r homophily_nr_arrests$arrest_nt_flex$race` arrest-ties involves officers of the same race.
+        * Of these arrest-ties, `r homophily_nr_arrests$arrest_nt_flex$sex` arrest-ties involves officers of the same sex.
+    * In total, there are `r homophily_nr_arrests$arrest_t_flex$race + homophily_nr_arrests$arrest_nt_flex$race` arrest-ties involving officers of the same race.
+    * In total, there are `r homophily_nr_arrests$arrest_t_flex$sex + homophily_nr_arrests$arrest_nt_flex$sex` arrest-ties involving officers of the same sex.
+
+#### Racial homophily
+
+* If all these co-arrests came from officers who were working together, based on the racial homophily among those working together, we project that the number of racially homophilous co-arrests **would increase** to: `r format(projected_nr_arrests_race_t, scientific = F)` (a `r prcnt_increase_race_arrests`% increase).
+* If all these co-arrests came from officer who were not working together, based on racial homophily among those not working together, we project that the number of racially homophilous co-arrests **would decrease** to: `r format(projected_nr_arrests_race_nt, scientific = F)` (a `r prcnt_decrease_race_arrests`% increase).
+
+#### Sex homophily
+
+* If all these co-arrests came from officers who were working together, based on the sex homophily among those working together, we project that the number of sexually homophilous co-arrests **would increase** to: `r format(projected_nr_arrests_sex_t, scientific = F)` (a `r prcnt_increase_sex_arrests`% increase).
+* If all these co-arrests came from officer who were not working together, based on sex homophily among those not working together, we project that the number of sexually homophilous co-arrests **would decrease** to: `r format(projected_nr_arrests_sex_nt, scientific = F)` (a `r prcnt_decrease_sex_arrests`% decrease).

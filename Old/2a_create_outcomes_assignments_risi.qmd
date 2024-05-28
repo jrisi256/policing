@@ -1,0 +1,169 @@
+---
+title: "Create outcomes at the officer work assignment level"
+format: pdf
+---
+
+```{r, include = F}
+library(here)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(knitr)
+library(purrr)
+library(dtplyr)
+library(stringr)
+library(R.utils)
+opts_chunk$set(message = F, echo = F, warning = F, output = F)
+out_path <- here("3_join_outcomes_assignments", "output")
+```
+
+```{r}
+create_outcomes <- function(.df, .prefix, ...) {
+    # Sum up the total instances of the outcome of interest.
+    outcome <-
+        .df %>%
+        lazy_dt() %>%
+        count(assignment_id, ..., wt = count) %>%
+        as_tibble()
+    
+    # If there are more than 2 arguments, there is a grouping variable.
+    if(nargs() != 2) {
+        outcome <-
+            outcome %>%
+            lazy_dt() %>%
+            pivot_wider(
+                id_cols = assignment_id,
+                names_from = c(...),
+                values_from = "n",
+                values_fill = 0
+            ) %>%
+            # Check and see if any of the values were missing e.g., race, sex
+            mutate(missing_flag = rowSums(pick(matches("na$|na_")))) %>%
+            as_tibble() %>%
+            # if any of the values were missing, change all other values to be 
+            # missing (since we cannot know for certain how many of each 
+            # category occurred).
+            mutate(
+                across(
+                    -matches("na_|assignment_id|missing"),
+                    function(col) {if_else(missing_flag >= 1, NA_real_, col)}
+                )
+            ) %>%
+            select(-matches("na$|na_|flag"))
+    }
+
+    # Rename all the newly created columns.
+    outcome <-
+        outcome %>%
+        rename_with(
+            function(col) {
+                paste0(.prefix, "_", str_replace_all(tolower(col), " ", ""))
+            },
+            -assignment_id
+        )
+    
+    return(outcome)
+}
+```
+
+```{r}
+stop_assignments <-
+    read_csv(file.path(out_path, "1a_stops_assignments_risi.csv.gz")) %>%
+    mutate(
+        count = if_else(is.na(stop_id), 0, 1),
+        stop_type = 
+            case_when(
+                stop_type == "Gang / Narcotics Related" ~ "gang_narcotics",
+                stop_type == "Gang and Narcotics-Related Loitering" ~ "gang_narcotics_loitering",
+                stop_type == "Investigatory Stop" ~ "investigatory",
+                stop_type == "Suspicious Person" ~ "suspicious",
+                stop_type == "Traffic Related" ~ "traffic",
+                stop_type == "Repeat Offender Geog. Urban Enforcement Strategy (ROGUES)" ~ "repeat_offender_enforcement_strategy",
+                T ~ stop_type
+            )
+    )
+
+arrests_assignments <-
+    read_csv(file.path(out_path, "1a_arrests_assignments_risi.csv.gz")) %>%
+    mutate(count = if_else(is.na(arrest_id), 0, 1))
+
+force_assignments <-
+    read_csv(file.path(out_path, "1a_force_assignments_risi.csv.gz")) %>%
+    mutate(
+        count = if_else(is.na(force_id), 0, 1),
+        civ.injured = if_else(civ.injured == 1, "injured", "not_injured")
+    )
+```
+
+```{r}
+stop_count <- create_outcomes(stop_assignments, "stops")
+stop_type <- create_outcomes(stop_assignments, "stops", stop_type)
+stop_race <- create_outcomes(stop_assignments, "stops", civ.race)
+stop_race_type <- create_outcomes(stop_assignments, "stops", civ.race, stop_type)
+
+arrest_count <- create_outcomes(arrests_assignments, "arrests")
+arrest_type <- create_outcomes(arrests_assignments, "arrests", crime_code)
+arrest_race <- create_outcomes(arrests_assignments, "arrests", civ.race)
+arrest_race_type <- create_outcomes(arrests_assignments, "arrests", civ.race, crime_code)
+
+force_count <- create_outcomes(force_assignments, "force")
+force_injured <- create_outcomes(force_assignments, "force", civ.injured)
+force_race <- create_outcomes(force_assignments, "force", civ.race)
+force_race_injured <- create_outcomes(force_assignments, "force", civ.race, civ.injured)
+
+outcomes <-
+    reduce(
+        list(
+            stop_count, stop_type, stop_race, stop_race_type, arrest_count,
+            arrest_type, arrest_race, arrest_race_type, force_count,
+            force_injured, force_race, force_race_injured
+        ),
+        full_join,
+        by = "assignment_id"
+    )
+
+write_csv(outcomes, file.path(out_path, "2a_outcomes_assignments_risi.csv"))
+gzip(file.path(out_path, "2a_outcomes_assignments_risi.csv"), overwrite = T)
+```
+
+## Creating outcomes
+
+The basic idea is to count the number of stops, arrests, uses of force which happened during each officer work assignment. You can also create more narrow specifications by calculating the number of stops of Black civilians, female civilians, traffic stops, etc. 
+
+The important thing to note is that if there is a missing value for a specific category (e.g., stops by race), then the value for each outcome will get reported as missing. If stop **1** during officer work assignment **A** has a missing value for race, then we should report it as a missing value across all racial specifications (since we do not know what the race was of the civilian who was stopped). It would be wrong to assume 0 white civilians were stopped for example. If there had been a value there previously, I still set it to missing. For example, say we knew that during work assignment **B**, 1 white civilian was stopped, and then there was another stop where the race of the civilian is unknown. I still set the value for the number of stops of White civilians to unknown.
+
+If we were interested in creating binary outcomes (e.g., was a white civilian stopped), this variable would need to be calculated slightly differently, then.
+
+### Missings
+
+```{r}
+nr_missing_stop_type <- stop_type %>% filter(is.na(stops_traffic)) %>% nrow()
+nr_missing_stop_race <- stop_race %>% filter(is.na(stops_black)) %>% nrow()
+nr_missing_stop_race_type <- stop_race_type %>% filter(is.na(stops_black_traffic)) %>% nrow()
+
+nr_missing_arr_type <- arrest_type %>% filter(is.na(arrests_trf)) %>% nrow()
+nr_missing_arr_race <- arrest_race %>% filter(is.na(arrests_black)) %>% nrow()
+nr_missing_arr_race_type <- arrest_race_type %>% filter(is.na(arrests_black_trf)) %>% nrow()
+
+nr_missing_force_inj <- force_injured %>% filter(is.na(force_injured)) %>% nrow()
+nr_missing_force_race <- force_race %>% filter(is.na(force_black)) %>% nrow()
+nr_missing_force_race_inj <- force_race_injured %>% filter(is.na(force_black_injured)) %>% nrow()
+```
+
+#### Stops
+
+* `r nr_missing_stop_type` (`r round(nr_missing_stop_type / nrow(stop_type) * 100, 2)`%) officer work assignments have missing values when looking at stops broken down by stop type.
+* `r nr_missing_stop_race` (`r round(nr_missing_stop_race / nrow(stop_race) * 100, 2)`%) officer work assignments have missing values when looking at stops broken down by civilian race.
+* `r nr_missing_stop_race_type` (`r round(nr_missing_stop_race_type / nrow(stop_race_type) * 100, 2)`%) officer work assignments have missing values when looking at stops broken down by stop type and race.
+
+#### Arrests
+
+* `r nr_missing_arr_type` (`r round(nr_missing_arr_type / nrow(arrest_type) * 100, 2)`%) officer work assignments have missing values when looking at arrests broken down by arrest type.
+* `r nr_missing_arr_race` (`r round(nr_missing_arr_race / nrow(arrest_race) * 100, 2)`%) officer work assignments have missing values when looking at arrests broken down by civilian race.
+* `r nr_missing_arr_race_type` (`r round(nr_missing_arr_race_type / nrow(arrest_race_type) * 100, 2)`%) officer work assignments have missing values when looking at arrests broken down by arrest type and race.
+
+#### Force
+
+* `r nr_missing_force_inj` (`r round(nr_missing_force_inj / nrow(force_injured) * 100, 2)`%) officer work assignments have missing values when looking at uses of force broken down by civilian injury.
+* `r nr_missing_force_race` (`r round(nr_missing_force_race / nrow(force_race) * 100, 2)`%) officer work assignments have missing values when looking at uses of force broken down by civilian race.
+* `r nr_missing_force_race_inj` (`r round(nr_missing_force_race_inj / nrow(force_race_injured) * 100, 2)`%) officer work assignments have missing values when looking at uses of force broken down by civilian injury and civilian race.

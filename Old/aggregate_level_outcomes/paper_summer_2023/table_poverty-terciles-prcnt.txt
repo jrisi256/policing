@@ -1,0 +1,21 @@
+|                                     |  Low Poverty   | Medium Poverty | High Poverty |
+|:------------------------------------|:--------------:|:--------------:|:------------:|
+|Black Stops                          |                |                |              |
+|Percentage of Officers Who Are Black |  0.99 (0.05)   |  1.04 (0.04)   | 0.99 (0.01)  |
+|Years Worked In Unit (Mean)          |  1.03 (0.10)   | 0.52 (0.09)*** | 0.82 (0.23)  |
+|Violent Crime Per 10,000             |  1.00 (0.01)   |  0.99 (0.02)   | 0.99 (0.01)  |
+|Property Crime Per 10,000            | 0.99 (0.00)*** |  1.01 (0.00)   | 1.00 (0.00)  |
+|Total number of officers             | 1.01 (0.00)**  | 0.99 (0.00)*** | 1.00 (0.01)  |
+|Num.Obs.                             |      288       |      252       |     252      |
+|AIC                                  |     3327.5     |     3296.0     |    3787.7    |
+|BIC                                  |     3382.4     |     3345.4     |    3837.1    |
+|Offset - Black Pop.                  |      Yes       |      Yes       |     Yes      |
+|Std.Errors                           |    by: unit    |    by: unit    |   by: unit   |
+|FE: unit                             |       X        |       X        |      X       |
+|FE: year                             |       X        |       X        |      X       |
+
+__Note:__
+^^ Standard Errors in parentheses. Coefficients are incident rate ratios.
+
+__Note:__
+^^ P-values are denoted by symbols: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001

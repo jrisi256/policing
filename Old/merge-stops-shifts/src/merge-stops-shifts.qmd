@@ -1,0 +1,127 @@
+---
+title: "Merge Stops to Shift Assignments"
+format: pdf
+---
+
+```{r, include = F}
+library(knitr)
+opts_chunk$set(message = F, echo = F, warning = F)
+
+library(here)
+source(here("functions.R"))
+
+# Read in data
+in_path <- paste("merge-stops-shifts", "input", sep = "/")
+out_path <- paste("merge-stops-shifts", "output", sep = "/")
+
+officer_assignments <- my_read_csv(here(in_path, "officers_assignments_risi.csv"))
+officer_assignments_2 <- my_read_csv(here(in_path, "officer_assignments_risi.csv.gz"))
+stops <-
+    my_read_csv(here(in_path, "stops.csv")) %>%
+    mutate(stop_officer_id = as.character(row_number()))
+stops_2 <-
+    my_read_csv(here(in_path, "stops.csv.gz")) %>%
+    mutate(stop_officer_id = as.character(row_number()))
+
+# convert to data.table
+setDT(officer_assignments_2)
+setDT(stops_2)
+```
+
+## Changes to the Stops data - Risi
+
+1. I decided to use the **contact_type** variable for categorizing stop types rather than **stop_type** in line with Ba et al. 2021.
+2. **civ.race**: I combine Asian American/Pacific Islanders and Native Americans/Alaskan Natives into their own category.
+3. I drop the **civilian_race_short** column.
+4. **civ.gender**: Any civilians whose gender is categorized as **X** gets recoded as missing. Also I rename the column to be **civ.sex**.
+
+```{r, results = "asis"}
+stops <-
+    stops %>%
+    mutate(civ.race = fct_recode(civ.race,
+                                 aapi_native = "ASIAN/PACIFIC ISLANDER",
+                                 aapi_native = "AMER IND/ALASKAN NATIVE"),
+           civ.gender = fct_drop(na_if(civ.gender, "X"))) %>%
+    select(-stop_type, -civilian_race_short) %>%
+    rename(civ.sex = civ.gender)
+
+kable(GetSummaryCol(stops, "civ.race"), format = "latex")
+kable(GetSummaryCol(stops, "civ.sex"), format = "latex")
+```
+
+```{r}
+# Match stops to the shift assignments they occurred during
+stops_merged <- ba_merge(officer_assignments_2, stops_2, stop_officer_id)
+missing_times_stops <- stops_merged %>% find_missing(stop_officer_id)
+duplicate_stops <- stops_merged %>% find_dupes(stop_officer_id)
+pretty_print_stops <- PrettyPrint(stops_merged, stops, officer_assignments,
+                                  missing_times_stops, duplicate_stops,
+                                  "stop_officer_id")
+
+write_csv(stops_merged, here(out_path, "stops_officers_assignments_risi_max.csv"))
+```
+
+## Merge stops - Risi using Ba et al. 2021
+
+* **Number of resulting rows**: `r pretty_print_stops$nrow`
+* **Number of stops which occurred during a shift**: `r pretty_print_stops$nr_outcome`
+    * **Percentage of stops** (`r nrow(stops)`): `r pretty_print_stops$prcnt_outcome`%
+* **Number of shift assignments retained:** `r pretty_print_stops$nr_shift`
+    * **Percentage of shift assignments**: `r pretty_print_stops$prcnt_shift`%
+* `r pretty_print_stops$nr_missing_shifts` shift assignments matched with at least one stop **without having** a start time and an end time.
+    * This represents `r pretty_print_stops$prcnt_missing_shifts`% of all shift assignments.
+    * `r pretty_print_stops$nr_missing_outcomes` stops are affected or `r pretty_print_stops$prcnt_missing_outcomes`% of all stops.
+* There are `r pretty_print_stops$nr_dupe_outcomes` stops which match to more than one shift assignment.
+    * These **duplicate** stops represent `r pretty_print_stops$prcnt_dupe_outcomes`% of all stops (`r nrow(stops)`).
+    * `r pretty_print_stops$nr_dupe_shifts` shift assignments are affected or `r pretty_print_stops$prcnt_dupe_shifts`% of all shift assignments.
+    * In total, there are `r pretty_print_stops$nr_dupes` **duplicate stop-shift observations** representing `r pretty_print_stops$prcnt_dupes`% of all stop-shift observations.
+
+```{r}
+# Drop these columns as they are redundant
+stops <- stops %>% select(-date, -month)
+
+# Right non-equi join stops to officer assignments
+stops_shift_assignments <-
+    stops[officer_assignments,
+          on = .(officer_id, time >= start_datetime, time <= end_datetime)] %>%
+    rename(start_datetime = time, end_datetime = time.1) %>%
+    left_join(select(stops, time, stop_officer_id), by = "stop_officer_id")
+
+# Find outcomes with matched with shift assignments that have a missing start and end time
+# In theory there should be 0
+missing_stops_risi <- stops_shift_assignments %>% find_missing(stop_officer_id)
+
+# Find outcomes which matched with multiple shifts
+duplicate_stops_risi <- stops_shift_assignments %>% find_dupes(stop_officer_id)
+
+# Pretty print the results
+ppsjr <-
+    PrettyPrint(stops_shift_assignments, stops, officer_assignments,
+                missing_stops_risi, duplicate_stops_risi, "stop_officer_id")
+
+# Remove duplicates
+stops_shift_assignments <-
+    stops_shift_assignments %>%
+    group_by(stop_officer_id) %>%
+    filter(is.na(stop_officer_id) | n() <= 1) %>%
+    ungroup()
+
+# Write out results
+write_csv(stops_shift_assignments, here(out_path, "stops_officers_assignments_risi_min.csv"))
+```
+
+## Merge stops - Risi
+
+* **Number of resulting rows**: `r ppsjr$nrow`
+* **Number of stops which occurred during a shift**: `r ppsjr$nr_outcome`
+    * **Percentage of stops** (`r nrow(stops)`): `r ppsjr$prcnt_outcome`%
+    * **Number of fewer stops matched than Ba et al. 2021**: `r pretty_print_stops$nr_outcome - ppsjr$nr_outcome`
+    * **Percent reduction from Ba et al. 2021**: `r (pretty_print_stops$nr_outcome - ppsjr$nr_outcome) / pretty_print_stops$nr_outcome * 100`%
+* **Number of shift assignments retained:** `r ppsjr$nr_shift`
+    * **Percentage of shift assignments**: `r ppsjr$prcnt_shift`% **NOTE** this should be 100%.
+* `r ppsjr$nr_missing_shifts` shift assignments matched with at least one stop **without having** a start time and an end time. **NOTE** that this should be 0.
+* There are `r ppsjr$nr_dupe_outcomes` stops which match to more than one shift assignment.
+    * These **duplicate** stops represent `r ppsjr$prcnt_dupe_outcomes`% of all stops (`r nrow(stops)`).
+    * `r ppsjr$nr_dupe_shifts` shift assignments are affected or `r ppsjr$prcnt_dupe_shifts`% of all shift assignments.
+    * In total, there are `r ppsjr$nr_dupes` **duplicate stop-shift observations** representing `r ppsjr$prcnt_dupes`% of all stop-shift observations.
+    * As noted above, **all these entries are dropped**.

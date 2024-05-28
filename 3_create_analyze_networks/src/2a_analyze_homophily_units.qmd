@@ -1,0 +1,519 @@
+---
+title: "Analyze homophily across units"
+format: pdf
+---
+
+## Grand conclusions
+
+* **Conclusion**: In general, sexual homphily had very similar trends to racial homophily. Units are racially and sexually homophilous. Work assignments seem to increase these forms of homophily for both stops and arrests (perhaps slightly more for arrests). The arrest + work together network appears slightly more homophilous than the stop + work together network.
+* **Conclusion**: Spanish-speaking homophily had similar trends to sex and racial homophily with one important exception (which I'll get to). Units are, generally speaking, homophilous on Spanish-speaking ability. However, work assignments did not contribute **as much** to this homophily as for sex + race particularly in the stopping network. Overall, though, work assignments still contribute to this homophily (slightly more for arrests than stops as is the case in sex + race homophily). And generally speaking, arrest networks are more homophilous than stop networks.
+* **Conclusion**: Age-based homophily is also similiar to the above types of homophily.
+* **Conclusion**: Generally speaking work assignments serve to increase all types of homophily in the same direction in each unit (although the degree can vary) for both stops and arrests.
+
+```{r, include = F}
+library(here)
+library(dplyr)
+library(readr)
+library(knitr)
+library(purrr)
+library(tidyr)
+library(stringr)
+library(forcats)
+library(ggplot2)
+opts_chunk$set(message = F, echo = F, warning = F, output = F)
+read_path <- here("3_create_analyze_networks", "output")
+```
+
+```{r}
+stop_edgelist <-
+    read_csv(file.path(read_path, "stop_edgelist_df.csv.gz")) %>%
+    mutate(
+        race_match = officer_race_1 == officer_race_2,
+        sex_match = officer_sex_1 == officer_sex_2,
+        spanish_match = spanish_1 == spanish_2,
+        age_diff = abs(birth_year_1 - birth_year_2)
+    ) %>%
+    filter(!(unit_1 %in% c(13, 21, 23)) & !(unit_2) %in% c(13, 21, 23))
+    
+arrest_edgelist <-
+    read_csv(file.path(read_path, "arrest_edgelist_df.csv.gz")) %>%
+    mutate(
+        race_match = officer_race_1 == officer_race_2,
+        sex_match = officer_sex_1 == officer_sex_2,
+        spanish_match = spanish_1 == spanish_2,
+        age_diff = abs(birth_year_1 - birth_year_2)
+    ) %>%
+    filter(!(unit_1 %in% c(13, 21, 23)) & !(unit_2) %in% c(13, 21, 23))
+```
+
+## Considering homophily within units
+
+Here I consider homophily across police units and how homophily may change from unit to unit. To conduct this analysis, I only consider stops and arrests where the officers involved were from the same police unit. Otherwise, it would be unclear which unit the stop/arrest should count for. Conditional on being able to link the stop back to a work assignment for each officer involved, this process does not really result in that many stops/arrests being discarded.
+
+I also discard any stops/arrests from units 13, 21, and 23. These units were merged into several other units in 2012 and thus have a very small number of wonky observations which skew results.
+
+```{r}
+stops_within_unit <-
+    stop_edgelist %>%
+    # Keep only stops where both officers are from the same unit.
+    filter(
+        !solo_stop & unit_1 == unit_2 & unit_1 != "NO MATCH" & unit_2 != "NO MATCH"
+    ) %>%
+    rename(unit = unit_1) %>%
+    # Group by unit and whether or not the officers were working together at the time of the stop.
+    group_by(unit, shared_beat_no_alpha) %>%
+    # Calculate number of stops involving similar officers.
+    summarise(
+        same_race = sum(race_match == T),
+        same_sex = sum(sex_match == T),
+        same_spanish = sum(spanish_match == T),
+        mean_age_diff = mean(age_diff),
+        total = n()
+    ) %>%
+    ungroup() %>%
+    # Calculate proportion of stops involving similar officers.
+    mutate(
+        across(
+            .cols = matches("same"),
+            .fns = function(col) {col / total},
+            .names = "prop_{.col}"
+        )
+    ) %>%
+    group_by(unit) %>%
+    # Calculate the difference between in similarity between officers working together and those not.
+    mutate(
+        prop_total = total / sum(total),
+        diff_race = diff(prop_same_race),
+        diff_sex = diff(prop_same_sex),
+        diff_spanish = diff(prop_same_spanish),
+        diff_age = diff(mean_age_diff)
+    ) %>%
+    ungroup() %>%
+    pivot_longer(
+        cols = matches("prop|diff"),
+        names_to = "variable",
+        values_to = "value"
+    ) %>%
+    mutate(outcome = "stops")
+
+arrests_within_unit <-
+    arrest_edgelist %>%
+    # Keep only arrests where both officers are from the same unit.
+    filter(
+        !solo_arrest & unit_1 == unit_2 & unit_1 != "NO MATCH" & unit_2 != "NO MATCH"
+    ) %>%
+    rename(unit = unit_1) %>%
+    # Group by unit and whether or not the officers were working together at the time of the arrest.
+    group_by(unit, shared_beat_no_alpha) %>%
+    # Calculate number of arrests involving similar officers.
+    summarise(
+        same_race = sum(race_match == T & !is.na(race_match)),
+        same_sex = sum(sex_match == T),
+        same_spanish = sum(spanish_match == T),
+        mean_age_diff = mean(age_diff),
+        total = n()
+    ) %>%
+    ungroup() %>%
+    # Calculate proportion of arrests involving similar officers.
+    mutate(
+        across(
+            .cols = matches("same"),
+            .fns = function(col) {col / total},
+            .names = "prop_{.col}"
+        )
+    ) %>%
+    group_by(unit) %>%
+    # Calculate the difference between in similarity between officers working together and those not.
+    mutate(
+        prop_total = total / sum(total),
+        diff_race = diff(prop_same_race),
+        diff_sex = diff(prop_same_sex),
+        diff_spanish = diff(prop_same_spanish),
+        diff_age = diff(mean_age_diff)
+    ) %>%
+    ungroup() %>%
+    pivot_longer(
+        cols = matches("prop|diff"),
+        names_to = "variable",
+        values_to = "value"
+    ) %>%
+    mutate(outcome = "arrests")
+```
+
+## Number of stops/arrests which involved officers working together
+
+1. For stops, we see in every unit that a majority of the stop-ties involved officers who were working together. For nearly every unit, over 75% of all stop-ties involved officers who were working together.
+2. For arrests, we see similar trends. In almost every unit, the majority of arrest-ties involved officers who were working together. However, there is one unit (unit 1) where a majority of the arrests did not involve officers working together.
+3. In general, stop-ties are more likely to involve officers who were working together vs. arrest-ties in every unit. Notice in the third graph how the percentage bar is higher for stops in every unit.
+
+```{r, include = T, output = T}
+stops_within_unit %>%
+    filter(variable == "prop_total", shared_beat_no_alpha) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "% of co-stops which involved officers working together"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "prop_total", shared_beat_no_alpha) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "% of co-arrests which involved officers working together"
+    )
+
+bind_rows(stops_within_unit, arrests_within_unit) %>%
+    filter(variable == "prop_total", shared_beat_no_alpha) %>%
+    ggplot(aes(x = outcome, y = value)) +
+    geom_bar(stat = "identity") +
+    theme_bw() %>%
+    labs(
+        x = "Arrests vs. Stops",
+        y = "% of co-stops/arrests which involved officers working together"
+    ) +
+    facet_wrap(~unit) +
+    theme_bw()
+```
+
+## Racial homophily
+
+1. In nearly every unit, officers who made a stop together and were working together were more likely to be the same race vs. officers who made a stop together and were not working together. In units 15, 16, and 24, though, the opposite is true. Officers who made a stop together and were working together were **less likely** to be the same race while officers who made a stop together and were not working together were **more likely** to be of the same race.
+    * Additionally while not super clearly demonstrated in the graphs for stops, it is the case that all units have racially homophilous stop ties. This means officers who made a stop together are more likely than not to be the same race. The degree of homophily varies from unit to unit (as well as the degree to which officer work assignments are contributing to this homophily), but it exists in every unit.
+    
+2. A similar story holds true for arrests. In nearly every unit, officers who made an arrest together and were working together were more likely to be the same race vs. officers who made an arrest together and were not working together. In units 6 and 16 the reverse is true.
+    
+3. Comparing arrests to stops, a few trends pop out:
+    * Work assignments seem to contribute more to the homophily in the arrest network (compared to the stop network). I make this statement based on the 5th graph. For a majority of units, the arrest bar is bigger than the stop bar. This means for a majority of units it is more likely when officers work together and make an arrest together that they are the same race vs. when officers work together and make a stop together.
+    * In general, though, the trends are the same for both types of networks meaning that work assignments increase homophily for both stops and arrests. Units 15 and 24 are interesting exceptions in this case.
+
+* **Conclusion**: The officer stopping network is racially homophilous, and work assignments seem to make stops even more racially homophilous.
+* **Conclusion**: The officer arrest network is also racially homophilous, and work assignments also seem to make arrests even more racially homophilous.
+* **Conclusion**: Work assignments contribute more to the homophily in the arrest network, but work assignments generally serve to increase homophily for both the arrest and the stop network.
+
+```{r, include = T, output = T}
+stops_within_unit %>%
+    filter(variable == "prop_same_race") %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_point(aes(color = unit), size = 5) +
+    geom_segment(aes(x = unit, xend = unit, y = 0, yend = value)) +
+    theme_bw() +
+    facet_wrap(~shared_beat_no_alpha) +
+    theme(legend.position = "none") +
+    labs(
+        x = "Police Unit",
+        y = "Proportion of officers who were the same race - stops"
+    )
+
+stops_within_unit %>%
+    filter(variable == "diff_race", shared_beat_no_alpha == T) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "Difference in racial homophily - stops"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "prop_same_race") %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_point(aes(color = unit), size = 5) +
+    geom_segment(aes(x = unit, xend = unit, y = 0, yend = value)) +
+    theme_bw() +
+    facet_wrap(~shared_beat_no_alpha) +
+    theme(legend.position = "none") +
+    labs(
+        x = "Police Unit",
+        y = "Proportion of officers who were the same race - stops"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "diff_race", shared_beat_no_alpha == T) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "Difference in racial homophily - stops"
+    )
+
+bind_rows(stops_within_unit, arrests_within_unit) %>%
+    filter(variable == "diff_race") %>%
+    ggplot(aes(x = outcome, y = value)) +
+    geom_hline(yintercept = 0, alpha = 0.5, color = "red") +
+    geom_bar(stat = "identity") +
+    facet_wrap(~unit) +
+    theme_bw() +
+    coord_flip() +
+    labs(
+        x = "Stops vs. Arrests",
+        y = "Difference in racial homophily"
+    )
+```
+
+## Sex homophily
+
+1. In nearly every unit, officers who made a stop together and were working together were more likely to be the same sex vs. officers who made a stop together and were not working together. In units 13, 15, 18, and 19 though, the opposite is true. Officers who made a stop together and were working together were **less likely** to be the same race while officers who made a stop together and were not working together were **more likely** to be of the same race.
+    * Additionally while not super clearly demonstrated in the graphs for stops, it is the case that all units have sexually homophilous stop ties. This means officers who made a stop together are more likely than not to be the same sex. The degree of homophily varies from unit to unit (as well as the degree to which officer work assignments are contributing to this homophily), but it exists in every unit.
+    
+2. A similar story holds true for arrests. In nearly every unit, officers who made an arrest together and were working together were more likely to be the same sex vs. officers who made an arrest together and were not working together. In units 10 and 19, the reverse is true.
+    
+3. Comparing arrests to stops, a few trends pop out:
+    * Work assignments seem to contribute more to the homophily in the arrest network (compared to the stop network). I make this statement based on the 5th graph. For a majority of units, the arrest bar is bigger than the stop bar. This means for a majority of units it is more likely when officers work together and make an arrest together that they are the same sex vs. when officers work together and make a stop together.
+    * In general, though, the trends are the same for both types of networks meaning that work assignments increase homophily for both stops and arrests. Units 10, 13, 15, and 18 are interesting exceptions in this case.
+
+* **Conclusion**: The officer stopping network is sexually homophilous, and work assignments seem to make stops even more sexually homophilous.
+* **Conclusion**: The officer arrest network is also sexually homophilous, and work assignments also seem to make arrests even more sexually homophilous.
+* **Conclusion**: Work assignments contribute more to the homophily in the arrest network, but work assignments generally serve to increase homophily for both the arrest and the stop network.
+
+```{r, include = T, output = T}
+stops_within_unit %>%
+    filter(variable == "prop_same_sex") %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_point(aes(color = unit), size = 5) +
+    geom_segment(aes(x = unit, xend = unit, y = 0, yend = value)) +
+    theme_bw() +
+    facet_wrap(~shared_beat_no_alpha) +
+    theme(legend.position = "none") +
+    labs(
+        x = "Police Unit",
+        y = "Proportion of officers who were the same sex - stops"
+    )
+
+stops_within_unit %>%
+    filter(variable == "diff_sex", shared_beat_no_alpha == T) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "Difference in sexual homophily - stops"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "prop_same_sex") %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_point(aes(color = unit), size = 5) +
+    geom_segment(aes(x = unit, xend = unit, y = 0, yend = value)) +
+    theme_bw() +
+    facet_wrap(~shared_beat_no_alpha) +
+    theme(legend.position = "none") +
+    labs(
+        x = "Police Unit",
+        y = "Proportion of officers who were the same sex - arrests"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "diff_sex", shared_beat_no_alpha == T) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "Difference in sexual homophily - arrests"
+    )
+
+bind_rows(stops_within_unit, arrests_within_unit) %>%
+    filter(variable == "diff_sex") %>%
+    ggplot(aes(x = outcome, y = value)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~unit) +
+    theme_bw() +
+    coord_flip() +
+    geom_hline(yintercept = 0, alpha = 0.5, color = "red") +
+    labs(
+        x = "Stops vs. Arrests",
+        y = "Difference in sexual homophily"
+    )
+```
+
+## Spanish-speaking homophily
+
+1. Unlike with the sex and racial homophily stop networks, there are now quite a few units where it is the case that officers who worked together + made a stop together were actually less homophilous on Spanish speaking ability vs. officers who were not working together and made a stop together. It is still the case that for a majority of units, though, work assignments serve to increase homophily.
+    * Units, overall though, are quite homophilous on Spanish-speaking ability.
+
+2. As has been the case generally speaking, work assignments seem to increase homophily for arrests more than stops. This holds true here, as well. However, it is less the case than has been previously seen for sex and race homophily.
+
+```{r, include = T, output = T}
+stops_within_unit %>%
+    filter(variable == "prop_same_spanish") %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_point(aes(color = unit), size = 5) +
+    geom_segment(aes(x = unit, xend = unit, y = 0, yend = value)) +
+    theme_bw() +
+    facet_wrap(~shared_beat_no_alpha) +
+    theme(legend.position = "none") +
+    labs(
+        x = "Police Unit",
+        y = "Proportion of officers who both spoke Spanish - stops"
+    )
+
+stops_within_unit %>%
+    filter(variable == "diff_spanish", shared_beat_no_alpha == T) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "Difference in Spanish-speaking homophily - stops"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "prop_same_spanish") %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_point(aes(color = unit), size = 5) +
+    geom_segment(aes(x = unit, xend = unit, y = 0, yend = value)) +
+    theme_bw() +
+    facet_wrap(~shared_beat_no_alpha) +
+    theme(legend.position = "none") +
+    labs(
+        x = "Police Unit",
+        y = "Proportion of officers who both spoke Spanish - arrests"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "diff_spanish", shared_beat_no_alpha == T) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "Difference in Spanish-speaking homophily - arrests"
+    )
+
+bind_rows(stops_within_unit, arrests_within_unit) %>%
+    filter(variable == "diff_spanish") %>%
+    ggplot(aes(x = outcome, y = value)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~unit) +
+    theme_bw() +
+    coord_flip() +
+    geom_hline(yintercept = 0, alpha = 0.5, color = "red") +
+    labs(
+        x = "Stops vs. Arrests",
+        y = "Difference in Spanish-speaking homophily"
+    )
+```
+
+## Age homophily
+
+These graphs are a bit trickier to interpret, but I will try my best to guide you through them. Let's look at the first graph. All the way on the left is unit 2. When officers made a stop and were working together, the average age difference in this unit was about 7.5 years. When officers made a stop and were not working together, the average age difference in this unit was about 8 years. This means, for this unit, work assignments contributed to increased age homophily i.e., those who worked together and made stops together were more similar in age vs. those who made a stop and did not work together.
+
+In the second graph, we will see unit 2 has a negative value. This means the difference in the average age between those who were working together and those who were not working together was about 0.5 years You can obtain this value by subtracting the above values.
+
+With this graph reading tutorial over, we can see the age homophily trends follow the overall trends, broadly.
+
+1. Work assignments contribute to age homophily for both arrests and stops (although slightly more for arrests).
+2. Arrest networks, generally, tend to be more age homophilous than stop networks.
+
+```{r, include = T, output = T}
+stops_within_unit %>%
+    filter(variable == "mean_age_diff") %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_point(aes(color = unit), size = 5) +
+    geom_segment(aes(x = unit, xend = unit, y = 0, yend = value)) +
+    theme_bw() +
+    facet_wrap(~shared_beat_no_alpha, nrow = 1) +
+    theme(legend.position = "none") +
+    labs(
+        x = "Police Unit",
+        y = "Mean age difference between officers involved in the co-stop"
+    )
+
+stops_within_unit %>%
+    filter(variable == "diff_age", shared_beat_no_alpha == T) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "Difference in age homophily - stops"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "mean_age_diff") %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_point(aes(color = unit), size = 5) +
+    geom_segment(aes(x = unit, xend = unit, y = 0, yend = value)) +
+    theme_bw() +
+    facet_wrap(~shared_beat_no_alpha, nrow = 1) +
+    theme(legend.position = "none") +
+    labs(
+        x = "Police Unit",
+        y = "Mean age difference between officers involved in the co-arrest"
+    )
+
+arrests_within_unit %>%
+    filter(variable == "diff_age", shared_beat_no_alpha == T) %>%
+    ggplot(aes(x = fct_reorder(unit, value), y = value)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    theme_bw() +
+    labs(
+        x = "Police unit",
+        y = "Difference in age homophily - stops"
+    )
+
+bind_rows(stops_within_unit, arrests_within_unit) %>%
+    filter(variable == "diff_age") %>%
+    ggplot(aes(x = outcome, y = value)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~unit) +
+    theme_bw() +
+    coord_flip() +
+    geom_hline(yintercept = 0, alpha = 0.5, color = "red") +
+    labs(
+        x = "Stops vs. Arrests",
+        y = "Difference in age homophily"
+    )
+```
+
+## Work assignments - Race, Sex, and Spanish-speaking homophily in stop networks
+
+This graph demonstrates how work assignments contribute to racial, sexual, and Spanish-speaking homophily across all units for stop networks. Basically, I was curious if work assignments contributed to homophily in one aspect for a given unit, would it also contribute to homophily for all the other aspects to a similar degree?
+
+The degree to which work assignments contribute to homophily varies across units by degree. This means the bars are rarely equal within each unit. However, they are all typically in the same direction. There are some exceptions, of course. Generally speaking, work assignments contribute to increasing homophily in stop networks.
+
+Notably, units 15 and 19 are where work assignments contribute to declining homophily on more than 2 types of homophily.
+
+```{r, include = T, output = T}
+stops_within_unit %>%
+    filter(
+        variable %in% c("diff_sex", "diff_race", "diff_spanish"),
+        shared_beat_no_alpha == T
+    ) %>%
+    ggplot(aes(x = variable, y = value)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~unit) +
+    theme_bw() +
+    coord_flip() +
+    geom_hline(yintercept = 0, alpha = 0.5, color = "red") +
+    labs(
+        y = "Difference in homophily - stops",
+        x = "Types of homophily - stops"
+    )
+```
+
+Similar to stops, work assignments contribute to increasing homophily in most units on all measures of homophily.
+
+```{r, include = T, output = T}
+arrests_within_unit %>%
+    filter(
+        variable %in% c("diff_sex", "diff_race", "diff_spanish"),
+        shared_beat_no_alpha == T
+    ) %>%
+    ggplot(aes(x = variable, y = value)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~unit) +
+    theme_bw() +
+    coord_flip() +
+    geom_hline(yintercept = 0, alpha = 0.5, color = "red") +
+    labs(
+        y = "Difference in homophily - arrests",
+        x = "Types of homophily - arrests"
+    )
+```
