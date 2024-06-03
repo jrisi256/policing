@@ -1,0 +1,466 @@
+---
+title: "Analyze network segregation"
+format: pdf
+---
+
+```{r, include = F}
+library(here)
+library(readr)
+library(dplyr)
+library(knitr)
+library(purrr)
+library(tidyr)
+library(dtplyr)
+library(netseg)
+library(ggraph)
+library(ggplot2)
+library(tidygraph)
+library(lubridate)
+opts_chunk$set(message = F, echo = F, warning = F, output = F)
+read_path <- here("3_create_analyze_networks", "output")
+```
+
+```{r}
+stop_edgelist <- read_csv(file.path(read_path, "stop_edgelist_df.csv.gz"))
+arrest_edgelist <- read_csv(file.path(read_path, "arrest_edgelist_df.csv.gz"))
+officer_nodes <-
+    read_csv(
+        file.path(read_path, "officer_nodes_df.csv.gz"),
+        col_types = cols(officer_id = "c")
+    )
+```
+
+```{r}
+#################################################################
+##                 Officer descriptive numbers                 ##
+#################################################################
+nr_officer_work_stop <-
+    officer_nodes %>%
+    filter(
+        officer_id %in% c(stop_edgelist$officer_id_1, stop_edgelist$officer_id_2)
+    ) %>%
+    nrow()
+
+nr_officer_work_arrest <-
+    officer_nodes %>%
+    filter(
+        officer_id %in% c(arrest_edgelist$officer_id_1, arrest_edgelist$officer_id_2)
+    ) %>%
+    nrow()
+```
+
+```{r}
+##################################################################
+##                   Stop descriptive numbers                   ##
+##################################################################
+generate_descriptive_numbers <- function(df, id_col, solo_col) {
+    nr_unique <- length(unique(df[[id_col]]))
+    
+    nr_solo <-
+        df %>%
+        filter(officer_id_1 == officer_id_2) %>%
+        distinct(.data[[id_col]]) %>%
+        nrow()
+    
+    prcnt_solo <- round(nr_solo / nr_unique * 100, 2)
+    
+    nr_mult <-
+        df %>%
+        filter(officer_id_1 != officer_id_2) %>%
+        distinct(.data[[id_col]]) %>%
+        nrow()
+    
+    prcnt_mult <- round(nr_mult / nr_unique * 100, 2)
+    
+    nr_ties <- df %>% filter(officer_id_1 != officer_id_2) %>% nrow()
+    
+    nr_ties_missing <-
+        df %>%
+        filter((unit_1 == "NO MATCH" | unit_2 == "NO MATCH") & !.data[[solo_col]]) %>%
+        nrow()
+    
+    prcnt_ties_missing <- round(nr_ties_missing / nr_ties * 100, 2)
+    
+    return(
+        list(
+            nr_unique = nr_unique, nr_solo = nr_solo, prcnt_solo = prcnt_solo,
+            nr_mult = nr_mult, prcnt_mult = prcnt_mult, nr_ties = nr_ties,
+            nr_ties_missing = nr_ties_missing,
+            prcnt_ties_missing = prcnt_ties_missing
+        )
+    )
+}
+
+stop_nrs <- generate_descriptive_numbers(stop_edgelist, "stop_id", "solo_stop")
+arrest_nrs <- generate_descriptive_numbers(arrest_edgelist, "arrest_id", "solo_arrest")
+
+stop_edgelist_not_missing <-
+    stop_edgelist %>%
+    filter(unit_1 != "NO MATCH" & unit_2 != "NO MATCH" & !solo_stop)
+
+stop_edgelist_not_missing_prcnt <-
+    round(nrow(stop_edgelist_not_missing) / stop_nrs$nr_ties * 100, 2)
+
+arrest_edgelist_not_missing <-
+    arrest_edgelist %>%
+    filter(unit_1 != "NO MATCH" & unit_2 != "NO MATCH" & !solo_arrest)
+
+arrest_edgelist_not_missing_prcnt <-
+    round(nrow(arrest_edgelist_not_missing) / arrest_nrs$nr_ties * 100, 2)
+
+##################################################################
+##              Create final edge list data frames              ##
+##################################################################
+stop_edgelist_final <-
+    stop_edgelist_not_missing %>%
+    mutate(
+        unit = unit_1,
+        from = if_else(po_first_1 == 1, officer_id_1, officer_id_2),
+        to = if_else(po_first_1 == 1, officer_id_2, officer_id_1),
+        beat_no_alpha_from = if_else(po_first_1 == 1, beat_no_alpha_1, beat_no_alpha_2),
+        beat_no_alpha_to = if_else(po_first_1 == 1, beat_no_alpha_2, beat_no_alpha_1),
+        year = year(time),
+    ) %>%
+    filter(!(unit_1 %in% c(13, 21, 23)) & !(unit_2 %in% c(13, 21, 23)) & shared_unit, year != 2016) %>%
+    select(
+        -shared_unit, -solo_stop, -shared_beat_unit_shift, -beat_assigned_1,
+        -beat_assigned_2, -unit_1, -unit_2, -beat_no_alpha_1, -beat_no_alpha_2,
+        -matches("officer_race|officer_sex|spanish|birth|appointed|officer_id|po_first")
+    ) %>%
+    relocate(from, to)
+
+arrest_edgelist_final <-
+    arrest_edgelist_not_missing %>%
+    mutate(
+        unit = unit_1,
+        from = officer_id_1,
+        to = officer_id_2,
+        beat_no_alpha_from = beat_no_alpha_1,
+        beat_no_alpha_to = beat_no_alpha_2,
+        year = year(time)
+    ) %>%
+    filter(!(unit_1 %in% c(13, 21, 23)) & !(unit_2 %in% c(13, 21, 23)) & shared_unit & year != 2016) %>%
+    select(
+        -shared_unit, -solo_arrest, -shared_beat_unit_shift, -beat_assigned_1,
+        -beat_assigned_2, -unit_1, -unit_2, -beat_no_alpha_1, -beat_no_alpha_2,
+        -matches("officer_race|officer_sex|spanish|birth|appointed|officer_id|po_first")
+    ) %>%
+    relocate(from, to)
+```
+
+## Review
+
+### Officers
+
+* There are `r nrow(officer_nodes)` officers with a work assignment from 2012 - 2015.
+    * `r nr_officer_work_stop` (`r round(nr_officer_work_stop / nrow(officer_nodes) * 100, 2)`%) officers made a stop during a work assignment.
+    * `r nr_officer_work_arrest` (`r round(nr_officer_work_arrest / nrow(officer_nodes) * 100, 2)`%) officers made an arrest during a work assignment.
+    
+### Stops
+
+* There were `r stop_nrs$nr_unique` stops during this time period.
+    * `r stop_nrs$nr_solo` (`r stop_nrs$prcnt_solo`%) were made by a single officer.
+    * `r stop_nrs$nr_mult` (`r stop_nrs$prcnt_mult`%) were made by multiple officers.
+        * These stops generate `r stop_nrs$nr_ties` stop-ties.
+            * `r stop_nrs$nr_ties_missing` (`r stop_nrs$prcnt_ties_missing`%) stop-ties involve a stop that could not be tracked back to a work assignment for at least one officer involved in the stop.
+            * `r nrow(stop_edgelist_not_missing)` (`r stop_edgelist_not_missing_prcnt`%) stop-ties had all stops able to be traced back to a work assignment for all officers involved in the stop.
+            * **Our final sample size number is**: `r nrow(stop_edgelist_final)`. We drop: 1) all stop-ties where officers were not working in the same unit, 2) any stop-ties from units 13, 21, or 23 (since they were dissolved in 2012), and 3) all stops from 2016 (since we only have about a month of data from 2016).
+    
+### Arrests
+
+* There were `r arrest_nrs$nr_unique` arrests during this time period.
+    * `r arrest_nrs$nr_solo` (`r arrest_nrs$prcnt_solo`%) were made by a single officer.
+    * `r arrest_nrs$nr_mult` (`r arrest_nrs$prcnt_mult`%) were made by multiple officers.
+        * These arrests generate `r arrest_nrs$nr_ties` arrest-ties.
+            * `r arrest_nrs$nr_ties_missing` (`r arrest_nrs$prcnt_ties_missing`%) arrest-ties involve an arrest that could not be tracked back to a work assignment for at least one officer involved in the arrest.
+            * `r nrow(arrest_edgelist_not_missing)` (`r arrest_edgelist_not_missing_prcnt`%) arrest-ties had all arrests able to be traced back to a work assignment for all officers involved in the arrest.
+            * **Our final sample size number is**: `r nrow(arrest_edgelist_final)`. We drop: 1) all arrest-ties where officers were not working in the same unit, 2) any arrest-ties from units 13, 21, or 23 (since they were dissolved in 2012), and 3) all arrests from 2016 (since we only have about a month of data from 2016).
+
+```{r}
+##################################################################
+##         Function for calculating network segregation         ##
+##################################################################
+calculate_network_segregation <- function(tidy_network, year_col, unit_col, seg_col) {
+    overall_network <-
+        tidy_network %>%
+        activate(edges) %>%
+        filter(year == year_col, unit == unit_col) %>%
+        activate(nodes) %>%
+        filter(!node_is_isolated())
+    
+    work_together <-
+        overall_network %>%
+        activate(edges) %>%
+        filter(shared_beat_no_alpha)
+    
+    work_together_seg <- orwg(work_together, seg_col)
+    
+    not_work_together <-
+        overall_network %>%
+        activate(edges) %>%
+        filter(!shared_beat_no_alpha) 
+    
+    not_work_together_seg <- orwg(not_work_together, seg_col)
+    
+    return(
+        tibble(
+            year = year_col,
+            unit = unit_col,
+            shared_beat_no_alpha = c(T, F),
+            seg_var = seg_col,
+            network_segregation_unweighted = c(work_together_seg, not_work_together_seg)
+        )
+    )
+}
+```
+
+```{r}
+#################################################################
+##          Create tidy network for stops and arrests          ##
+#################################################################
+stop_directed_edges <-
+    stop_edgelist_final %>%
+    lazy_dt() %>%
+    count(from, to, unit, shared_beat_no_alpha, year, name = "nr_stops_together") %>%
+    mutate(from = as.character(from), to = as.character(to)) %>%
+    as_tibble()
+
+stop_directed_network <-
+    tbl_graph(nodes = officer_nodes, edges = stop_directed_edges, directed = T)
+
+stop_undirected_edges <-
+    stop_edgelist_final %>%
+    rowwise() %>%
+    mutate(
+        undirected_from = as.character(sort(c(from, to))[1]),
+        undirected_to = as.character(sort(c(from, to))[2])
+    ) %>%
+    lazy_dt() %>%
+    count(
+        undirected_from, undirected_to, unit, shared_beat_no_alpha, year,
+        name = "nr_stops_together"
+    ) %>%
+    as_tibble()
+
+stop_undirected_network <-
+    tbl_graph(nodes = officer_nodes, edges = stop_undirected_edges, directed = F)
+
+arrest_edges <-
+    arrest_edgelist_final %>%
+    rowwise() %>%
+    mutate(
+        undirected_from = as.character(sort(c(from, to))[1]),
+        undirected_to = as.character(sort(c(from, to))[2])
+    ) %>%
+    lazy_dt() %>%
+    count(
+        undirected_from, undirected_to, unit, shared_beat_no_alpha, year,
+        name = "nr_arrests_together"
+    ) %>%
+    as_tibble()
+
+arrest_network <-
+    tbl_graph(nodes = officer_nodes, edges = arrest_edges, directed = F)
+```
+
+```{r}
+years <- 2012:2015
+units <- c(1:12, 14:20, 22, 24:25)
+cols <- c("officer_sex", "officer_race")
+args <- expand_grid(col = cols, unit = units, year = years)
+
+##################################################################
+##       Calculate network segregation for directed stops       ##
+##################################################################
+
+
+
+##################################################################
+##      Calculate network segregation for un-directed stops      ##
+##################################################################
+
+
+
+#################################################################
+##          Calculate network segregation for arrests          ##
+#################################################################
+arrest_segregation_unweighted <-
+    pmap(
+        list(
+            year_col = as.list(args$year),
+            unit_col = as.list(args$unit),
+            seg_col = as.list(args$col)
+        ),
+        calculate_network_segregation,
+        tidy_network = arrest_network
+    ) %>%
+    bind_rows()
+
+arrest_segregation_unweighted_wide <-
+    arrest_segregation_unweighted %>%
+    pivot_wider(
+        id_cols = c("year", "unit"),
+        names_from = c("seg_var", "shared_beat_no_alpha"),
+        values_from = "network_segregation_unweighted"
+    ) %>%
+    mutate(
+        officer_race_diff = officer_race_TRUE - officer_race_FALSE,
+        officer_sex_diff = officer_sex_TRUE - officer_sex_FALSE,
+    )
+```
+
+## Network segregation based on Moody's Segregation Index (odds-ratios)
+
+Below are two graphs which display Moody's Segregation Index for officer race and officer sex across each year for each police unit. Some observations:
+
+* Work assignments contribute more to both racial and sex segregation in the arrest network.
+* Work assignments appear to contribute more to sex segregation than racial segregation.
+* The effect of work assignments appears relatively stable over time for both race and sex (eyeball test).
+
+```{r, output = T, include = T, fig.width = 12, fig.height = 8}
+generate_seg_graph_over_time <- function(seg_df, seg_col, title) {
+    seg_df %>%
+        filter(seg_var == seg_col) %>%
+        ggplot(aes(x = year, y = network_segregation_unweighted)) +
+        geom_point(aes(color = shared_beat_no_alpha)) +
+        geom_line(aes(color = shared_beat_no_alpha, group = shared_beat_no_alpha)) +
+        theme_bw() +
+        labs(
+            x = "Year",
+            y = "Moody's Index of Segregation (Odds Ratios)",
+            color = "Shared work assignment",
+            title = title
+        ) +
+        facet_wrap(~unit) +
+        theme(
+            text = element_text(size = 15),
+            axis.text.x = element_text(hjust = 0, vjust = 1, angle = 310)
+        )
+}
+
+seg_dfs <-
+    list(
+        arrest_segregation_unweighted,
+        arrest_segregation_unweighted
+    )
+
+seg_cols <- list("officer_race", "officer_sex")
+
+titles <-
+    list(
+        "Segregation over time within the co-arrest network based on officer race",
+        "Segregation over time within the co-arrest network based on officer sex"
+    )
+
+seg_graphs_over_time <-
+    pmap(
+        list(seg_df = seg_dfs, seg_col = seg_cols, title = titles),
+        generate_seg_graph_over_time
+    )
+
+seg_graphs_over_time
+```
+
+## Most racially segregated unit
+
+An idea for how to present our findings for the presentation. We present contrasting officer co-arrest networks.
+
+* The first would be the unit + year combination with the greatest disparity in racial segregation due to work assignments as shown below.
+* The second graph would be a unit + year combination with very little disparity in racial segregation due to work assignments. This is the second graph.
+
+```{r, include = T, output = T, fig.width = 10, fig.height = 6}
+most_racially_segregated <-
+    arrest_network %>%
+    activate("edges") %>%
+    filter(year == 2013, unit == "22") %>%
+    activate(nodes) %>%
+    filter(!node_is_isolated())
+
+ggraph(most_racially_segregated, layout = "fr") +
+    geom_edge_link(
+        edge_alpha = 0.1, edge_color = "black", aes(edge_width = nr_arrests_together)
+    ) +
+    geom_node_point(aes(color = officer_race)) +
+    facet_edges(~shared_beat_no_alpha) +
+    theme_void() +
+    labs(
+        edge_width = "Nr Arrests Together",
+        color = "Officer Race",
+        title = "Unit: 22, Year: 2013, Greatest disparity in racial segregation"
+    )
+```
+
+```{r, include = T, output = T, fig.width = 10, fig.height = 6}
+not_racially_segregated <-
+    arrest_network %>%
+    activate("edges") %>%
+    filter(year == 2015, unit == "8") %>%
+    activate(nodes) %>%
+    filter(!node_is_isolated())
+
+ggraph(not_racially_segregated, layout = "fr") +
+    geom_edge_link(
+        edge_alpha = 0.1, edge_color = "black", aes(edge_width = nr_arrests_together)
+    ) +
+    geom_node_point(aes(color = officer_race)) +
+    facet_edges(~shared_beat_no_alpha) +
+    theme_void() +
+    labs(
+        edge_width = "Nr Arrests Together",
+        color = "Officer Race",
+        title = "Unit: 8, Year: 2015, Small disparity in racial segregation"
+    )
+```
+
+## Relationship between racial and sex segregation due to work assignments
+
+I was curious if the most racially segregated unit + years (due to work assignments) would also be the most sexually segregated. There is not really a strong correlation between the two, though. This means while work assignments may contribute a lot (or a little) to racial segregation for a given unit + year, they may only contribute a little (or a lot) to sex segregation (and vice versa).
+
+```{r, output = T, include = T, fig.width = 7, fig.height = 5}
+generate_corr_graph <- function(wide_df, col1, col2, x_lab, y_lab, title)  {
+    pearson_corr <- round(cor(wide_df[[col1]], wide_df[[col2]]), 3)
+    spearman_corr <- round(cor(wide_df[[col1]], wide_df[[col2]], method = "spearman"), 3)
+    
+    g <-
+        wide_df %>%
+        ggplot(aes(x = .data[[col1]], y = .data[[col2]])) +
+        geom_point() +
+        theme_bw() +
+        labs(x = x_lab, y = y_lab, title = title) +
+        annotate(
+            geom = "text",
+            x = 4.5,
+            y = 0,
+            label =
+                paste0(
+                    "Pearson Corr. Coefficient: ", pearson_corr, "\n",
+                    "Spearman Rank Corr. Coeffcient: ", spearman_corr
+                ),
+            color = "red"
+        )
+    
+    return(g)
+}
+
+wide_dfs <- list(arrest_segregation_unweighted_wide)
+col1s <- list("officer_race_diff")
+col2s <- list("officer_sex_diff")
+x_labs <- list("Difference in racial segregation due to work assignments")
+y_labs <- list("Difference in sex segregation due to work assignments")
+titles <- list("Comparing racial and sex segregation in the co-arrest network")
+
+corr_graphs <-
+    pmap(
+        list(
+            wide_df = wide_dfs,
+            col1 = col1s,
+            col2 = col2s,
+            x_lab = x_labs,
+            y_lab = y_labs,
+            title = titles
+        ),
+        generate_corr_graph
+    )
+
+corr_graphs
+```

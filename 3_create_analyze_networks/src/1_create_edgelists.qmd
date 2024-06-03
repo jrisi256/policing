@@ -215,7 +215,6 @@ stop_edgelist_df <-
             beat_assigned_1 == beat_assigned_2 & unit_1 == unit_2 & shift_1 == shift_2,
         shared_unit = unit_1 == unit_2
     ) %>%
-    relocate(from, to) %>%
     as_tibble()
 
 write_csv(stop_edgelist_df, file.path(out_path, "stop_edgelist_df.csv"))
